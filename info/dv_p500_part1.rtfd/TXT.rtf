@@ -1,0 +1,220 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1404\cocoasubrtf470
+{\fonttbl\f0\fswiss\fcharset0 CenturyGothic;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red255\green255\blue255;\red0\green14\blue26;
+\red12\green91\blue131;\red27\green102\blue159;\red100\green100\blue100;\red3\green37\blue83;\red233\green239\blue244;
+\red52\green52\blue52;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
+\paperw11900\paperh16840\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\sl640\sa200\qj\partightenfactor0
+
+\f0\fs52 \cf2 \cb3 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 CBM 5/6/700 - Discoveries Part 1\
+\pard\pardeftab720\sl406\sa220\qj\partightenfactor0
+
+\fs28 \cf4 \strokec4 At the time I obtained the 500 and 600 there was precious little available information about them. So I set about delving into their internals and POKEing around to see what I could discover. The following list is an expansion of the information I sent to Adwells:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sl420\sa200\qj\partightenfactor0
+\ls1\ilvl0\cf4 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 The 600 may well have been the replacement for the 500. It used the same casing, with the exception of the back panel that held the connectors and the colour of the LED at the front - green for 500, red for 600. The keyboard layout was identical but the control key functions differed on the 500 because of the need to control colour.\cb1 \
+\ls1\ilvl0\cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 The operating system of the 600 - Kernel and BASIC - was identical to that of the 128K 700 series though the character generator chip was different as the 700 had 9x14 pixel characters. When the system powered up, it first checked to see if it was a 700 with a built-in screen (bit 7 set on the port at $DF02) and, failing that, tested bit 6 to see if it was running at 50 or 60 Hz after which it set the 6845 video chip accordingly. The code for this was at $E260. BASIC was at $8000 to $BFFF, the Kernel was at $E000 to $FFFF with the I/O chips and screen memory at $D000 to $DFFF (all in bank 15).\cb1 \
+\ls1\ilvl0\cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 There were several sets of ROMs around for these machines. Early ones apparently contained the code to run the cassette port though this was dropped to make room for the IPC code to interface with the second processor. Any attempt to load or save to tape on the later versions gives the error '?DEVICE NOT PRESENT'. The remaining cassette coding jumped through only one vector (at $036A) before going off to the error message. To determine which call was being processed through the vector would mean checking the return address left on the stack. The electronics side of the cassette port worked properly, so it would have been possible to reinstall the code in either RAM or as an add-on cartridge.\cb1 \
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sl420\qj\partightenfactor0
+\ls1\ilvl0\cf4 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 \
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sl420\sa200\qj\partightenfactor0
+\ls1\ilvl0\cf4 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 The ROM numbers for both my machines were:\
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrt\brdrs\brdrw20\brdrcf7 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat5 \clwWidth1180\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf6 \clbrdrr\brdrs\brdrw20\brdrcf6 \clpadt40 \clpadl40 \clpadb40 \clpadr40 \gaph\cellx2880
+\clvertalt \clcbpat5 \clwWidth1400\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf6 \clbrdrr\brdrs\brdrw20\brdrcf6 \clpadt40 \clpadl40 \clpadb40 \clpadr40 \gaph\cellx5760
+\clvertalt \clcbpat5 \clwWidth1560\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf6 \clbrdrr\brdrs\brdrw20\brdrcf6 \clpadt40 \clpadl40 \clpadb40 \clpadr40 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl360\partightenfactor0
+\ls1\ilvl0
+\fs30 \cf3 \cb1 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl360\partightenfactor0
+\ls1\ilvl0\cf3 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 500\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl360\partightenfactor0
+\ls1\ilvl0\cf3 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 600\cb1 \cell \row
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat9 \clwWidth1140\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx2880
+\clvertalt \clcbpat9 \clwWidth1360\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx5760
+\clvertalt \clcbpat9 \clwWidth1520\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0
+\fs26 \cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 Kernel\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 901234-02\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 901244-03B\cb1 \cell \row
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat9 \clwWidth1140\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx2880
+\clvertalt \clcbpat9 \clwWidth1360\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx5760
+\clvertalt \clcbpat9 \clwWidth1520\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 BASIC hi\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 901235-02\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 901242-02\cb1 \cell \row
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrb\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat9 \clwWidth1140\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx2880
+\clvertalt \clcbpat9 \clwWidth1360\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx5760
+\clvertalt \clcbpat9 \clwWidth1520\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 BASIC lo\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 901236-02\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 901243-02B\cb1 \cell \lastrow\row
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sl420\sa200\qj\partightenfactor0
+\ls1\ilvl0
+\fs28 \cf4 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 The ROMs were, in fact, 2764 EPROMs sitting in adaptor sockets in the 600 and in an adaptor board in the 500. Adaptors were needed because the EPROMs were 28-pin and the sockets in the board were 24-pin for 2364 ROMs.\cb1 \
+\ls1\ilvl0\cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 RAM banking on the 5/6/700s was handled purely by the 6509 CPU and was quite unlike that of the C128 where the bottom 1K of memory was never banked at all (the C128's 8502 CPU could only access the bank that was currently set by the Memory Management chip). See page 4 for more information on the 6509.\cb1 \
+\ls1\ilvl0\cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 Unless upgraded, the number of RAM banks available depended upon the model number - the second digit in the model number indicated the size: 0 meant 64K, 1 was 128K and 2 was 256K. My 500 was actually marked 510 and, similarly, the 600 was really a 610 - both came with 128K. Adding new banks of RAM didn't mean that you would automatically get access to them from BASIC - this was actually determined by the BASIC ROM. I managed to obtain the source assembler code for the 6/700 series and it could be plainly seen that it could be conditionally compiled for all three RAM sizes. No doubt, making one system that catered for all sizes would have slowed the machines down.\cb1 \
+\ls1\ilvl0\cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 The way the RAM banks were used was as follows (the numbers are the RAM bank number):\
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrt\brdrs\brdrw20\brdrcf7 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat5 \clwWidth3100\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf6 \clbrdrr\brdrs\brdrw20\brdrcf6 \clpadt40 \clpadl40 \clpadb40 \clpadr40 \gaph\cellx2160
+\clvertalt \clcbpat5 \clwWidth1640\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf6 \clbrdrr\brdrs\brdrw20\brdrcf6 \clpadt40 \clpadl40 \clpadb40 \clpadr40 \gaph\cellx4320
+\clvertalt \clcbpat5 \clwWidth1960\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf6 \clbrdrr\brdrs\brdrw20\brdrcf6 \clpadt40 \clpadl40 \clpadb40 \clpadr40 \gaph\cellx6480
+\clvertalt \clcbpat5 \clwWidth1960\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf6 \clbrdrr\brdrs\brdrw20\brdrcf6 \clpadt40 \clpadl40 \clpadb40 \clpadr40 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl360\partightenfactor0
+\ls1\ilvl0
+\fs30 \cf3 \cb1 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl360\partightenfactor0
+\ls1\ilvl0\cf3 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 500 (128K)\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl360\partightenfactor0
+\ls1\ilvl0\cf3 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 6/700 (128K)\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl360\partightenfactor0
+\ls1\ilvl0\cf3 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 6/700 (256K)\cb1 \cell \row
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat9 \clwWidth3060\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx2160
+\clvertalt \clcbpat9 \clwWidth1600\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx4320
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx6480
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0
+\fs26 \cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 BASIC Program\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 0\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 1\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 1\cb1 \cell \row
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat9 \clwWidth3060\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx2160
+\clvertalt \clcbpat9 \clwWidth1600\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx4320
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx6480
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 All Variables\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 1\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 2\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 -\cb1 \cell \row
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat9 \clwWidth3060\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx2160
+\clvertalt \clcbpat9 \clwWidth1600\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx4320
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx6480
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 Simple Integer/FP Vars\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 -\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 -\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 2\cb1 \cell \row
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat9 \clwWidth3060\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx2160
+\clvertalt \clcbpat9 \clwWidth1600\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx4320
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx6480
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 Array variables\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 -\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 -\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 3\cb1 \cell \row
+
+\itap1\trowd \taflags0 \trgaph108\trleft-108 \tamart160 \trbrdrl\brdrs\brdrw20\brdrcf7 \trbrdrb\brdrs\brdrw20\brdrcf7 \trbrdrr\brdrs\brdrw20\brdrcf7 \tapadt100 \trpadl100 \tapadb100 \trpadr100 
+\clvertalt \clcbpat9 \clwWidth3060\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx2160
+\clvertalt \clcbpat9 \clwWidth1600\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx4320
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx6480
+\clvertalt \clcbpat9 \clwWidth1920\clftsWidth3 \clmart10 \clmarl10 \clmarb10 \clmarr10 \clbrdrt\brdrnil \clbrdrl\brdrnil \clbrdrb\brdrs\brdrw20\brdrcf10 \clbrdrr\brdrs\brdrw20\brdrcf10 \clpadt60 \clpadl60 \clpadb60 \clpadr60 \gaph\cellx8640
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 Strings\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 -\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 -\cb1 \cell 
+\pard\intbl\itap1\tx220\tx720\pardeftab720\li720\fi-720\sl320\qc\partightenfactor0
+\ls1\ilvl0\cf8 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec8 4\cb1 \cell \lastrow\row
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sl420\sa200\qj\partightenfactor0
+\ls1\ilvl0
+\fs28 \cf4 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 When the machines powered up they checked each RAM bank in succession by writing to EVERY LOCATION (non-destructively - the original value was restored after the write). As each bank took around 2 seconds to be fully checked this meant that a machine upgraded to the maximum possible 896K of memory would take over half a minute before the power-up message came up. For the 500 all the timings were doubled as it had a 1MHz system clock whilst the 6/700s ran at 2MHz. Note that the 500 allowed a possible expansion up to 960K instead of 896K as its first bank was bank 0 (theoretically the 6/700 could go up to 960K as well by adding RAM in bank 0 but this would never be checked by the operating system which always started at bank 1).\cb1 \
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sl420\qj\partightenfactor0
+\ls1\ilvl0\cf4 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 \
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sl420\sa200\qj\partightenfactor0
+\ls1\ilvl0\cf4 \cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 Although BASIC use of memory was determined by the BASIC ROMs, the Kernel could realise that extra memory existed provided it was contiguous - i.e. a system having banks 1 to 6 and 8 would not recognise bank 8 as it would halt its search when bank 7 was found to be empty. BASIC used the top of the highest bank found to store the function key definitions and the RS-232 input buffer. There was no RS-232 output buffer - each data byte was sent straight to the 6551 chip and then the system looped until either the byte had been processed or the STOP key was pressed. Other buffers were placed at the top of bank 1 (bank 0 in the 500) - these were the 160-character input buffer, the random number used by RND and various odd bytes used by maths routines. These were all located by pointers in zero page (bank 15) and so could be shifted down if the user needed the memory for other purposes. When using the RS-232 channel the computer could be made to do automatic ASCII to PETSCII conversion, and vice versa, by using a secondary address above 127.\cb1 \
+\ls1\ilvl0\cb3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\'95	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec4 On opening up a 128K machine you could see where the extra 128K of RAM was meant to go. Unfortunately the boards were flow-soldered, which meant that all the pin holes for the empty RAM banks had been filled in and required an hour or two of careful de-soldering before any new chips or sockets could be inserted. The chips required were the once-standard 64K by 1-bit dynamics (4164, 4564, 4864 etc.) at around 150nS. Also needed were a couple of electrolytic capacitors (10 to 20uF in the 600, 2 to 10uF in the 500) and some 0.2uF decoupling capacitors. The electrolytics went just to the left of the RAM chips (to the right in the 500) and the decouplers went in between each RAM bank - the existing RAM banks would give an indication as to what was required.\cb1 \
+}
