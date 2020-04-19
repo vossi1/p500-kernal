@@ -1,5 +1,5 @@
-; Commodore P500 Kernal 901234-02 with Fastboot Patch
-; disassembled with DA65 18.4.2020
+; Commodore P500 Kernal 901234-02 with Fastboot Patches from Steve Gray
+; disassembled with DA65 18.4.2020 (Info-file from Ulrich Bassewitz)
 ; modified for ACME assembling by Vossi 19.4.2020
 
 !cpu 6502
