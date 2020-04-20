@@ -3847,125 +3847,125 @@ LF998:  rol                                     ; F998 2A                       
         rts                                     ; F99B 60                       `
 
 ; ----------------------------------------------------------------------------
-; F99C Test bytes for ROMs
+; Test bytes for ROMs
 patall:
-        !byte $C2,$CD
+!byte   $C2,$CD                                 ; F99C C2 CD                    ..
 ; ----------------------------------------------------------------------------
-; F99E System reset routine
-cold:   ldx #$FE
-        sei                             ; disable interrupts
-        txs                             ; init stack
-        cld                             ; clear decimal flag
-        lda #$FF                        ; compare warm start flags if both are $A5
-        eor evect+2
-        eor evect+3
-        beq swarm                       ; jump to warm start
-; F9AD System cold start
-        lda #$06                        ; init load/store variables
-        sta eal
-        lda #$00
-        sta eah
-        sta evect
-        ldx #$30
-sloop0: ldy #$03
-        lda eah
-        bmi sloop2
-        clc
-        adc #$10
-        sta eah
-        inx
-        txa
-        cmp (eal),y
-        bne sloop0
-        dey
-sloop1: lda (eal),y
-        dey
-        bmi sloop3
-        cmp patall,y                    ; compare cbm-rom test-bytes
-        beq sloop1
-        bne sloop0
-sloop2: ldy #$E0
-        !byte $2C
-sloop3: ldy eah
-        sty evect+1
-        tax
-        bpl swarm                       ; jump to warm start
-        jsr ioinit                      ; sub: I/O register init $F9FE
-        lda #$F0
-        sta pkybuf+1                    ; start F-keys
-        jsr jcint                       ; sub: initialize $E004
-        jsr ramtas                      ; sub: ram-test $FA94
-        jsr restor                      ; sub: init standard-vectors $FBB1
-        jsr jcint                       ; sub: initialize $E004
-        lda #$A5
-        sta evect+2                     ; save warm start flag
-; F9FB Warm start entry
-swarm:  jmp (evect)                     ; jump to basic warm start $BBA0
+; System reset routine
+cold:   ldx     #$FE                            ; F99E A2 FE                    ..
+        sei                                     ; F9A0 78                       x
+        txs                                     ; F9A1 9A                       .
+        cld                                     ; F9A2 D8                       .
+        lda     #$FF                            ; F9A3 A9 FF                    ..
+        eor     evect+2                         ; F9A5 4D FA 03                 M..
+        eor     evect+3                         ; F9A8 4D FB 03                 M..
+        beq     warm                            ; F9AB F0 4E                    .N
+        lda     #$06                            ; F9AD A9 06                    ..
+        sta     eal                             ; F9AF 85 96                    ..
+        lda     #$00                            ; F9B1 A9 00                    ..
+        sta     eah                             ; F9B3 85 97                    ..
+        sta     evect                           ; F9B5 8D F8 03                 ...
+        ldx     #$30                            ; F9B8 A2 30                    .0
+LF9BA:  ldy     #$03                            ; F9BA A0 03                    ..
+        lda     eah                             ; F9BC A5 97                    ..
+        bmi     LF9D8                           ; F9BE 30 18                    0.
+        clc                                     ; F9C0 18                       .
+        adc     #$10                            ; F9C1 69 10                    i.
+        sta     eah                             ; F9C3 85 97                    ..
+        inx                                     ; F9C5 E8                       .
+        txa                                     ; F9C6 8A                       .
+        cmp     (eal),y                         ; F9C7 D1 96                    ..
+        bne     LF9BA                           ; F9C9 D0 EF                    ..
+        dey                                     ; F9CB 88                       .
+LF9CC:  lda     (eal),y                         ; F9CC B1 96                    ..
+        dey                                     ; F9CE 88                       .
+        bmi     LF9DB                           ; F9CF 30 0A                    0.
+        cmp     patall,y                        ; F9D1 D9 9C F9                 ...
+        beq     LF9CC                           ; F9D4 F0 F6                    ..
+        bne     LF9BA                           ; F9D6 D0 E2                    ..
+LF9D8:  ldy     #$E0                            ; F9D8 A0 E0                    ..
+!byte   $2C                                     ; F9DA 2C                       ,
+LF9DB:  ldy     eah                             ; F9DB A4 97                    ..
+        sty     evect+1                         ; F9DD 8C F9 03                 ...
+        tax                                     ; F9E0 AA                       .
+        bpl     warm                            ; F9E1 10 18                    ..
+        jsr     ioinit                          ; F9E3 20 FE F9                  ..
+        lda     #$F0                            ; F9E6 A9 F0                    ..
+        sta     pkybuf+1                        ; F9E8 85 C1                    ..
+        jsr     jcint                           ; F9EA 20 04 E0                  ..
+        jsr     ramtas                          ; F9ED 20 94 FA                  ..
+        jsr     restor                          ; F9F0 20 B1 FB                  ..
+        jsr     jcint                           ; F9F3 20 04 E0                  ..
+        lda     #$A5                            ; F9F6 A9 A5                    ..
+        sta     evect+2                         ; F9F8 8D FA 03                 ...
+; Warm start entry
+warm:   jmp     (evect)                         ; F9FB 6C F8 03                 l..
 
 ; ----------------------------------------------------------------------------
-; F9FE I/O register init
-ioinit: lda #$F3
-        sta tpi1_ctrl
-        lda #$FF
-        sta tpi1_ddrc
-        lda #$5C
-        sta tpi1_pb
-        lda #$7D
-        sta tpi1_ddrb
-        lda #$3D     
-        sta tpi1_pa  
-        lda #$3F     
-        sta tpi1_ddra
-        lda #$FF     
-        sta tpi2_pa  
-        sta tpi1_pb  
-        sta tpi2_ddra
-        sta tpi2_ddrb
-        lsr tpi2_pa  
-        lda #$C0     
-        sta tpi2_pc  
-        sta tpi2_ddrc
-        lda #$84     
-        sta cia2_icr 
-        ldy #$00     
-        sty cia2_ddra
-        sty cia2_ddrb
-        sty cia2_crb 
-        sta cia2_tod10
-        sty tpi1_pc   
-io100:  lda tpi1_pc   
-        ror        
-        bcc io100  
-        sty tpi1_pc
-        ldx #$00   
-        ldy #$00   
-io110:  inx        
-        bne io110  
-        iny        
-        lda tpi1_pc
-        ror        
-        bcc io110  
-        cpy #$0E   
-        bcc io120  
-        lda #$88   
-        !byte $2C  
-io120:  lda #$08   
-        sta cia2_cra
-        lda cia1_icr
-        lda #$90    
-        sta cia1_icr
-        lda #$40    
-        sta cia1_prb
-        lda #$00    
-        sta cia1_ddra
-        sta cia1_crb 
-        sta cia1_cra 
-        lda #$48     
-        sta cia1_ddrb
-        lda #$01    
-        ora tpi1_pb 
-        sta tpi1_pb 
-        rts         
+; I/O register init
+ioinit: lda     #$F3                            ; F9FE A9 F3                    ..
+        sta     tpi1_ctrl                       ; FA00 8D 06 DE                 ...
+        lda     #$FF                            ; FA03 A9 FF                    ..
+        sta     tpi1_ddrc                       ; FA05 8D 05 DE                 ...
+        lda     #$5C                            ; FA08 A9 5C                    .\
+        sta     tpi1_pb                         ; FA0A 8D 01 DE                 ...
+        lda     #$7D                            ; FA0D A9 7D                    .}
+        sta     tpi1_ddrb                       ; FA0F 8D 04 DE                 ...
+        lda     #$3D                            ; FA12 A9 3D                    .=
+        sta     tpi1_pa                         ; FA14 8D 00 DE                 ...
+        lda     #$3F                            ; FA17 A9 3F                    .?
+        sta     tpi1_ddra                       ; FA19 8D 03 DE                 ...
+        lda     #$FF                            ; FA1C A9 FF                    ..
+        sta     tpi2_pa                         ; FA1E 8D 00 DF                 ...
+        sta     tpi1_pb                         ; FA21 8D 01 DE                 ...
+        sta     tpi2_ddra                       ; FA24 8D 03 DF                 ...
+        sta     tpi2_ddrb                       ; FA27 8D 04 DF                 ...
+        lsr     tpi2_pa                         ; FA2A 4E 00 DF                 N..
+        lda     #$C0                            ; FA2D A9 C0                    ..
+        sta     tpi2_pc                         ; FA2F 8D 02 DF                 ...
+        sta     tpi2_ddrc                       ; FA32 8D 05 DF                 ...
+        lda     #$84                            ; FA35 A9 84                    ..
+        sta     cia2_icr                        ; FA37 8D 0D DC                 ...
+        ldy     #$00                            ; FA3A A0 00                    ..
+        sty     cia2_ddra                       ; FA3C 8C 02 DC                 ...
+        sty     cia2_ddrb                       ; FA3F 8C 03 DC                 ...
+        sty     cia2_crb                        ; FA42 8C 0F DC                 ...
+        sta     cia2_tod10                      ; FA45 8D 08 DC                 ...
+        sty     tpi1_pc                         ; FA48 8C 02 DE                 ...
+LFA4B:  lda     tpi1_pc                         ; FA4B AD 02 DE                 ...
+        ror                                     ; FA4E 6A                       j
+        bcc     LFA4B                           ; FA4F 90 FA                    ..
+        sty     tpi1_pc                         ; FA51 8C 02 DE                 ...
+        ldx     #$00                            ; FA54 A2 00                    ..
+        ldy     #$00                            ; FA56 A0 00                    ..
+LFA58:  inx                                     ; FA58 E8                       .
+        bne     LFA58                           ; FA59 D0 FD                    ..
+        iny                                     ; FA5B C8                       .
+        lda     tpi1_pc                         ; FA5C AD 02 DE                 ...
+        ror                                     ; FA5F 6A                       j
+        bcc     LFA58                           ; FA60 90 F6                    ..
+        cpy     #$0E                            ; FA62 C0 0E                    ..
+        bcc     LFA69                           ; FA64 90 03                    ..
+        lda     #$88                            ; FA66 A9 88                    ..
+!byte   $2C                                     ; FA68 2C                       ,
+LFA69:  lda     #$08                            ; FA69 A9 08                    ..
+        sta     cia2_cra                        ; FA6B 8D 0E DC                 ...
+        lda     cia1_icr                        ; FA6E AD 0D DB                 ...
+        lda     #$90                            ; FA71 A9 90                    ..
+        sta     cia1_icr                        ; FA73 8D 0D DB                 ...
+        lda     #$40                            ; FA76 A9 40                    .@
+        sta     cia1_prb                        ; FA78 8D 01 DB                 ...
+        lda     #$00                            ; FA7B A9 00                    ..
+        sta     cia1_ddra                       ; FA7D 8D 02 DB                 ...
+        sta     cia1_crb                        ; FA80 8D 0F DB                 ...
+        sta     cia1_cra                        ; FA83 8D 0E DB                 ...
+        lda     #$48                            ; FA86 A9 48                    .H
+        sta     cia1_ddrb                       ; FA88 8D 03 DB                 ...
+        lda     #$01                            ; FA8B A9 01                    ..
+        ora     tpi1_pb                         ; FA8D 0D 01 DE                 ...
+        sta     tpi1_pb                         ; FA90 8D 01 DE                 ...
+        rts                                     ; FA93 60                       `
+
 ; ----------------------------------------------------------------------------
 ; RAM test
 ramtas: lda     #$00                            ; FA94 A9 00                    ..
