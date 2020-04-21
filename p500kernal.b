@@ -1,12 +1,16 @@
 ; Commodore P500 Kernal 901234-02 with Fastboot Patches from Steve Gray
 ; disassembled with DA65 18.4.2020 (Info-file from Ulrich Bassewitz)
 ; modified for ACME assembling by Vossi 19.4.2020
+; version 1.1
 
 !cpu 6502
-!ct scr         ; standard text/char conversion table -> Screencode (pet = PETSCII, raw)
-!to "kernal.bin", plain 
-
+!ct scr         ; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
+!to "kernal.bin", plain
+; Constants
+FILL            = $AA           ; Fills free memory areas with $00
+STANDARD_FKEYS  = 1             ; Standard F-keys
 ; ----------------------------------------------------------------------------
+; Zero Page
 e6509           = $00                          ; 6509 execution bank
 i6509           = $01                          ; 6509 indirect bank
 fnadr           = $90                          ; Far address of file name
@@ -82,6 +86,8 @@ color           = $EC                          ; Character color
 gdcol           = $ED                          ; Color behind cursor
 saver           = $EE                          ; Temp store for output char
 scrseg          = $EF                          ; Segment of video ram
+; ----------------------------------------------------------------------------
+; addresses
 stack           = $0100
 stackp          = $01FF
 cinv            = $0300                        ; IRQ indirect vector
@@ -169,6 +175,8 @@ ramloc          = $0400                        ; First free ram location
 ipb             = $0800
 ijtab           = $0810
 ipptab          = $0910
+; ----------------------------------------------------------------------------
+; ROM + I/O addresses
 basic           = $8000
 charrom         = $C000
 vidram          = $D000
@@ -249,170 +257,133 @@ tpi2_ddrb       = $DF04
 tpi2_ddrc       = $DF05
 tpi2_ctrl       = $DF06
 tpi2_air        = $DF07
-
-*= $e000
 ; ----------------------------------------------------------------------------
-; Jump vector: Monitor cold start
-jmoncld:jmp     moncold                         ; E000 4C 09 EE                 L..
-
+!initmem FILL
+*= $E000
 ; ----------------------------------------------------------------------------
-        nop                                     ; E003 EA                       .
-; Jump vector: Screen editor init
-jcint:  jmp     cint                            ; E004 4C 44 E0                 LD.
-
-; ----------------------------------------------------------------------------
-; Jump vector: Read a key from the keyboard
-jrdkey: jmp     rdkey                           ; E007 4C F4 E0                 L..
-
-; ----------------------------------------------------------------------------
-; Jump vector: Read key from screen
-jscrget:jmp     scrget                          ; E00A 4C 74 E1                 Lt.
-
-; ----------------------------------------------------------------------------
-; Jump vector: Print character on screen
-jprint: jmp     print                           ; E00D 4C 84 E2                 L..
-
-; ----------------------------------------------------------------------------
-; Jump vecror: Return screen dimensions
-jscrorg:jmp     scrorg                          ; E010 4C 3F E0                 L?.
-
-; ----------------------------------------------------------------------------
-; Jump vector: keyboard scan
-jscnkey:jmp     scnkey                          ; E013 4C 0C E9                 L..
-
-; ----------------------------------------------------------------------------
-; Jump vector: Set screen pointers to cursor position
-jmovcur:jmp     nofunc                          ; E016 4C 39 E0                 L9.
-
-; ----------------------------------------------------------------------------
-; Jump vector: Get/set the cursor position
-jplot:  jmp     plot                            ; E019 4C 25 E0                 L%.
-
-; ----------------------------------------------------------------------------
-; Jump vector: Return CIA base address
-jiobase:jmp     iobase                          ; E01C 4C 3A E0                 L:.
-
-; ----------------------------------------------------------------------------
-; Jump vector: Handle an escape sequence
-jescape:jmp     escape                          ; E01F 4C 3C EA                 L<.
-
-; ----------------------------------------------------------------------------
-; Jump vector: Get/set/list function keys
-jfunkey:jmp     keyfun                          ; E022 4C A9 E7                 L..
-
+; Jump vector table
+jmoncld:jmp moncold             ; Monitor cold start
+        nop
+jcint:  jmp cint                ; Screen editor, F-key init
+jrdkey: jmp rdkey               ; Read a key from keyboard to A
+jscrget:jmp scrget              ; Read character from screen to A
+jprint: jmp print               ; Print character from A on screen
+jscrorg:jmp scrorg              ; Return screen dimensions to X, Y
+jscnkey:jmp scnkey              ; Keyboard scan
+jmovcur:jmp nofunc              ; Not necessary on P500 - only used with CRTC
+jplot:  jmp plot                ; Get/set the cursor position to/from X, Y
+jiobase:jmp iobase              ; Return CIA base address to X, Y
+jescape:jmp escape              ; Handle an escape sequence
+jfunkey:jmp keyfun              ; Get/set/list function keys
 ; ----------------------------------------------------------------------------
 ; Get/set the cursor position depending on the carry flag
-plot:   bcs     rdplt                           ; E025 B0 0E                    ..
-        stx     tblx                            ; E027 86 CA                    ..
-        stx     lsxp                            ; E029 86 CF                    ..
-        sty     pntr                            ; E02B 84 CB                    ..
-        sty     lstp                            ; E02D 84 CE                    ..
-        jsr     sreset                          ; E02F 20 93 EA                  ..
-        jsr     movcur                          ; E032 20 DF E0                  ..
-rdplt:  ldx     tblx                            ; E035 A6 CA                    ..
-        ldy     pntr                            ; E037 A4 CB                    ..
-nofunc: rts                                     ; E039 60                       `
-
+plot:   bcs rdplt               ; if C=1 get cursor position
+        stx tblx                ; store column 
+        stx lsxp                ; store last column
+        sty pntr                ; store row
+        sty lstp                ; store last row
+        jsr sreset              ; sub: Window to full screen (off)
+        jsr movcur              ; sub: set cursor - not necessary on P500
+rdplt:  ldx tblx                ; load column
+        ldy pntr                ; load row
+nofunc: rts
 ; ----------------------------------------------------------------------------
 ; Return CIA base address
-iobase: ldx     #$00                            ; E03A A2 00                    ..
-        ldy     #$DC                            ; E03C A0 DC                    ..
-        rts                                     ; E03E 60                       `
-
+iobase: ldx #$00
+        ldy #$DC
+        rts
 ; ----------------------------------------------------------------------------
 ; Return screen dimensions
-scrorg: ldx     #$28                            ; E03F A2 28                    .(
-        ldy     #$19                            ; E041 A0 19                    ..
-        rts                                     ; E043 60                       `
-
+scrorg: ldx #$28
+        ldy #$19
+        rts
 ; ----------------------------------------------------------------------------
 ; Screen editor init
-cint:   lda     #$00                            ; E044 A9 00                    ..
-        ldx     #$2D                            ; E046 A2 2D                    .-
-LE048:  sta     keypnt,x                        ; E048 95 C2                    ..
-        dex                                     ; E04A CA                       .
-        bpl     LE048                           ; E04B 10 FB                    ..
-        ldx     #$3C                            ; E04D A2 3C                    .<
-LE04F:  sta     keysiz,x                        ; E04F 9D 8D 03                 ...
-        dex                                     ; E052 CA                       .
-        bpl     LE04F                           ; E053 10 FA                    ..
-        lda     #$0F                            ; E055 A9 0F                    ..
-        sta     scrseg                          ; E057 85 EF                    ..
-        lda     #$0C                            ; E059 A9 0C                    ..
-        sta     blncnt                          ; E05B 85 E7                    ..
-        sta     blnon                           ; E05D 85 E6                    ..
-        lda     pkybuf                          ; E05F A5 C0                    ..
-        ora     pkybuf+1                        ; E061 05 C1                    ..
-        bne     LE087                           ; E063 D0 22                    ."
-        lda     hiadr                           ; E065 AD 55 03                 .U.
-        sta     pkyend                          ; E068 8D 80 03                 ...
-        lda     hiadr+1                         ; E06B AD 56 03                 .V.
-        sta     pkyend+1                        ; E06E 8D 81 03                 ...
-        lda     #$40                            ; E071 A9 40                    .@
-        ldx     #$00                            ; E073 A2 00                    ..
-        ldy     #$02                            ; E075 A0 02                    ..
-        jsr     kalloc                          ; E077 20 81 FF                  ..
-        bcs     LE0A2                           ; E07A B0 26                    .&
-        sta     keyseg                          ; E07C 8D 82 03                 ...
-        inx                                     ; E07F E8                       .
-        stx     pkybuf                          ; E080 86 C0                    ..
-        bne     LE085                           ; E082 D0 01                    ..
-        iny                                     ; E084 C8                       .
-LE085:  sty     pkybuf+1                        ; E085 84 C1                    ..
-LE087:  ldy     #$39                            ; E087 A0 39                    .9
-        jsr     pagkey                          ; E089 20 67 E2                  g.
-LE08C:  lda     keylen+9,y                      ; E08C B9 B5 EC                 ...
-        dey                                     ; E08F 88                       .
-        sta     (pkybuf),y                      ; E090 91 C0                    ..
-        bne     LE08C                           ; E092 D0 F8                    ..
-        jsr     pagres                          ; E094 20 7C E2                  |.
-        ldy     #$0A                            ; E097 A0 0A                    ..
-LE099:  lda     ctlvect+63,y                    ; E099 B9 AB EC                 ...
-        sta     pagsav,y                        ; E09C 99 8C 03                 ...
-        dey                                     ; E09F 88                       .
-        bne     LE099                           ; E0A0 D0 F7                    ..
-LE0A2:  jsr     sreset                          ; E0A2 20 93 EA                  ..
-        ldx     #$11                            ; E0A5 A2 11                    ..
-        ldy     #$21                            ; E0A7 A0 21                    .!
-LE0A9:  lda     bits+7,x                        ; E0A9 BD F6 EC                 ...
-        jsr     wrtvic                          ; E0AC 20 12 E6                  ..
-        dey                                     ; E0AF 88                       .
-        dex                                     ; E0B0 CA                       .
-        bne     LE0A9                           ; E0B1 D0 F6                    ..
-        jsr     grcrt                           ; E0B3 20 53 E2                  S.
-        ldx     #$0A                            ; E0B6 A2 0A                    ..
-LE0B8:  lda     vicinit+16,x                    ; E0B8 BD 07 ED                 ...
-        sta     keyd+9,x                        ; E0BB 9D B4 03                 ...
-        dex                                     ; E0BE CA                       .
-        bne     LE0B8                           ; E0BF D0 F7                    ..
-        lda     #$06                            ; E0C1 A9 06                    ..
-        sta     color                           ; E0C3 85 EC                    ..
+cint:   lda #$00
+        ldx #$2D
+cloop1: sta keypnt,x            ; clear key buffer
+        dex
+        bpl cloop1
+        ldx #$3C
+cloop2: sta keysiz,x            ; clear reverse flags
+        dex
+        bpl cloop2
+        lda #$0F
+        sta scrseg
+        lda #$0C
+        sta blncnt                          ; E05B 85 E7                    ..
+        sta blnon                           ; E05D 85 E6                    ..
+        lda pkybuf                          ; E05F A5 C0                    ..
+        ora pkybuf+1                        ; E061 05 C1                    ..
+        bne +
+        lda hiadr                           ; E065 AD 55 03                 .U.
+        sta pkyend                          ; E068 8D 80 03                 ...
+        lda hiadr+1                         ; E06B AD 56 03                 .V.
+        sta pkyend+1                        ; E06E 8D 81 03                 ...
+        lda #$40
+        ldx #$00
+        ldy #$02
+        jsr kalloc                          ; E077 20 81 FF                  ..
+        bcs noroom
+        sta keyseg                          ; E07C 8D 82 03                 ...
+        inx
+        stx pkybuf                          ; E080 86 C0                    ..
+        bne room10
+        iny
+room10: sty pkybuf+1                        ; E085 84 C1                    ..
++       ldy #$39
+        jsr pagkey                          ; E089 20 67 E2                  g.
+kyset1: lda keylen+9,y                      ; E08C B9 B5 EC                 ...
+        dey
+        sta (pkybuf),y                      ; E090 91 C0                    ..
+        bne kyset1
+        jsr pagres                          ; E094 20 7C E2                  |.
+        ldy #$0A                            ; E097 A0 0A                    ..
+kyset2: lda ctlvect+63,y                    ; E099 B9 AB EC                 ...
+        sta pagsav,y                        ; E09C 99 8C 03                 ...
+        dey
+        bne kyset2
+noroom: jsr sreset              ; sub: home-home screen window full size
+        ldx #$11
+        ldy #$21
+-       lda bits+7,x
+        jsr wrtvic                          ; E0AC 20 12 E6                  ..
+        dey
+        dex
+        bne -
+        jsr grcrt                           ; E0B3 20 53 E2                  S.
+        ldx #$0A                            ; E0B6 A2 0A                    ..
+-       lda vicinit+16,x                    ; E0B8 BD 07 ED                 ...
+        sta keyd+9,x                        ; E0BB 9D B4 03                 ...
+        dex
+        bne -
+        lda #$06
+        sta color                           ; E0C3 85 EC                    ..
 ; Clear the screen, cursor home
-clrscr: jsr     home                            ; E0C5 20 D3 E0                  ..
-LE0C8:  jsr     scrset                          ; E0C8 20 E1 E0                  ..
-        jsr     clrlin                          ; E0CB 20 24 E2                  $.
-        cpx     scbot                           ; E0CE E4 DD                    ..
-        inx                                     ; E0D0 E8                       .
-        bcc     LE0C8                           ; E0D1 90 F5                    ..
+clrscr: jsr home                            ; E0C5 20 D3 E0                  ..
+-       jsr scrset                          ; E0C8 20 E1 E0                  ..
+        jsr clrlin                          ; E0CB 20 24 E2                  $.
+        cpx scbot                           ; E0CE E4 DD                    ..
+        inx
+        bcc -
 ; Cursor home
-home:   ldx     sctop                           ; E0D3 A6 DC                    ..
-        stx     tblx                            ; E0D5 86 CA                    ..
-        stx     lsxp                            ; E0D7 86 CF                    ..
-stu10:  ldy     sclf                            ; E0D9 A4 DE                    ..
-        sty     pntr                            ; E0DB 84 CB                    ..
-        sty     lstp                            ; E0DD 84 CE                    ..
+home:   ldx sctop                           ; E0D3 A6 DC                    ..
+        stx tblx                            ; E0D5 86 CA                    ..
+        stx lsxp                            ; E0D7 86 CF                    ..
+stu10:  ldy sclf                            ; E0D9 A4 DE                    ..
+        sty pntr                            ; E0DB 84 CB                    ..
+        sty lstp                            ; E0DD 84 CE                    ..
 ; Set screen pointers to cursor position
-movcur: ldx     tblx                            ; E0DF A6 CA                    ..
-scrset: lda     ldtab2,x                        ; E0E1 BD 3A EC                 .:.
-        sta     pnt                             ; E0E4 85 C8                    ..
-        sta     user                            ; E0E6 85 E8                    ..
-        lda     ldtab1,x                        ; E0E8 BD 53 EC                 .S.
-        sta     pnt+1                           ; E0EB 85 C9                    ..
-        and     #$03                            ; E0ED 29 03                    ).
-        ora     #$D4                            ; E0EF 09 D4                    ..
-        sta     user+1                          ; E0F1 85 E9                    ..
+movcur: ldx tblx                            ; E0DF A6 CA                    ..
+scrset: lda ldtab2,x                        ; E0E1 BD 3A EC                 .:.
+        sta pnt                             ; E0E4 85 C8                    ..
+        sta user                            ; E0E6 85 E8                    ..
+        lda ldtab1,x                        ; E0E8 BD 53 EC                 .S.
+        sta pnt+1                           ; E0EB 85 C9                    ..
+        and #$03                            ; E0ED 29 03                    ).
+        ora #$D4                            ; E0EF 09 D4                    ..
+        sta user+1                          ; E0F1 85 E9                    ..
         rts                                     ; E0F3 60                       `
-
 ; ----------------------------------------------------------------------------
 ; Read a key from kbd and return it in A
 rdkey:  ldx     kyndx                           ; E0F4 A6 D6                    ..
@@ -1876,28 +1847,26 @@ escvect:!word   auton-1                         ; EA51 AA EA                    
         !word   notimp-1                        ; EA83 A6 EA                    ..
 ; ----------------------------------------------------------------------------
 ; Set top left window corner
-sethtt: clc                                     ; EA85 18                       .
-!byte   $24                                     ; EA86 24                       $
+sethtt: clc                     ; set upper left corner with C=0
+        !byte $24               ; skip next instruction with bit $xx
 ; Set bottom right window corner
-sethtb: sec                                     ; EA87 38                       8
-window: ldx     pntr                            ; EA88 A6 CB                    ..
-        lda     tblx                            ; EA8A A5 CA                    ..
-        bcc     settps                          ; EA8C 90 0F                    ..
-setbts: sta     scbot                           ; EA8E 85 DD                    ..
-        stx     scrt                            ; EA90 86 DF                    ..
-        rts                                     ; EA92 60                       `
-
+sethtb: sec                     ; set lower right corner with C=1
+window: ldx pntr                ; load cursor column
+        lda tblx                ; load cursour row
+        bcc settps              ; set upper left corner if C=0
+setbts: sta scbot               ; store last row
+        stx scrt                ; store last column
+        rts
 ; ----------------------------------------------------------------------------
 ; Window to full screen (off)
-sreset: lda     #$18                            ; EA93 A9 18                    ..
-        ldx     #$27                            ; EA95 A2 27                    .'
-        jsr     setbts                          ; EA97 20 8E EA                  ..
-        lda     #$00                            ; EA9A A9 00                    ..
-        tax                                     ; EA9C AA                       .
-settps: sta     sctop                           ; EA9D 85 DC                    ..
-        stx     sclf                            ; EA9F 86 DE                    ..
-        rts                                     ; EAA1 60                       `
-
+sreset: lda #$18                ; last row = 24
+        ldx #$27                ; last columns = 39
+        jsr setbts              ; sub: set lower right corner
+        lda #$00                ; clear A, X to first row, column
+        tax
+settps: sta sctop               ; set first row
+        stx sclf                ; set first column
+        rts
 ; ----------------------------------------------------------------------------
 ; Bell on (esc-g)
 bellon: lda     #$00                            ; EAA2 A9 00                    ..
@@ -2032,43 +2001,47 @@ ctlvect:!word   ctluser-1                       ; EC6C 21 E3                    
         !word   colorky-1                       ; ECA8 01 E6                    ..
         !word   colorky-1                       ; ECAA 01 E6                    ..
 ; ----------------------------------------------------------------------------
-; Length of function key texts
-keylen:
-!byte   $05,$04,$06,$06,$05,$06,$04,$09 ; ECAC 05 04 06 06 05 06 04 09  ........
-!byte   $07,$05                         ; ECB4 07 05                    ..
+!ifdef STANDARD_FKEYS{
+; ECAC Length of function key texts
+keylen: !byte $05,$04,$06,$06,$05,$06,$04,$09
+        !byte $07,$05
 ; ----------------------------------------------------------------------------
-; Function key definitions
-keydef1:!scr   "PRINT"                         ; ECB6 50 52 49 4E 54           PRINT
-; Text for function key F2
-keydef2:!scr   "LIST"                          ; ECBB 4C 49 53 54              LIST
-; Text for function key F3
-keydef3:!scr   "DLOAD"                         ; ECBF 44 4C 4F 41 44           DLOAD
-!byte   $22                                    ; ECC4 22                       "
-; Text for function key F4
-keydef4:!scr   "DSAVE"                         ; ECC5 44 53 41 56 45           DSAVE
-!byte   $22                                    ; ECCA 22                       "
-; Text for function key F5
-keydef5:!scr   "DOPEN"                         ; ECCB 44 4F 50 45 4E           DOPEN
-; Text for function key F6
-keydef6:!scr   "DCLOSE"                        ; ECD0 44 43 4C 4F 53 45        DCLOSE
-; Text for function key F7
-keydef7:!scr   "COPY"                          ; ECD6 43 4F 50 59              COPY
-; Text for function key F8
-keydef8:!scr   "DIRECTORY"                     ; ECDA 44 49 52 45 43 54 4F 52  DIRECTOR
-                                               ; ECE2 59                       Y
-; Text for function key F9
-keydef9:!scr   "SCRATCH"                       ; ECE3 53 43 52 41 54 43 48     SCRATCH
-; Text for function key F10
-keydef10:!scr   "CHR$("                        ; ECEA 43 48 52 24 28           CHR$(
+; ECB6 Function key definitions
+keydef: !pet "print"                    ; F1
+        !pet "list"                     ; F2
+        !pet "dload",$22                ; F3
+        !pet "dsave",$22                ; F4
+        !pet "dopen"                    ; F5
+        !pet "dclose"                   ; F6
+        !pet "copy"                     ; F7
+        !pet "directory"                ; F8
+        !pet "scratch"                  ; F9
+        !pet "chr$("                    ; F10
+} else{
+; ECAC Length of function key texts
+keylen: !byte $03,$04,$06,$06,$05,$05,$04,$09           ; ***** PATCHED *****
+        !byte $08,$07
 ; ----------------------------------------------------------------------------
-; Generic bit mask table
-bits:
-!byte   $80,$40,$20,$10,$08,$04,$02,$01 ; ECEF 80 40 20 10 08 04 02 01  .@ .....
-; Register values for VIC initialization
-vicinit:
-!byte   $1B,$00,$00,$00,$00,$08,$00,$40 ; ECF7 1B 00 00 00 00 08 00 40  .......@
-!byte   $8F,$00,$00,$00,$00,$00,$00,$03 ; ECFF 8F 00 00 00 00 00 00 03  ........
-!byte   $01                             ; ED07 01                       .
+; ECB6 Function key definitions
+keydef: !pet "run"                      ; F1            ; ***** PATCHED *****
+        !pet "list"                     ; F2
+        !pet "dload",$22                ; F3
+        !pet "dsave",$22                ; F4
+        !pet "print"                    ; F5
+        !pet "chr$("                    ; F6
+        !pet "bank"                     ; F7
+        !pet "directory"                ; F8
+        !pet "scratch",$22              ; F9
+        !pet "header",$22               ; F10
+}
+; ----------------------------------------------------------------------------
+; ECEF Generic bit mask table
+bits:   !byte $80,$40,$20,$10,$08,$04,$02,$01
+; ----------------------------------------------------------------------------
+; ECF7 Register values for VIC initialization
+vicinit:!byte $1B,$00,$00,$00,$00,$08,$00,$40
+        !byte $8F,$00,$00,$00,$00,$00,$00,$03
+        !byte $01
 ; ----------------------------------------------------------------------------
 ; Extended editor vector table (copied to $3B5)
 edvect: !word   LE9F6                           ; ED08 F6 E9                    ..
@@ -2077,42 +2050,15 @@ edvect: !word   LE9F6                           ; ED08 F6 E9                    
         !word   nofunc                          ; ED0E 39 E0                    9.
         !word   nofunc                          ; ED10 39 E0                    9.
 ; ----------------------------------------------------------------------------
-; Table with color values
-colortb:
-!byte   $90,$05,$1C,$9F,$9C,$1E,$1F,$9E ; ED12 90 05 1C 9F 9C 1E 1F 9E  ........
-!byte   $81,$95,$96,$97,$98,$99,$9A,$9B ; ED1A 81 95 96 97 98 99 9A 9B  ........
-; Unused space
-unused1:
-!byte   $00,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED22 00 AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED2A AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED32 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED3A AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED42 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED4A AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED52 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED5A AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED62 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED6A AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED72 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED7A AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED82 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED8A AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED92 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; ED9A AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDA2 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDAA AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDB2 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDBA AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDC2 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDCA AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDD2 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDDA AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDE2 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDEA AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; EDF2 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA         ; EDFA AA AA AA AA AA AA        ......
+; ED12 Table with color values
+colortb:!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
+        !byte $81,$95,$96,$97,$98,$99,$9A,$9B
 ; ----------------------------------------------------------------------------
-; Monitor entry after boot (no basic)
+; ED22 Unused space
+!byte   $00
+*= $EE00
+; ----------------------------------------------------------------------------
+; EE00 Monitor entry after boot (no basic)
 monitor:jsr     ioinit                          ; EE00 20 FE F9                  ..
         jsr     restor                          ; EE03 20 B1 FB                  ..
         jsr     jcint                           ; EE06 20 04 E0                  ..
@@ -3848,60 +3794,58 @@ LF998:  rol                                     ; F998 2A                       
 
 ; ----------------------------------------------------------------------------
 ; F99C Test bytes for ROMs
-patall:
-        !byte $C2,$CD
+patall: !byte $C2,$CD
 ; ----------------------------------------------------------------------------
 ; F99E System reset routine
 cold:   ldx #$FE
-        sei                             ; disable interrupts
-        txs                             ; init stack
-        cld                             ; clear decimal flag
-        lda #$FF                        ; compare warm start flags if both are $A5
+        sei                     ; disable interrupts
+        txs                     ; init stack
+        cld                     ; clear decimal flag
+        lda #$FF                ; compare warm start flags if both are $A5
         eor evect+2
         eor evect+3
-        beq swarm                       ; jump to warm start
+        beq swarm               ; jump to warm start
 ; F9AD System cold start
-        lda #$06                        ; init load/store variables
+        lda #$06                ; init 96/97 to $0006 = position rom ident bytes
         sta eal
         lda #$00
         sta eah
-        sta evect
-        ldx #$30
-sloop0: ldy #$03
+        sta evect               ; set warm start lowbyte to $00
+        ldx #$30                ; init 4. rom ident byte compare value to $30 = '0'
+sloop0: ldy #$03                ; init start compare counter to 4th rom ident byte
         lda eah
-        bmi sloop2
+        bmi sloop2              ; no rom found -> monitor cold boot
         clc
-        adc #$10
+        adc #$10                ; next rom position to check highbyte +$10
         sta eah
-        inx
+        inx                     ; next 4. byte compare value $31, $32, $33...
         txa
-        cmp (eal),y
-        bne sloop0
+        cmp (eal),y             ; compare if 4. byte $31 at address $1006+3...
+        bne sloop0              ; 4. byte does not mach - > next rom pos. $2000, $3000...
+        dey                     ; check next byte backwards if 4th byte matches
+sloop1: lda (eal),y             ; load 3., 2., 1. byte
         dey
-sloop1: lda (eal),y
-        dey
-        bmi sloop3
-        cmp patall,y                    ; compare cbm-rom test-bytes
-        beq sloop1
-        bne sloop0
-sloop2: ldy #$E0
+        bmi sloop3              ; 2. + 3. byte matches - autostart rom found!
+        cmp patall,y            ; compare test bytes 'M', 'B'
+        beq sloop1              ; 3. byte OK -> check 2. byte
+        bne sloop0              ; 2. or 3. ident byte does not mach -> next rom position
+sloop2: ldy #$E0                ; set warm start to $e000 = monitor cold boot
         !byte $2C
 sloop3: ldy eah
-        sty evect+1
-        tax
-        bpl swarm                       ; jump to warm start
-        jsr ioinit                      ; sub: I/O register init $F9FE
+        sty evect+1             ; store rom address highbyte to warm start vector
+        tax                     ; move 1. ident byte to x to set N-flag
+        bpl swarm               ; jump to warm start if value is positive ('c'=$43)
+        jsr ioinit              ; sub: I/O register init $F9FE
         lda #$F0
-        sta pkybuf+1                    ; start F-keys
-        jsr jcint                       ; sub: initialize $E004
-        jsr ramtas                      ; sub: ram-test $FA94
-        jsr restor                      ; sub: init standard-vectors $FBB1
-        jsr jcint                       ; sub: initialize $E004
+        sta pkybuf+1            ; start F-keys
+        jsr jcint               ; sub: initialize $E004
+        jsr ramtas              ; sub: ram-test $FA94
+        jsr restor              ; sub: init standard-vectors $FBB1
+        jsr jcint               ; sub: initialize $E004
         lda #$A5
-        sta evect+2                     ; save warm start flag
+        sta evect+2             ; save warm start flag
 ; F9FB Warm start entry
-swarm:  jmp (evect)                     ; jump to basic warm start $BBA0
-
+swarm:  jmp (evect)             ; jump to basic warm start $BBA0
 ; ----------------------------------------------------------------------------
 ; F9FE I/O register init
 ioinit: lda #$F3
@@ -3967,7 +3911,7 @@ io120:  lda #$08
         sta tpi1_pb 
         rts         
 ; ----------------------------------------------------------------------------
-; RAM test
+; FA94 RAM-test / vector init
 ramtas: lda     #$00                            ; FA94 A9 00                    ..
         tax                                     ; FA96 AA                       .
 LFA97:  sta     $0002,x                         ; FA97 9D 02 00                 ...
@@ -4029,9 +3973,8 @@ size:   ldx     i6509                           ; FAE3 A6 01                    
         lda     #$FE                            ; FB03 A9 FE                    ..
         sta     itape+1                         ; FB05 8D 6B 03                 .k.
         rts                                     ; FB08 60                       `
-
 ; ----------------------------------------------------------------------------
-; Table with standard vectors
+; FB09 standard vector table
 jmptab: !word   kirq                            ; FB09 F8 FB                    ..
         !word   timb                            ; FB0B 21 EE                    !.
         !word   panic                           ; FB0D B8 FC                    ..
@@ -4636,227 +4579,121 @@ LFEDE:  pla                                     ; FEDE 68                       
         txs                                     ; FEF7 9A                       .
         lda     i6509                           ; FEF8 A5 01                    ..
         jmp     kgbye                           ; FEFA 4C F6 FF                 L..
-
 ; ----------------------------------------------------------------------------
-        nop                                     ; FEFD EA                       .
-; Return from call to foreign bank
-excrts: php                                     ; FEFE 08                       .
-        php                                     ; FEFF 08                       .
-        pha                                     ; FF00 48                       H
-        txa                                     ; FF01 8A                       .
-        pha                                     ; FF02 48                       H
-        tya                                     ; FF03 98                       .
-        pha                                     ; FF04 48                       H
-        tsx                                     ; FF05 BA                       .
-        lda     stack+6,x                       ; FF06 BD 06 01                 ...
-        sta     i6509                           ; FF09 85 01                    ..
-        jsr     ipinit                          ; FF0B 20 11 FF                  ..
-        jmp     excomm                          ; FF0E 4C D5 FE                 L..
-
+        nop
+; FEFE Return from call to foreign bank
+excrts: php
+        php
+        pha
+        txa
+        pha
+        tya
+        pha
+        tsx
+        lda stack+6,x
+        sta i6509
+        jsr ipinit
+        jmp excomm
 ; ----------------------------------------------------------------------------
-; ipoint = $100, Y = $FF (stack)
-ipinit: ldy     #$01                            ; FF11 A0 01                    ..
-        sty     ipoint+1                        ; FF13 84 AD                    ..
-        dey                                     ; FF15 88                       .
-        sty     ipoint                          ; FF16 84 AC                    ..
-        dey                                     ; FF18 88                       .
-        lda     (ipoint),y                      ; FF19 B1 AC                    ..
-        rts                                     ; FF1B 60                       `
-
+; FF11 ipoint = $100, Y = $FF (stack)
+ipinit: ldy #$01
+        sty ipoint+1
+        dey
+        sty ipoint
+        dey
+        lda (ipoint),y
+        rts
 ; ----------------------------------------------------------------------------
-; Place X/A to ipoint (build stack in foreign bank)
-putaxs: pha                                     ; FF1C 48                       H
-        txa                                     ; FF1D 8A                       .
-        sta     (ipoint),y                      ; FF1E 91 AC                    ..
-        dey                                     ; FF20 88                       .
-        pla                                     ; FF21 68                       h
-; Place A to ipoint (build stack in foreign bank)
-putag:  sta     (ipoint),y                      ; FF22 91 AC                    ..
-        dey                                     ; FF24 88                       .
-        rts                                     ; FF25 60                       `
-
+; FF1C Place X/A to ipoint (build stack in foreign bank)
+putaxs: pha
+        txa
+        sta (ipoint),y
+        dey
+        pla
+; FF22 Place A to ipoint (build stack in foreign bank)
+putag:  sta (ipoint),y
+        dey
+        rts
 ; ----------------------------------------------------------------------------
-; Pull registers after calling subroutine in foreign bank
-expull: pla                                     ; FF26 68                       h
-        tay                                     ; FF27 A8                       .
-        pla                                     ; FF28 68                       h
-        tax                                     ; FF29 AA                       .
-        pla                                     ; FF2A 68                       h
-        plp                                     ; FF2B 28                       (
-        rts                                     ; FF2C 60                       `
-
+; FF26 Pull registers after calling subroutine in foreign bank
+expull: pla
+        tay
+        pla
+        tax
+        pla
+        plp
+        rts
 ; ----------------------------------------------------------------------------
-; Helper routine to route interrupts from foreign to system bank
-exnmi:  php                                     ; FF2D 08                       .
-        jmp     (hanmi)                         ; FF2E 6C FA FF                 l..
-
+; FF2D Helper routine to route interrupts from foreign to system bank
+exnmi:  php
+        jmp (hanmi)
 ; ----------------------------------------------------------------------------
-; Helper routine to route BRK insns from foreign to system bank
-exbrk:  brk                                     ; FF31 00                       .
-        nop                                     ; FF32 EA                       .
-        rts                                     ; FF33 60                       `
-
+; FF31 Helper routine to route BRK insns from foreign to system bank
+exbrk:  brk
+        nop
+        rts
 ; ----------------------------------------------------------------------------
-; Helper routine to route interrupts from foreign to system bank
-exirq:  cli                                     ; FF34 58                       X
-        rts                                     ; FF35 60                       `
-
+; FF34 Helper routine to route interrupts from foreign to system bank
+exirq:  cli
+        rts
 ; ----------------------------------------------------------------------------
-; Unused space
-unused2:
-!byte   $AC,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; FF36 AC AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; FF3E AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; FF46 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; FF4E AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; FF56 AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; FF5E AA AA AA AA AA AA AA AA  ........
-!byte   $AA,$AA,$AA,$AA,$AA,$AA,$AA,$AA ; FF66 AA AA AA AA AA AA AA AA  ........
-!byte   $AA                             ; FF6E AA                       .
+; FF36 Unused space
+        !byte $AC
+*= $FF6F
 ; ----------------------------------------------------------------------------
-kvreset:jmp     vreset                          ; FF6F 4C D9 FB                 L..
-
+; FF6F Jump table kernal functions
+kvreset:jmp vreset              ; Video reset
+kipcgo: jmp ipcgo               ; Monitor command 'Z' switch to copro
+kfunkey:jmp jfunkey             ; F-key vector
+kipcrq: jmp ipcrq               ; IPC request
+kioinit:jmp ioinit              ; I/O init
+kcint:  jmp jcint               ; Init screen
+kalloc: jmp alloc
+kvector:jmp vector
+krestor:jmp restor
+klkupsa:jmp lkupsa
+klkupla:jmp lkupla
+ksetmsg:jmp setmsg
+ksecnd: jmp (isecnd)
+ktksa:  jmp (itksa)
+kmemtop:jmp memtop
+kmembot:jmp membot
+kscnkey:jmp jscnkey
+ksettmo:jmp settmo
+kacptr: jmp (iacptr)
+kciout: jmp (iciout)
+kuntalk:jmp (iuntlk)
+kunlsn: jmp (iunlsn)
+klisten:jmp (ilistn)
+ktalk:  jmp (italk)
+kreadst:jmp readst
+ksetlfs:jmp setlfs
+ksetnam:jmp setnam
+kopen:  jmp (iopen)
+kclose: jmp (iclose)
+kchkin: jmp (ichkin)
+kckout: jmp (ickout)
+kclrch: jmp (iclrch)
+kbasin: jmp (ibasin)
+kbsout: jmp (ibsout)
+kload:  jmp (iload)
+ksave:  jmp (isave)
+ksettim:jmp settim
+krdtim: jmp rdtim
+kstop:  jmp (istop)
+kgetin: jmp (igetin)
+kclrall:jmp (iclall)
+kudtim: jmp udtim
+kscrorg:jmp jscrorg
+kplot:  jmp jplot
+kiobase:jmp jiobase
 ; ----------------------------------------------------------------------------
-kipcgo: jmp     ipcgo                           ; FF72 4C 41 FE                 LA.
-
+; FFF6 Actual execution segment switch routine
+kgbye:  sta e6509
+        rts
+        !byte $80
 ; ----------------------------------------------------------------------------
-kfunkey:jmp     jfunkey                         ; FF75 4C 22 E0                 L".
-
-; ----------------------------------------------------------------------------
-kipcrq: jmp     ipcrq                           ; FF78 4C B9 FC                 L..
-
-; ----------------------------------------------------------------------------
-kioinit:jmp     ioinit                          ; FF7B 4C FE F9                 L..
-
-; ----------------------------------------------------------------------------
-kcint:  jmp     jcint                           ; FF7E 4C 04 E0                 L..
-
-; ----------------------------------------------------------------------------
-kalloc: jmp     alloc                           ; FF81 4C 07 F4                 L..
-
-; ----------------------------------------------------------------------------
-kvector:jmp     vector                          ; FF84 4C B8 FB                 L..
-
-; ----------------------------------------------------------------------------
-krestor:jmp     restor                          ; FF87 4C B1 FB                 L..
-
-; ----------------------------------------------------------------------------
-klkupsa:jmp     lkupsa                          ; FF8A 4C 67 F6                 Lg.
-
-; ----------------------------------------------------------------------------
-klkupla:jmp     lkupla                          ; FF8D 4C 7F F6                 L..
-
-; ----------------------------------------------------------------------------
-ksetmsg:jmp     setmsg                          ; FF90 4C 69 FB                 Li.
-
-; ----------------------------------------------------------------------------
-ksecnd: jmp     (isecnd)                        ; FF93 6C 24 03                 l$.
-
-; ----------------------------------------------------------------------------
-ktksa:  jmp     (itksa)                         ; FF96 6C 26 03                 l&.
-
-; ----------------------------------------------------------------------------
-kmemtop:jmp     memtop                          ; FF99 4C 87 FB                 L..
-
-; ----------------------------------------------------------------------------
-kmembot:jmp     membot                          ; FF9C 4C 9C FB                 L..
-
-; ----------------------------------------------------------------------------
-kscnkey:jmp     jscnkey                         ; FF9F 4C 13 E0                 L..
-
-; ----------------------------------------------------------------------------
-ksettmo:jmp     settmo                          ; FFA2 4C 83 FB                 L..
-
-; ----------------------------------------------------------------------------
-kacptr: jmp     (iacptr)                        ; FFA5 6C 28 03                 l(.
-
-; ----------------------------------------------------------------------------
-kciout: jmp     (iciout)                        ; FFA8 6C 2A 03                 l*.
-
-; ----------------------------------------------------------------------------
-kuntalk:jmp     (iuntlk)                        ; FFAB 6C 2C 03                 l,.
-
-; ----------------------------------------------------------------------------
-kunlsn: jmp     (iunlsn)                        ; FFAE 6C 2E 03                 l..
-
-; ----------------------------------------------------------------------------
-klisten:jmp     (ilistn)                        ; FFB1 6C 30 03                 l0.
-
-; ----------------------------------------------------------------------------
-ktalk:  jmp     (italk)                         ; FFB4 6C 32 03                 l2.
-
-; ----------------------------------------------------------------------------
-kreadst:jmp     readst                          ; FFB7 4C 56 FB                 LV.
-
-; ----------------------------------------------------------------------------
-ksetlfs:jmp     setlfs                          ; FFBA 4C 4F FB                 LO.
-
-; ----------------------------------------------------------------------------
-ksetnam:jmp     setnam                          ; FFBD 4C 40 FB                 L@.
-
-; ----------------------------------------------------------------------------
-kopen:  jmp     (iopen)                         ; FFC0 6C 06 03                 l..
-
-; ----------------------------------------------------------------------------
-kclose: jmp     (iclose)                        ; FFC3 6C 08 03                 l..
-
-; ----------------------------------------------------------------------------
-kchkin: jmp     (ichkin)                        ; FFC6 6C 0A 03                 l..
-
-; ----------------------------------------------------------------------------
-kckout: jmp     (ickout)                        ; FFC9 6C 0C 03                 l..
-
-; ----------------------------------------------------------------------------
-kclrch: jmp     (iclrch)                        ; FFCC 6C 0E 03                 l..
-
-; ----------------------------------------------------------------------------
-kbasin: jmp     (ibasin)                        ; FFCF 6C 10 03                 l..
-
-; ----------------------------------------------------------------------------
-kbsout: jmp     (ibsout)                        ; FFD2 6C 12 03                 l..
-
-; ----------------------------------------------------------------------------
-kload:  jmp     (iload)                         ; FFD5 6C 1A 03                 l..
-
-; ----------------------------------------------------------------------------
-ksave:  jmp     (isave)                         ; FFD8 6C 1C 03                 l..
-
-; ----------------------------------------------------------------------------
-ksettim:jmp     settim                          ; FFDB 4C 15 F9                 L..
-
-; ----------------------------------------------------------------------------
-krdtim: jmp     rdtim                           ; FFDE 4C ED F8                 L..
-
-; ----------------------------------------------------------------------------
-kstop:  jmp     (istop)                         ; FFE1 6C 14 03                 l..
-
-; ----------------------------------------------------------------------------
-kgetin: jmp     (igetin)                        ; FFE4 6C 16 03                 l..
-
-; ----------------------------------------------------------------------------
-kclrall:jmp     (iclall)                        ; FFE7 6C 18 03                 l..
-
-; ----------------------------------------------------------------------------
-kudtim: jmp     udtim                           ; FFEA 4C 80 F9                 L..
-
-; ----------------------------------------------------------------------------
-kscrorg:jmp     jscrorg                         ; FFED 4C 10 E0                 L..
-
-; ----------------------------------------------------------------------------
-kplot:  jmp     jplot                           ; FFF0 4C 19 E0                 L..
-
-; ----------------------------------------------------------------------------
-kiobase:jmp     jiobase                         ; FFF3 4C 1C E0                 L..
-
-; ----------------------------------------------------------------------------
-; Actual execution segment switch routine
-kgbye:  sta     e6509                           ; FFF6 85 00                    ..
-        rts                                     ; FFF8 60                       `
-
-; ----------------------------------------------------------------------------
-!byte   $80                                     ; FFF9 80                       .
-; Hardware NMI vector
-hanmi:  !word   nmi                             ; FFFA 3D FB                    =.
-; Hardware reset vector
-hares:  !word   cold                            ; FFFC 9E F9                    ..
-; Hardware IRQ vector
-hairq:  !word   irq                             ; FFFE E5 FB                    ..
+; FFFA Hardware vector table
+hanmi:  !word nmi               ; NMI vector FB3D
+hares:  !word cold              ; Reset vector F99E
+hairq:  !word irq               ; IRQ vector FBE5
