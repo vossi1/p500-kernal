@@ -1,7 +1,7 @@
 ; Commodore P500 Kernal 901234-02 with Fastboot Patches from Steve Gray
 ; disassembled with DA65 18.4.2020 (Info-file from Ulrich Bassewitz)
 ; modified for ACME assembling by Vossi 19.4.2020
-; version 1.1
+; v1.1 special f-keys
 
 !cpu 6502
 !ct scr         ; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
