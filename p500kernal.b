@@ -999,6 +999,7 @@ bitpos: stx     bitmsk                          ; E4CF 8E 88 03                 
 
 ; ----------------------------------------------------------------------------
         bcc     fndend                          ; E4E3 90 12                    ..
+; E4E5 cursor to line start (esc-j)
 fndfst: ldy     sclf                            ; E4E5 A4 DE                    ..
         sty     pntr                            ; E4E7 84 CB                    ..
 fistrt: jsr     getbit                          ; E4E9 20 A6 E4                  ..
@@ -1009,6 +1010,7 @@ fistrt: jsr     getbit                          ; E4E9 20 A6 E4                 
 fnd0:   jmp     movcur                          ; E4F4 4C DF E0                 L..
 
 ; ----------------------------------------------------------------------------
+; E4F7 cursor to end of line (esc-k)
 fndend: inc     tblx                            ; E4F7 E6 CA                    ..
         jsr     getbit                          ; E4F9 20 A6 E4                  ..
         bcs     fndend                          ; E4FC B0 F9                    ..
@@ -1303,76 +1305,73 @@ LE6D6:  pla                                     ; E6D6 68                       
         jmp     delete                          ; E6DB 4C 5D E5                 L].
 
 ; ----------------------------------------------------------------------------
-; Handle an escape sequence
-escseq: jmp     (escvec)                        ; E6DE 6C 20 03                 l .
+; E6DE Handle an escape sequence
+escseq: jmp (escvec)
 
 ; ----------------------------------------------------------------------------
-; Insert a line
-iline:  jsr     scrdwn                          ; E6E1 20 DF E3                  ..
-        jsr     stu10                           ; E6E4 20 D9 E0                  ..
-        inx                                     ; E6E7 E8                       .
-        jsr     getbt1                          ; E6E8 20 A8 E4                  ..
-        php                                     ; E6EB 08                       .
-        jsr     putbit                          ; E6EC 20 B2 E4                  ..
-        plp                                     ; E6EF 28                       (
-        bcs     linrts                          ; E6F0 B0 03                    ..
-        sec                                     ; E6F2 38                       8
-        ror     lsxp                            ; E6F3 66 CF                    f.
-linrts: rts                                     ; E6F5 60                       `
-
+; E6E1 Insert a line (esc-i)
+iline:  jsr scrdwn
+        jsr stu10
+        inx
+        jsr getbt1
+        php
+        jsr putbit
+        plp
+        bcs linrts
+        sec
+        ror lsxp
+linrts: rts
 ; ----------------------------------------------------------------------------
-        bcs     iline                           ; E6F6 B0 E9                    ..
-; Delete a line (esc-d)
-dline:  jsr     fistrt                          ; E6F8 20 E9 E4                  ..
-        lda     sctop                           ; E6FB A5 DC                    ..
-        pha                                     ; E6FD 48                       H
-        lda     tblx                            ; E6FE A5 CA                    ..
-        sta     sctop                           ; E700 85 DC                    ..
-        lda     logscr                          ; E702 AD 8A 03                 ...
-        pha                                     ; E705 48                       H
-        lda     #$80                            ; E706 A9 80                    ..
-        sta     logscr                          ; E708 8D 8A 03                 ...
-        jsr     scru15                          ; E70B 20 1A E4                  ..
-        pla                                     ; E70E 68                       h
-        sta     logscr                          ; E70F 8D 8A 03                 ...
-        lda     sctop                           ; E712 A5 DC                    ..
-        sta     tblx                            ; E714 85 CA                    ..
-        pla                                     ; E716 68                       h
-        sta     sctop                           ; E717 85 DC                    ..
-        sec                                     ; E719 38                       8
-        ror     lsxp                            ; E71A 66 CF                    f.
-        jmp     stu10                           ; E71C 4C D9 E0                 L..
-
+        bcs iline
+; E6F8 Delete a line (esc-d)
+dline:  jsr fistrt
+        lda sctop
+        pha
+        lda tblx
+        sta sctop
+        lda logscr
+        pha
+        lda #$80
+        sta logscr
+        jsr scru15
+        pla
+        sta logscr
+        lda sctop
+        sta tblx
+        pla
+        sta sctop
+        sec
+        ror lsxp
+        jmp stu10
 ; ----------------------------------------------------------------------------
-; Erase to end of line (esc-q)
-eraeol: clc                                     ; E71F 18                       .
-!byte   $24                             ; E720 24                       $
-; Erase to start of line (esc-p)
-erasol: sec                                     ; E721 38                       8
-        jsr     savpos                          ; E722 20 52 E5                  R.
-        bcs     LE739                           ; E725 B0 12                    ..
-LE727:  jsr     clrprt                          ; E727 20 29 E2                  ).
-        inc     tblx                            ; E72A E6 CA                    ..
-        jsr     movcur                          ; E72C 20 DF E0                  ..
-        ldy     sclf                            ; E72F A4 DE                    ..
-        jsr     getbit                          ; E731 20 A6 E4                  ..
-        bcs     LE727                           ; E734 B0 F1                    ..
-etout:  jmp     delout                          ; E736 4C 74 E5                 Lt.
-
+; E71F Erase to end of line (esc-q)
+eraeol: clc
+        !byte $24               ; skips next instruction with bit $xx
+; E721 Erase to start of line (esc-p)
+erasol: sec
+        jsr savpos                          ; E722 20 52 E5                  R.
+        bcs LE739                           ; E725 B0 12                    ..
+LE727:  jsr clrprt                          ; E727 20 29 E2                  ).
+        inc tblx                            ; E72A E6 CA                    ..
+        jsr movcur                          ; E72C 20 DF E0                  ..
+        ldy sclf                            ; E72F A4 DE                    ..
+        jsr getbit                          ; E731 20 A6 E4                  ..
+        bcs LE727                           ; E734 B0 F1                    ..
+etout:  jmp delout                          ; E736 4C 74 E5                 Lt.
 ; ----------------------------------------------------------------------------
-LE739:  jsr     doblnk                          ; E739 20 07 E2                  ..
-        cpy     sclf                            ; E73C C4 DE                    ..
-        bne     LE745                           ; E73E D0 05                    ..
-        jsr     getbit                          ; E740 20 A6 E4                  ..
-        bcc     etout                           ; E743 90 F1                    ..
-LE745:  jsr     bakchr                          ; E745 20 34 E5                  4.
-        bcc     LE739                           ; E748 90 EF                    ..
-; Scroll upwards (esc-v)
-scrlup: clc                                     ; E74A 18                       .
-!byte   $24                             ; E74B 24                       $
-; Scroll downwards (esc-w)
-scrldwn:sec                                     ; E74C 38                       8
-; Scroll screen depending on carry
+LE739:  jsr doblnk                          ; E739 20 07 E2                  ..
+        cpy sclf                            ; E73C C4 DE                    ..
+        bne LE745                           ; E73E D0 05                    ..
+        jsr getbit                          ; E740 20 A6 E4                  ..
+        bcc etout                           ; E743 90 F1                    ..
+LE745:  jsr bakchr                          ; E745 20 34 E5                  4.
+        bcc LE739                           ; E748 90 EF                    ..
+; E74A Scroll upwards (esc-v)
+scrlup: clc
+        !byte $24               ; skips next instruction with bit $xx
+; E74C Scroll downwards (esc-w)
+scrldwn:sec
+; E74D Scroll screen depending on carry
 scroll: jsr     savpos                          ; E74D 20 52 E5                  R.
         bcs     sddn                            ; E750 B0 0B                    ..
         txa                                     ; E752 8A                       .
@@ -1394,35 +1393,33 @@ sddn2:  lda     sctop                           ; E765 A5 DC                    
         jmp     etout                           ; E76F 4C 36 E7                 L6.
 
 ; ----------------------------------------------------------------------------
-rstmode:lda     #$00                            ; E772 A9 00                    ..
-        sta     insrt                           ; E774 85 D3                    ..
-        sta     rvs                             ; E776 8D 83 03                 ...
-        sta     qtsw                            ; E779 85 D2                    ..
-        sta     $03BF                           ; E77B 8D BF 03                 ...
-        rts                                     ; E77E 60                       `
-
+; E772 Reset modes: insert, reverse, quote
+rstmode:lda #$00
+        sta insrt
+        sta rvs
+        sta qtsw
+        sta $03BF
+        rts
 ; ----------------------------------------------------------------------------
-; Allow scrolling (esc-l)
-scrlon: clc                                     ; E77F 18                       .
-        bcc     scrsw                           ; E780 90 01                    ..
-; Disallow scrolling (esc-m)
-scrloff:sec                                     ; E782 38                       8
-scrsw:  lda     #$00                            ; E783 A9 00                    ..
-        ror                                     ; E785 6A                       j
-        sta     scrdis                          ; E786 8D 87 03                 ...
-        rts                                     ; E789 60                       `
-
+; E77F Allow scrolling (esc-l)
+scrlon: clc
+        bcc scrsw
+; E782 Disallow scrolling (esc-m)
+scrloff:sec
+scrsw:  lda #$00
+        ror
+        sta scrdis
+        rts
 ; ----------------------------------------------------------------------------
-; Insert mode off
+; E78A Insert mode off
 insoff: clc                                     ; E78A 18                       .
         bcc     inssw                           ; E78B 90 01                    ..
-; Insert mode on
+; E78D Insert mode on
 inson:  sec                                     ; E78D 38                       8
 inssw:  lda     #$00                            ; E78E A9 00                    ..
         ror                                     ; E790 6A                       j
         sta     insflg                          ; E791 8D 86 03                 ...
         rts                                     ; E794 60                       `
-
 ; ----------------------------------------------------------------------------
 logoff: clc                                     ; E795 18                       .
         bcc     logsw                           ; E796 90 01                    ..
@@ -1431,7 +1428,6 @@ logsw:  lda     #$00                            ; E799 A9 00                    
         ror                                     ; E79B 6A                       j
         sta     logscr                          ; E79C 8D 8A 03                 ...
         rts                                     ; E79F 60                       `
-
 ; ----------------------------------------------------------------------------
 LE7A0:  lda     $03BF                           ; E7A0 AD BF 03                 ...
         eor     #$C0                            ; E7A3 49 C0                    I.
@@ -1810,14 +1806,13 @@ gettab: tya                                     ; EA26 98                       
         rts                                     ; EA3B 60                       `
 
 ; ----------------------------------------------------------------------------
-; Handle an escape sequence
-escape: and     #$7F                            ; EA3C 29 7F                    ).
-        sec                                     ; EA3E 38                       8
-        sbc     #$41                            ; EA3F E9 41                    .A
-        cmp     #$1A                            ; EA41 C9 1A                    ..
-        bcc     escgo                           ; EA43 90 01                    ..
-escrts: rts                                     ; EA45 60                       `
-
+; EA3C Handle an escape sequence
+escape: and #$7F
+        sec
+        sbc #$41
+        cmp #$1A
+        bcc escgo
+escrts: rts
 ; ----------------------------------------------------------------------------
 ; Call an escape sequence routine
 escgo:  asl                                     ; EA46 0A                       .
@@ -1830,37 +1825,37 @@ escgo:  asl                                     ; EA46 0A                       
 
 ; ----------------------------------------------------------------------------
 ; Alphabetical table of escape sequence handlers
-escvect:!word   auton-1                         ; EA51 AA EA                    ..
-        !word   sethtb-1                        ; EA53 86 EA                    ..
-        !word   autoff-1                        ; EA55 A7 EA                    ..
-        !word   dline-1                         ; EA57 F7 E6                    ..
-        !word   notimp-1                        ; EA59 A6 EA                    ..
-        !word   notimp-1                        ; EA5B A6 EA                    ..
-        !word   bellon-1                        ; EA5D A1 EA                    ..
-        !word   belloff-1                       ; EA5F A3 EA                    ..
-        !word   iline-1                         ; EA61 E0 E6                    ..
-        !word   fndfst-1                        ; EA63 E4 E4                    ..
-        !word   fndend-1                        ; EA65 F6 E4                    ..
-        !word   scrlon-1                        ; EA67 7E E7                    ~.
-        !word   scrloff-1                       ; EA69 81 E7                    ..
-        !word   notimp-1                        ; EA6B A6 EA                    ..
-        !word   rstmode-1                       ; EA6D 71 E7                    q.
-        !word   erasol-1                        ; EA6F 20 E7                     .
-        !word   eraeol-1                        ; EA71 1E E7                    ..
-        !word   notimp-1                        ; EA73 A6 EA                    ..
-        !word   notimp-1                        ; EA75 A6 EA                    ..
-        !word   sethtt-1                        ; EA77 84 EA                    ..
-        !word   notimp-1                        ; EA79 A6 EA                    ..
-        !word   scrlup-1                        ; EA7B 49 E7                    I.
-        !word   scrldwn-1                       ; EA7D 4B E7                    K.
-        !word   escrts-1                        ; EA7F 44 EA                    D.
-        !word   notimp-1                        ; EA81 A6 EA                    ..
-        !word   notimp-1                        ; EA83 A6 EA                    ..
+escvect:!word auton-1           ; esc-a Auto insert mode on
+        !word sethtb-1          ; esc-b Set bottom right window corner
+        !word autoff-1          ; esc-c Auto insert mode off
+        !word dline-1           ; esc-d Delete a line
+        !word notimp-1          ; esc-e
+        !word notimp-1          ; esc-f
+        !word bellon-1          ; esc-g Bell on
+        !word belloff-1         ; esc-h Bell of
+        !word iline-1           ; esc-i Insert a line
+        !word fndfst-1          ; esc-j cursor to line start
+        !word fndend-1          ; esc-k cursor to end of line
+        !word scrlon-1          ; esc-l Allow scrolling
+        !word scrloff-1         ; esc-m Disallow scrolling
+        !word notimp-1          ; esc-n
+        !word rstmode-1         ; esc-o Reset modes: insert, reverse, quote
+        !word erasol-1          ; esc-p Erase to start of line
+        !word eraeol-1          ; esc-q Erase to end of line
+        !word notimp-1          ; esc-r
+        !word notimp-1          ; esc-s
+        !word sethtt-1          ; esc-t Set top left window corner
+        !word notimp-1          ; esc-u
+        !word scrlup-1          ; esc-v Scroll upwards
+        !word scrldwn-1         ; esc-w Scroll downwards
+        !word escrts-1          ; esc-x Break escape
+        !word notimp-1          ; esc-y
+        !word notimp-1          ; esc-z
 ; ----------------------------------------------------------------------------
-; Set top left window corner
+; EA85 Set top left window corner (esc-t)
 sethtt: clc                     ; set upper left corner with C=0
         !byte $24               ; skip next instruction with bit $xx
-; Set bottom right window corner
+; EA87 Set bottom right window corner (esc-b)
 sethtb: sec                     ; set lower right corner with C=1
 window: ldx pntr                ; load cursor column
         lda tblx                ; load cursour row
@@ -1869,7 +1864,7 @@ setbts: sta scbot               ; store last row
         stx scrt                ; store last column
         rts
 ; ----------------------------------------------------------------------------
-; Window to full screen (off)
+; EA93 Window to full screen (off)
 sreset: lda #$18                ; last row = 24
         ldx #$27                ; last columns = 39
         jsr setbts              ; sub: set lower right corner
@@ -1879,23 +1874,20 @@ settps: sta sctop               ; set first row
         stx sclf                ; set first column
         rts
 ; ----------------------------------------------------------------------------
-; Bell on (esc-g)
-bellon: lda     #$00                            ; EAA2 A9 00                    ..
-; Bell off (esc-h)
-belloff:sta     bellmd                          ; EAA4 8D 8B 03                 ...
-; Not implemented escape sequences jump here
-notimp: rts                                     ; EAA7 60                       `
-
+; EAA2 Bell on (esc-g)
+bellon: lda #$00
+; EAA4 Bell off (esc-h)
+belloff:sta bellmd
+; EAA7 Not implemented escape sequences jump here
+notimp: rts
 ; ----------------------------------------------------------------------------
-; Auto insert mode off
-autoff: lda     #$00                            ; EAA8 A9 00                    ..
-!byte   $2C                                     ; EAAA 2C                       ,
-; ----------------------------------------------------------------------------
-; Auto insert mode on
-auton:  lda     #$FF                            ; EAAB A9 FF                    ..
-        sta     insflg                          ; EAAD 8D 86 03                 ...
-        rts                                     ; EAB0 60                       `
-
+; EAA8 Auto insert mode off (esc-c)
+autoff: lda #$00
+        !byte  $2C              ; skips next instruction with bit $xxxx
+; EAAB Auto insert mode on (esc-a)
+auton:  lda #$FF
+        sta insflg
+        rts
 ; ----------------------------------------------------------------------------
 ; EAB1 Keyboard tables
 normtb: !byte $E0,$1B,$09,$FF,$00,$01,$E1,$31 ; no modifiers
@@ -2041,19 +2033,19 @@ vicinit:!byte $1B,$00,$00,$00,$00,$08,$00,$40
         !byte $8F,$00,$00,$00,$00,$00,$00,$03
         !byte $01
 ; ----------------------------------------------------------------------------
-; Extended editor vector table (copied to $3B5)
-edvect: !word   LE9F6                           ; ED08 F6 E9                    ..
-        !word   wrtvram                         ; ED0A 41 E6                    A.
-        !word   wrtcram                         ; ED0C 50 E6                    P.
-        !word   nofunc                          ; ED0E 39 E0                    9.
-        !word   nofunc                          ; ED10 39 E0                    9.
+; ED08 Extended editor vector table (copied to $3B5)
+edvect: !word LE9F6
+        !word wrtvram
+        !word wrtcram
+        !word nofunc
+        !word nofunc
 ; ----------------------------------------------------------------------------
 ; ED12 Table with color values
 colortb:!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
         !byte $81,$95,$96,$97,$98,$99,$9A,$9B
 ; ----------------------------------------------------------------------------
 ; ED22 Unused space
-!byte   $00
+        !byte $00
 *= $EE00
 ; ----------------------------------------------------------------------------
 ; EE00 Monitor entry after boot (no basic)
