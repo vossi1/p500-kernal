@@ -1,7 +1,8 @@
 ; Commodore P500 Kernal 901234-02 with Fastboot Patches from Steve Gray
 ; disassembled with DA65 18.4.2020 (Info-file from Ulrich Bassewitz)
-; modified for ACME assembling by Vossi 19.4.2020
+; modified for ACME assembling by Vossi 04/2020
 ; v1.1 special f-keys
+; v1.2 full ramtest selection (fast test checks only byte $0002 in each page)
 
 !cpu 6502
 !ct scr         ; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
@@ -9,92 +10,98 @@
 ; Constants
 FILL            = $AA           ; Fills free memory areas with $00
 STANDARD_FKEYS  = 1             ; Standard F-keys
+;FULL_RAMTEST    = 1             ; Standard full and slow RAM-test
 ; ----------------------------------------------------------------------------
 ; Zero Page
-e6509           = $00                          ; 6509 execution bank
-i6509           = $01                          ; 6509 indirect bank
-fnadr           = $90                          ; Far address of file name
-sal             = $93                          ; Start address low
-sah             = $94                          ; Start address high
-sas             = $95                          ; Start address seg
-eal             = $96                          ; End address low
-eah             = $97                          ; End address high
-eas             = $98                          ; End address seg
+e6509           = $00           ; 6509 execution bank
+i6509           = $01           ; 6509 indirect bank
+fnadr           = $90           ; Far address of file name
+sal             = $93           ; Start address low
+sah             = $94           ; Start address high
+sas             = $95           ; Start address seg
+eal             = $96           ; End address low
+eah             = $97           ; End address high
+eas             = $98           ; End address seg
 stal            = $99
 stah            = $9A
 stas            = $9B
-status          = $9C                          ; Status byte
-fnlen           = $9D                          ; Length of file name
-la              = $9E                          ; Logical file number
-fa              = $9F                          ; Device address
-sa              = $A0                          ; Secondary address
-dfltn           = $A1                          ; Current input device
-dflto           = $A2                          ; Current output device
-tape1           = $A3                          ; Address of tape buffer
-ribuf           = $A6                          ; Address of rs232 buffer
-stkey           = $A9                          ; Stop key flag
-c3po            = $AA                          ; IEC buffer flag
-bsour           = $AB                          ; IEC output buffer
-ipoint          = $AC                          ; RAM indirect pointer
-pch             = $AE                          ; Monitor: PC low
-pcl             = $AF                          ; Monitor: PC high
-sp              = $B4                          ; Monitor: stack pointer
-xi6509          = $B5                          ; Monitor: indirect bank
-invh            = $B7                          ; Monitor: user irq low
-invl            = $B8                          ; Monitor: user irq high
-tmp1            = $B9                          ; Monitor: temp ptr 1
-tmp2            = $BB                          ; Monitor: temp ptr 2
-tmpc            = $BD                          ; Monitor: last command
-t6509           = $BE                          ; Monitor: current indirect bank
-ddisk           = $BF                          ; Monitor: disk device number
-pkybuf          = $C0                          ; Start of function keys
+status          = $9C           ; Status byte
+fnlen           = $9D           ; Length of file name
+la              = $9E           ; Logical file number
+fa              = $9F           ; Device address
+sa              = $A0           ; Secondary address
+dfltn           = $A1           ; Current input device
+dflto           = $A2           ; Current output device
+tape1           = $A3           ; Address of tape buffer
+ribuf           = $A6           ; Address of rs232 buffer
+stkey           = $A9           ; Stop key flag
+c3po            = $AA           ; IEC buffer flag
+bsour           = $AB           ; IEC output buffer
+ipoint          = $AC           ; RAM indirect pointer
+pch             = $AE           ; Monitor: PC low
+pcl             = $AF           ; Monitor: PC high
+sp              = $B4           ; Monitor: stack pointer
+xi6509          = $B5           ; Monitor: indirect bank
+invh            = $B7           ; Monitor: user irq low
+invl            = $B8           ; Monitor: user irq high
+tmp1            = $B9           ; Monitor: temp ptr 1
+tmp2            = $BB           ; Monitor: temp ptr 2
+tmpc            = $BD           ; Monitor: last command
+t6509           = $BE           ; Monitor: current indirect bank
+ddisk           = $BF           ; Monitor: disk device number
+pkybuf          = $C0           ; Start of function keys
 keypnt          = $C2
 sedsal          = $C4
 sedeal          = $C6
-pnt             = $C8                          ; Current position in video RAM
-tblx            = $CA                          ; Cursor position: line
-pntr            = $CB                          ; Cursor position: column
-grmode          = $CC                          ; Flag for text/graph mode
-lstx            = $CD                          ; Scancode of last key pressed
+pnt             = $C8           ; Current position in video RAM
+tblx            = $CA           ; Cursor position: line
+pntr            = $CB           ; Cursor position: column
+grmode          = $CC           ; Flag for text/graph mode
+lstx            = $CD           ; Scancode of last key pressed
 lstp            = $CE
 lsxp            = $CF
 crsw            = $D0
 ndx             = $D1
-qtsw            = $D2                          ; Quote mode flag
-insrt           = $D3                          ; Insert mode flag
-config          = $D4                          ; Cursor type
+qtsw            = $D2           ; Quote mode flag
+insrt           = $D3           ; Insert mode flag
+config          = $D4           ; Cursor type
 indx            = $D5
 kyndx           = $D6
-rptcnt          = $D7                          ; Keyboard repeat counter
-delay           = $D8                          ; Kbd repeat delay counter
-sedt1           = $D9                          ; Screen editor temp storage #1
-sedt2           = $DA                          ; Screen editor temp storage #2
-data            = $DB                          ; Current output character
-sctop           = $DC                          ; Top line of current window
-scbot           = $DD                          ; Bottom line of current window
-sclf            = $DE                          ; Left border of current window
-scrt            = $DF                          ; Right border of current window
-modkey          = $E0                          ; Flag for shift/control keys
+rptcnt          = $D7           ; Keyboard repeat counter
+delay           = $D8           ; Kbd repeat delay counter
+sedt1           = $D9           ; Screen editor temp storage #1
+sedt2           = $DA           ; Screen editor temp storage #2
+data            = $DB           ; Current output character
+sctop           = $DC           ; Top line of current window
+scbot           = $DD           ; Bottom line of current window
+sclf            = $DE           ; Left border of current window
+scrt            = $DF           ; Right border of current window
+modkey          = $E0           ; Flag for shift/control keys
 norkey          = $E1
 bitabl          = $E2
-blnon           = $E6                          ; Blinking cursor on
-blncnt          = $E7                          ; Blink counter
-user            = $E8                          ; Ptr to color ram
-tcolor          = $EA                          ; Temporary color
-blnsw           = $EB                          ; Blink switch
-color           = $EC                          ; Character color
-gdcol           = $ED                          ; Color behind cursor
-saver           = $EE                          ; Temp store for output char
-scrseg          = $EF                          ; Segment of video ram
+blnon           = $E6           ; Blinking cursor on
+blncnt          = $E7           ; Blink counter
+user            = $E8           ; Ptr to color ram
+tcolor          = $EA           ; Temporary color
+blnsw           = $EB           ; Blink switch
+color           = $EC           ; Character color
+gdcol           = $ED           ; Color behind cursor
+saver           = $EE           ; Temp store for output char
+scrseg          = $EF           ; Segment of video ram
 ; ----------------------------------------------------------------------------
-; addresses
-stack           = $0100
-stackp          = $01FF
-cinv            = $0300                        ; IRQ indirect vector
-cbinv           = $0302                        ; BRK indirect vector
-nminv           = $0304                        ; NMI indirect vector
-iopen           = $0306                        ; Open file vector
-iclose          = $0308                        ; Close file vector
+; CPU Stack
+stack           = $0100         ; Stack
+stackp          = $01FF         ; Stack start
+; ----------------------------------------------------------------------------
+; Basic RAM
+basbuf          = $0200         ; basic input buffer
+; ----------------------------------------------------------------------------
+; Kernal RAM
+cinv            = $0300         ; IRQ indirect vector
+cbinv           = $0302         ; BRK indirect vector
+nminv           = $0304         ; NMI indirect vector
+iopen           = $0306         ; Open file vector
+iclose          = $0308         ; Close file vector
 ichkin          = $030A
 ickout          = $030C
 iclrch          = $030E
@@ -105,7 +112,7 @@ igetin          = $0316
 iclall          = $0318
 iload           = $031A
 isave           = $031C
-usrcmd          = $031E                        ; Vector for monitor command extensions
+usrcmd          = $031E         ; Vector for monitor command extensions
 escvec          = $0320
 ctlvec          = $0322
 isecnd          = $0324
@@ -116,18 +123,18 @@ iuntlk          = $032C
 iunlsn          = $032E
 ilistn          = $0330
 italk           = $0332
-lat             = $0334                        ; Logical file number table
-fat             = $033E                        ; Device number table
-sat             = $0348                        ; Secondary address table
-lowadr          = $0352                        ; Start of system memory
-hiadr           = $0355                        ; End of system memory
-memstr          = $0358                        ; Start of user memory
-memsiz          = $035B                        ; End of user memory
-timout          = $035E                        ; IEEE timeout enable
-verck           = $035F                        ; Load/verify flag
-ldtnd           = $0360                        ; Device table index
-msgflg          = $0361                        ; Message flag
-bufpt           = $0362                        ; Cassette buffer index
+lat             = $0334         ; Logical file number table
+fat             = $033E         ; Device number table
+sat             = $0348         ; Secondary address table
+lowadr          = $0352         ; Start of system memory: lowbyte, highbyte, bank
+hiadr           = $0355         ; End of system memory: lowbyte, highbyte, bank
+memstr          = $0358         ; Start of user memory: lowbyte, highbyte, bank
+memsiz          = $035B         ; End of user memory: lowbyte, highbyte, bank
+timout          = $035E         ; IEEE timeout enable
+verck           = $035F         ; Load/verify flag
+ldtnd           = $0360         ; Device table index
+msgflg          = $0361         ; Message flag
+bufpt           = $0362         ; Cassette buffer index
 t1              = $0363
 t2              = $0364
 xsav            = $0365
@@ -135,7 +142,7 @@ savx            = $0366
 svxt            = $0367
 temp            = $0368
 alarm           = $0369
-itape           = $036A                        ; Vector: Tape routines
+itape           = $036A         ; Vector: Tape routines
 cassvo          = $036C
 aservo          = $036D
 caston          = $036E
@@ -146,32 +153,36 @@ oldinv          = $0372
 cas1            = $0375
 m51ctr          = $0376
 m51cdr          = $0377
-rsstat          = $037A                        ; rs232 status byte
+rsstat          = $037A         ; rs232 status byte
 dcdsr           = $037B
 ridbs           = $037C
 ridbe           = $037D
 pkyend          = $0380
-keyseg          = $0382                        ; Segment of function key texts
-rvs             = $0383                        ; Reverse mode flag
+keyseg          = $0382         ; Segment of function key texts
+rvs             = $0383         ; Reverse mode flag
 lintmp          = $0384
 lstchr          = $0385
-insflg          = $0386                        ; Insert mode flag
+insflg          = $0386         ; Insert mode flag
 scrdis          = $0387
 bitmsk          = $0388
 keyidx          = $0389
 logscr          = $038A
-bellmd          = $038B                        ; Bell on/off flag
+bellmd          = $038B         ; Bell on/off flag
 pagsav          = $038C
-keysiz          = $038D                        ; Sizes of function key texts
+keysiz          = $038D         ; Sizes of function key texts
 tab             = $03A1
-keyd            = $03AB                        ; Keyboard buffer
-funvec          = $03B5                        ; Vector: funktion key handler
-iwrtvrm         = $03B7                        ; Vector: video ram write routine
-iwrtcrm         = $03B9                        ; Vector: color ram write routine
+keyd            = $03AB         ; Keyboard buffer
+funvec          = $03B5         ; Vector: funktion key handler
+iwrtvrm         = $03B7         ; Vector: video ram write routine
+iwrtcrm         = $03B9         ; Vector: color ram write routine
 iunkwn1         = $03BB
 iunkwn2         = $03BD
-evect           = $03F8                        ; Warm start vector and flags
-ramloc          = $0400                        ; First free ram location
+evect           = $03F8         ; Warm start vector and flags
+; ----------------------------------------------------------------------------
+; Free bank 15 RAM
+ramloc          = $0400         ; First free ram location
+; ----------------------------------------------------------------------------
+; Coprocessor ROM
 ipb             = $0800
 ijtab           = $0810
 ipptab          = $0910
@@ -1114,7 +1125,7 @@ stprun: bcc     runrts                          ; E5C9 90 0F                    
         sei                                     ; E5CB 78                       x
         ldx     #$09                            ; E5CC A2 09                    ..
         stx     ndx                             ; E5CE 86 D1                    ..
-runlop: lda     LEC30,x                         ; E5D0 BD 30 EC                 .0.
+runlop: lda     runtb-1,x
         sta     tab+9,x                         ; E5D3 9D AA 03                 ...
         dex                                     ; E5D6 CA                       .
         bne     runlop                          ; E5D7 D0 F7                    ..
@@ -1886,126 +1897,113 @@ auton:  lda     #$FF                            ; EAAB A9 FF                    
         rts                                     ; EAB0 60                       `
 
 ; ----------------------------------------------------------------------------
-; Keyboard table, no modifiers
-normtb:
-!byte   $E0,$1B,$09,$FF,$00,$01,$E1,$31 ; EAB1 E0 1B 09 FF 00 01 E1 31  .......1
-!byte   $51,$41,$5A,$FF,$E2,$32,$57,$53 ; EAB9 51 41 5A FF E2 32 57 53  QAZ..2WS
-!byte   $58,$43,$E3,$33,$45,$44,$46,$56 ; EAC1 58 43 E3 33 45 44 46 56  XC.3EDFV
-!byte   $E4,$34,$52,$54,$47,$42,$E5,$35 ; EAC9 E4 34 52 54 47 42 E5 35  .4RTGB.5
-!byte   $36,$59,$48,$4E,$E6,$37,$55,$4A ; EAD1 36 59 48 4E E6 37 55 4A  6YHN.7UJ
-!byte   $4D,$20,$E7,$38,$49,$4B,$2C,$2E ; EAD9 4D 20 E7 38 49 4B 2C 2E  M .8IK,.
-!byte   $E8,$39,$4F,$4C,$3B,$2F,$E9,$30 ; EAE1 E8 39 4F 4C 3B 2F E9 30  .9OL;/.0
-!byte   $2D,$50,$5B,$27,$11,$3D,$5F,$5D ; EAE9 2D 50 5B 27 11 3D 5F 5D  -P['.=_]
-!byte   $0D,$DE,$91,$9D,$1D,$14,$02,$FF ; EAF1 0D DE 91 9D 1D 14 02 FF  ........
-!byte   $13,$3F,$37,$34,$31,$30,$12,$04 ; EAF9 13 3F 37 34 31 30 12 04  .?7410..
-!byte   $38,$35,$32,$2E,$8E,$2A,$39,$36 ; EB01 38 35 32 2E 8E 2A 39 36  852..*96
-!byte   $33,$30,$03,$2F,$2D,$2B,$0D,$FF ; EB09 33 30 03 2F 2D 2B 0D FF  30./-+..
-; Keyboard table with shift modifier
-shfttb:
-!byte   $EA,$1B,$89,$FF,$00,$01,$EB,$21 ; EB11 EA 1B 89 FF 00 01 EB 21  .......!
-!byte   $D1,$C1,$DA,$FF,$EC,$40,$D7,$D3 ; EB19 D1 C1 DA FF EC 40 D7 D3  .....@..
-!byte   $D8,$C3,$ED,$23,$C5,$C4,$C6,$D6 ; EB21 D8 C3 ED 23 C5 C4 C6 D6  ...#....
-!byte   $EE,$24,$D2,$D4,$C7,$C2,$EF,$25 ; EB29 EE 24 D2 D4 C7 C2 EF 25  .$.....%
-!byte   $5E,$D9,$C8,$CE,$F0,$26,$D5,$CA ; EB31 5E D9 C8 CE F0 26 D5 CA  ^....&..
-!byte   $CD,$A0,$F1,$2A,$C9,$CB,$3C,$3E ; EB39 CD A0 F1 2A C9 CB 3C 3E  ...*..<>
-!byte   $F2,$28,$CF,$CC,$3A,$3F,$F3,$29 ; EB41 F2 28 CF CC 3A 3F F3 29  .(..:?.)
-!byte   $2D,$D0,$5B,$22,$11,$2B,$5C,$5D ; EB49 2D D0 5B 22 11 2B 5C 5D  -.[".+\]
-!byte   $8D,$DE,$91,$9D,$1D,$94,$82,$FF ; EB51 8D DE 91 9D 1D 94 82 FF  ........
-!byte   $93,$3F,$37,$34,$31,$30,$92,$84 ; EB59 93 3F 37 34 31 30 92 84  .?7410..
-!byte   $38,$35,$32,$2E,$0E,$2A,$39,$36 ; EB61 38 35 32 2E 0E 2A 39 36  852..*96
-!byte   $33,$30,$83,$2F,$2D,$2B,$8D,$FF ; EB69 33 30 83 2F 2D 2B 8D FF  30./-+..
-; Keyboard table with shift and graph
-shftgr:
-!byte   $EA,$1B,$89,$FF,$00,$01,$EB,$21 ; EB71 EA 1B 89 FF 00 01 EB 21  .......!
-!byte   $D1,$C1,$DA,$FF,$EC,$40,$D7,$D3 ; EB79 D1 C1 DA FF EC 40 D7 D3  .....@..
-!byte   $D8,$C0,$ED,$23,$C5,$C4,$C6,$C3 ; EB81 D8 C0 ED 23 C5 C4 C6 C3  ...#....
-!byte   $EE,$24,$D2,$D4,$C7,$C2,$EF,$25 ; EB89 EE 24 D2 D4 C7 C2 EF 25  .$.....%
-!byte   $5E,$D9,$C8,$DD,$F0,$26,$D5,$CA ; EB91 5E D9 C8 DD F0 26 D5 CA  ^....&..
-!byte   $CD,$A0,$F1,$2A,$C9,$CB,$3C,$3E ; EB99 CD A0 F1 2A C9 CB 3C 3E  ...*..<>
-!byte   $F2,$28,$CF,$D6,$3A,$3F,$F3,$29 ; EBA1 F2 28 CF D6 3A 3F F3 29  .(..:?.)
-!byte   $2D,$D0,$5B,$22,$11,$2B,$5C,$5D ; EBA9 2D D0 5B 22 11 2B 5C 5D  -.[".+\]
-!byte   $8D,$DE,$91,$9D,$1D,$94,$82,$FF ; EBB1 8D DE 91 9D 1D 94 82 FF  ........
-!byte   $93,$B7,$B4,$B1,$B0,$AD,$92,$B8 ; EBB9 93 B7 B4 B1 B0 AD 92 B8  ........
-!byte   $B5,$B2,$AE,$BD,$0E,$B9,$B6,$B3 ; EBC1 B5 B2 AE BD 0E B9 B6 B3  ........
-!byte   $DB,$30,$83,$AF,$AA,$AB,$8D,$FF ; EBC9 DB 30 83 AF AA AB 8D FF  .0......
-; Keyboard table with control
-ctrltb:
-!byte   $FF,$FF,$FF,$FF,$FF,$FF,$FF,$A1 ; EBD1 FF FF FF FF FF FF FF A1  ........
-!byte   $11,$01,$1A,$FF,$FF,$A2,$17,$13 ; EBD9 11 01 1A FF FF A2 17 13  ........
-!byte   $18,$03,$FF,$A3,$05,$04,$06,$16 ; EBE1 18 03 FF A3 05 04 06 16  ........
-!byte   $FF,$A4,$12,$14,$07,$02,$FF,$A5 ; EBE9 FF A4 12 14 07 02 FF A5  ........
-!byte   $A7,$19,$08,$0E,$FF,$BE,$15,$0A ; EBF1 A7 19 08 0E FF BE 15 0A  ........
-!byte   $0D,$FF,$FF,$BB,$09,$0B,$CE,$FF ; EBF9 0D FF FF BB 09 0B CE FF  ........
-!byte   $FF,$BF,$0F,$0C,$DC,$FF,$FF,$AC ; EC01 FF BF 0F 0C DC FF FF AC  ........
-!byte   $BC,$10,$CC,$A8,$FF,$A9,$DF,$BA ; EC09 BC 10 CC A8 FF A9 DF BA  ........
-!byte   $FF,$A6,$FF,$FF,$FF,$FF,$FF,$FF ; EC11 FF A6 FF FF FF FF FF FF  ........
-!byte   $FF,$96,$9E,$9C,$05,$90,$FF,$99 ; EC19 FF 96 9E 9C 05 90 FF 99  ........
-!byte   $81,$1E,$1C,$FF,$FF,$9A,$95,$1F ; EC21 81 1E 1C FF FF 9A 95 1F  ........
-!byte   $9F,$FF,$FF,$97,$98,$9B,$FF     ; EC29 9F FF FF 97 98 9B FF     .......
-LEC30:
-!byte   $FF                             ; EC30 FF                       .
+; EAB1 Keyboard tables
+normtb: !byte $E0,$1B,$09,$FF,$00,$01,$E1,$31 ; no modifiers
+        !byte $51,$41,$5A,$FF,$E2,$32,$57,$53
+        !byte $58,$43,$E3,$33,$45,$44,$46,$56
+        !byte $E4,$34,$52,$54,$47,$42,$E5,$35
+        !byte $36,$59,$48,$4E,$E6,$37,$55,$4A
+        !byte $4D,$20,$E7,$38,$49,$4B,$2C,$2E
+        !byte $E8,$39,$4F,$4C,$3B,$2F,$E9,$30
+        !byte $2D,$50,$5B,$27,$11,$3D,$5F,$5D
+        !byte $0D,$DE,$91,$9D,$1D,$14,$02,$FF
+        !byte $13,$3F,$37,$34,$31,$30,$12,$04
+        !byte $38,$35,$32,$2E,$8E,$2A,$39,$36
+        !byte $33,$30,$03,$2F,$2D,$2B,$0D,$FF
+; EB11
+shfttb: !byte $EA,$1B,$89,$FF,$00,$01,$EB,$21 ; with shift
+        !byte $D1,$C1,$DA,$FF,$EC,$40,$D7,$D3
+        !byte $D8,$C3,$ED,$23,$C5,$C4,$C6,$D6
+        !byte $EE,$24,$D2,$D4,$C7,$C2,$EF,$25
+        !byte $5E,$D9,$C8,$CE,$F0,$26,$D5,$CA
+        !byte $CD,$A0,$F1,$2A,$C9,$CB,$3C,$3E
+        !byte $F2,$28,$CF,$CC,$3A,$3F,$F3,$29
+        !byte $2D,$D0,$5B,$22,$11,$2B,$5C,$5D
+        !byte $8D,$DE,$91,$9D,$1D,$94,$82,$FF
+        !byte $93,$3F,$37,$34,$31,$30,$92,$84
+        !byte $38,$35,$32,$2E,$0E,$2A,$39,$36
+        !byte $33,$30,$83,$2F,$2D,$2B,$8D,$FF
+; EB71
+shftgr: !byte $EA,$1B,$89,$FF,$00,$01,$EB,$21 ; with shift and graphics
+        !byte $D1,$C1,$DA,$FF,$EC,$40,$D7,$D3
+        !byte $D8,$C0,$ED,$23,$C5,$C4,$C6,$C3
+        !byte $EE,$24,$D2,$D4,$C7,$C2,$EF,$25
+        !byte $5E,$D9,$C8,$DD,$F0,$26,$D5,$CA
+        !byte $CD,$A0,$F1,$2A,$C9,$CB,$3C,$3E
+        !byte $F2,$28,$CF,$D6,$3A,$3F,$F3,$29
+        !byte $2D,$D0,$5B,$22,$11,$2B,$5C,$5D
+        !byte $8D,$DE,$91,$9D,$1D,$94,$82,$FF
+        !byte $93,$B7,$B4,$B1,$B0,$AD,$92,$B8
+        !byte $B5,$B2,$AE,$BD,$0E,$B9,$B6,$B3
+        !byte $DB,$30,$83,$AF,$AA,$AB,$8D,$FF
+; EBD1
+ctrltb: !byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$A1 ; with control
+        !byte $11,$01,$1A,$FF,$FF,$A2,$17,$13
+        !byte $18,$03,$FF,$A3,$05,$04,$06,$16
+        !byte $FF,$A4,$12,$14,$07,$02,$FF,$A5
+        !byte $A7,$19,$08,$0E,$FF,$BE,$15,$0A
+        !byte $0D,$FF,$FF,$BB,$09,$0B,$CE,$FF
+        !byte $FF,$BF,$0F,$0C,$DC,$FF,$FF,$AC
+        !byte $BC,$10,$CC,$A8,$FF,$A9,$DF,$BA
+        !byte $FF,$A6,$FF,$FF,$FF,$FF,$FF,$FF
+        !byte $FF,$96,$9E,$9C,$05,$90,$FF,$99
+        !byte $81,$1E,$1C,$FF,$FF,$9A,$95,$1F
+        !byte $9F,$FF,$FF,$97,$98,$9B,$FF,$FF    
 ; ----------------------------------------------------------------------------
-; DLOAD "*" + RUN
-runtab:
-!scr   "D"                              ; EC31 44                       D
-!byte   $CC,$22                         ; EC32 CC 22                    ."
-!scr   "*"                              ; EC34 2A                       *
-!byte   $0D                             ; EC35 0D                       .
-!scr   "RUN"                            ; EC36 52 55 4E                 RUN
-!byte   $0D                             ; EC39 0D                       .
+; EC31 <SHIFT> <RUN/STOP> String: DLOAD "*" + RUN
+runtb:  !pet "d",$CC,$22        ; dL"
+        !pet "*",$0D            ; * <RETURN>
+        !pet "run",$0D          ; run <RETURN>
 ; ----------------------------------------------------------------------------
-; Start of screen lines, low bytes
-ldtab2:
-!byte   $00,$28,$50,$78,$A0,$C8,$F0,$18 ; EC3A 00 28 50 78 A0 C8 F0 18  .(Px....
-!byte   $40,$68,$90,$B8,$E0,$08,$30,$58 ; EC42 40 68 90 B8 E0 08 30 58  @h....0X
-!byte   $80,$A8,$D0,$F8,$20,$48,$70,$98 ; EC4A 80 A8 D0 F8 20 48 70 98  .... Hp.
-!byte   $C0                             ; EC52 C0                       .
-; Start of screen lines, high bytes
-ldtab1:
-!byte   $D0,$D0,$D0,$D0,$D0,$D0,$D0,$D1 ; EC53 D0 D0 D0 D0 D0 D0 D0 D1  ........
-!byte   $D1,$D1,$D1,$D1,$D1,$D2,$D2,$D2 ; EC5B D1 D1 D1 D1 D1 D2 D2 D2  ........
-!byte   $D2,$D2,$D2,$D2,$D3,$D3,$D3,$D3 ; EC63 D2 D2 D2 D2 D3 D3 D3 D3  ........
-!byte   $D3                             ; EC6B D3                       .
+; EC3A Start of screen lines, low bytes
+ldtab2: !byte $00,$28,$50,$78,$A0,$C8,$F0,$18
+        !byte $40,$68,$90,$B8,$E0,$08,$30,$58
+        !byte $80,$A8,$D0,$F8,$20,$48,$70,$98
+        !byte $C0
+; EC53 Start of screen lines, high bytes
+ldtab1: !byte $D0,$D0,$D0,$D0,$D0,$D0,$D0,$D1
+        !byte $D1,$D1,$D1,$D1,$D1,$D2,$D2,$D2
+        !byte $D2,$D2,$D2,$D2,$D3,$D3,$D3,$D3
+        !byte $D3
 ; ----------------------------------------------------------------------------
-; Control key handler table
-ctlvect:!word   ctluser-1                       ; EC6C 21 E3                    !.
-        !word   colorky-1                       ; EC6E 01 E6                    ..
-        !word   ctluser-1                       ; EC70 21 E3                    !.
-        !word   stprun-1                        ; EC72 C8 E5                    ..
-        !word   ce-1                            ; EC74 A2 E6                    ..
-        !word   colorky-1                       ; EC76 01 E6                    ..
-        !word   LE7A0-1                         ; EC78 9F E7                    ..
-        !word   bell-1                          ; EC7A 74 E6                    t.
-        !word   ctluser-1                       ; EC7C 21 E3                    !.
-        !word   tabit-1                         ; EC7E 6A E3                    j.
-        !word   ctluser-1                       ; EC80 21 E3                    !.
-        !word   ctluser-1                       ; EC82 21 E3                    !.
-        !word   ctluser-1                       ; EC84 21 E3                    !.
-        !word   nxt1-1                          ; EC86 A4 E3                    ..
-        !word   crtmode-1                       ; EC88 50 E2                    P.
-        !word   window-1                        ; EC8A 87 EA                    ..
-        !word   colorky-1                       ; EC8C 01 E6                    ..
-        !word   cdnup-1                         ; EC8E 24 E3                    $.
-        !word   rvsf-1                          ; EC90 54 E3                    T.
-        !word   homeclr-1                       ; EC92 5A E3                    Z.
-        !word   delins-1                        ; EC94 5A E5                    Z.
-        !word   colorky-1                       ; EC96 01 E6                    ..
-        !word   colorky-1                       ; EC98 01 E6                    ..
-        !word   colorky-1                       ; EC9A 01 E6                    ..
-        !word   colorky-1                       ; EC9C 01 E6                    ..
-        !word   colorky-1                       ; EC9E 01 E6                    ..
-        !word   colorky-1                       ; ECA0 01 E6                    ..
-        !word   colorky-1                       ; ECA2 01 E6                    ..
-        !word   colorky-1                       ; ECA4 01 E6                    ..
-        !word   crtlf-1                         ; ECA6 41 E3                    A.
-        !word   colorky-1                       ; ECA8 01 E6                    ..
-        !word   colorky-1                       ; ECAA 01 E6                    ..
+; EC6C Control key handler table
+ctlvect:!word ctluser-1
+        !word colorky-1
+        !word ctluser-1
+        !word stprun-1
+        !word ce-1
+        !word colorky-1
+        !word LE7A0-1
+        !word bell-1
+        !word ctluser-1
+        !word tabit-1
+        !word ctluser-1
+        !word ctluser-1
+        !word ctluser-1
+        !word nxt1-1
+        !word crtmode-1
+        !word window-1
+        !word colorky-1
+        !word cdnup-1
+        !word rvsf-1
+        !word homeclr-1
+        !word delins-1
+        !word colorky-1
+        !word colorky-1
+        !word colorky-1
+        !word colorky-1
+        !word colorky-1
+        !word colorky-1
+        !word colorky-1
+        !word colorky-1
+        !word crtlf-1
+        !word colorky-1
+        !word colorky-1
 ; ----------------------------------------------------------------------------
-!ifdef STANDARD_FKEYS{
+!ifdef STANDARD_FKEYS{          ; ********** Standard F-keys **********
 ; ECAC Length of function key texts
 keylen: !byte $05,$04,$06,$06,$05,$06,$04,$09
         !byte $07,$05
-; ----------------------------------------------------------------------------
 ; ECB6 Function key definitions
 keydef: !pet "print"                    ; F1
         !pet "list"                     ; F2
@@ -2017,13 +2015,13 @@ keydef: !pet "print"                    ; F1
         !pet "directory"                ; F8
         !pet "scratch"                  ; F9
         !pet "chr$("                    ; F10
-} else{
+} else{                         ; ********** Patched F-keys **********
 ; ECAC Length of function key texts
-keylen: !byte $03,$04,$06,$06,$05,$05,$04,$09           ; ***** PATCHED *****
+keylen: !byte $03,$04,$06,$06,$05,$05,$04,$09
         !byte $08,$07
 ; ----------------------------------------------------------------------------
 ; ECB6 Function key definitions
-keydef: !pet "run"                      ; F1            ; ***** PATCHED *****
+keydef: !pet "run"                      ; F1
         !pet "list"                     ; F2
         !pet "dload",$22                ; F3
         !pet "dsave",$22                ; F4
@@ -3806,7 +3804,7 @@ cold:   ldx #$FE
         eor evect+3
         beq swarm               ; jump to warm start
 ; F9AD System cold start
-        lda #$06                ; init 96/97 to $0006 = position rom ident bytes
+        lda #$06                ; set pointer to $0006 = position rom ident bytes
         sta eal
         lda #$00
         sta eah
@@ -3912,99 +3910,101 @@ io120:  lda #$08
         rts         
 ; ----------------------------------------------------------------------------
 ; FA94 RAM-test / vector init
-ramtas: lda     #$00                            ; FA94 A9 00                    ..
-        tax                                     ; FA96 AA                       .
-LFA97:  sta     $0002,x                         ; FA97 9D 02 00                 ...
-        sta     $0200,x                         ; FA9A 9D 00 02                 ...
-        sta     $02F8,x                         ; FA9D 9D F8 02                 ...
-        inx                                     ; FAA0 E8                       .
-        bne     LFA97                           ; FAA1 D0 F4                    ..
-        lda     #$00                            ; FAA3 A9 00                    ..
-        sta     i6509                           ; FAA5 85 01                    ..
-        sta     memstr+2                        ; FAA7 8D 5A 03                 .Z.
-        sta     lowadr+2                        ; FAAA 8D 54 03                 .T.
-        lda     #$02                            ; FAAD A9 02                    ..
-        sta     memstr                          ; FAAF 8D 58 03                 .X.
-        sta     lowadr                          ; FAB2 8D 52 03                 .R.
-        dec     i6509                           ; FAB5 C6 01                    ..
-LFAB7:  inc     i6509                           ; FAB7 E6 01                    ..
-        lda     i6509                           ; FAB9 A5 01                    ..
-        cmp     #$0F                            ; FABB C9 0F                    ..
-        beq     size                            ; FABD F0 24                    .$
-        ldy     #$02                            ; FABF A0 02                    ..
-LFAC1:  lda     (sal),y                         ; FAC1 B1 93                    ..
-        tax                                     ; FAC3 AA                       .
-        lda     #$55                            ; FAC4 A9 55                    .U
-        sta     (sal),y                         ; FAC6 91 93                    ..
-        lda     (sal),y                         ; FAC8 B1 93                    ..
-        cmp     #$55                            ; FACA C9 55                    .U
-        bne     size                            ; FACC D0 15                    ..
-        asl                                     ; FACE 0A                       .
-        sta     (sal),y                         ; FACF 91 93                    ..
-        lda     (sal),y                         ; FAD1 B1 93                    ..
-        cmp     #$AA                            ; FAD3 C9 AA                    ..
-        bne     size                            ; FAD5 D0 0C                    ..
-        txa                                     ; FAD7 8A                       .
-        sta     (sal),y                         ; FAD8 91 93                    ..
-;        iny                                     ; FADA C8                       .
-;        bne     LFAC1                           ; FADB D0 E4                    ..
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        inc     sah                             ; FADD E6 94                    ..
-        bne     LFAC1                           ; FADF D0 E0                    ..
-        beq     LFAB7                           ; FAE1 F0 D4                    ..
-; Remember the available memory
-size:   ldx     i6509                           ; FAE3 A6 01                    ..
-        dex                                     ; FAE5 CA                       .
-        txa                                     ; FAE6 8A                       .
-        ldx     #$FF                            ; FAE7 A2 FF                    ..
-        ldy     #$FE                            ; FAE9 A0 FE                    ..
-        sta     hiadr+2                         ; FAEB 8D 57 03                 .W.
-        sty     hiadr+1                         ; FAEE 8C 56 03                 .V.
-        stx     hiadr                           ; FAF1 8E 55 03                 .U.
-        ldy     #$FB                            ; FAF4 A0 FB                    ..
-        clc                                     ; FAF6 18                       .
-        jsr     memtop                          ; FAF7 20 87 FB                  ..
-        dec     ribuf+2                         ; FAFA C6 A8                    ..
-        dec     tape1+2                         ; FAFC C6 A5                    ..
-        lda     #$6B                            ; FAFE A9 6B                    .k
-        sta     itape                           ; FB00 8D 6A 03                 .j.
-        lda     #$FE                            ; FB03 A9 FE                    ..
-        sta     itape+1                         ; FB05 8D 6B 03                 .k.
-        rts                                     ; FB08 60                       `
+ramtas: lda #$00                ; init value A = $00, counter X = $00
+        tax
+px1:    sta $0002,x             ; clear ZP above 6509 bank regs
+        sta basbuf,x            ; clear basic input buffer from $0200       
+        sta evect-$100,x        ; clear kernal RAM till evct $03F8
+        inx
+        bne px1                 ; clear next byte
+        lda #$00
+        sta i6509               ; select bank 0
+        sta memstr+2            ; set user memory start bank = 0
+        sta lowadr+2            ; set system memory start bank = 0
+        lda #$02
+        sta memstr              ; set user memory lowbyte = 0
+        sta lowadr              ; set system memory lowbyte = 0
+        dec i6509               ; decrease bank because of inc in next line
+sizlop: inc i6509               ; increase bank
+        lda i6509
+        cmp #$0F                ; check if bank 15
+        beq size                ; end RAM test if reached bank 15
+        ldy #$02                ; start RAM test at $0002, sal/sah already $0000
+siz100: lda (sal),y
+        tax                     ; save memory value in X 
+        lda #$55                ; test with $55
+        sta (sal),y
+        lda (sal),y
+        cmp #$55                ; check if $55 
+        bne size                ; end test if different
+        asl                     ; test with $AA
+        sta (sal),y
+        lda (sal),y
+        cmp #$AA                ; check if $AA
+        bne size                ; end test if different
+        txa
+        sta (sal),y             ; restore old memory value from X
+!ifdef FULL_RAMTEST{            ; ********** Full RAM-test **********
+        iny
+        bne siz100              ; test next byte
+} else{                         ; ********** Fast RAM-test **********
+        nop
+        nop
+        nop
+}
+        inc sah
+        bne siz100              ; test next page
+        beq sizlop              ; test next bank
+; FAE3 Store RAM size
+size:   ldx i6509
+        dex                     ; calc last tested bank
+        txa                     ; remember last RAM bank in A
+        ldx #$FF
+        ldy #$FE
+        sta hiadr+2             ; store highest RAM bank
+        sty hiadr+1             ; store end of system memory = $FEFF 
+        stx hiadr
+        ldy #$FB                ; user memory top = $FBFF
+        clc
+        jsr memtop              ; set user memory top with C=0
+        dec ribuf+2             ; init rs232 buffer bank to $FF
+        dec tape1+2             ; init tape buffer bank to $FF
+        lda #$6B                ; init tape routines vector to $FE6B
+        sta itape
+        lda #$FE
+        sta itape+1
+        rts
 ; ----------------------------------------------------------------------------
 ; FB09 standard vector table
-jmptab: !word   kirq                            ; FB09 F8 FB                    ..
-        !word   timb                            ; FB0B 21 EE                    !.
-        !word   panic                           ; FB0D B8 FC                    ..
-        !word   open                            ; FB0F C6 F6                    ..
-        !word   close                           ; FB11 F4 F5                    ..
-        !word   chkin                           ; FB13 50 F5                    P.
-        !word   ckout                           ; FB15 AA F5                    ..
-        !word   clrch                           ; FB17 AD F6                    ..
-        !word   basin                           ; FB19 A3 F4                    ..
-        !word   bsout                           ; FB1B F5 F4                    ..
-        !word   stop                            ; FB1D 72 F9                    r.
-        !word   getin                           ; FB1F 44 F4                    D.
-        !word   clrall                          ; FB21 86 F6                    ..
-        !word   load                            ; FB23 4D F7                    M.
-        !word   save                            ; FB25 53 F8                    S.
-        !word   mcmd                            ; FB27 73 EE                    s.
-        !word   jescape                         ; FB29 1F E0                    ..
-        !word   jescape                         ; FB2B 1F E0                    ..
-        !word   secnd                           ; FB2D 7B F2                    {.
-        !word   tksa                            ; FB2F 87 F2                    ..
-        !word   acptr                           ; FB31 11 F3                    ..
-        !word   ciout                           ; FB33 9E F2                    ..
-        !word   untalk                          ; FB35 B2 F2                    ..
-        !word   unlsn                           ; FB37 B6 F2                    ..
-        !word   listn                           ; FB39 3B F2                    ;.
-        !word   talk                            ; FB3B 37 F2                    7.
+jmptab: !word kirq              ; FB09 -> FBF8
+        !word timb              ; FB0B -> EE21
+        !word panic             ; FB0D -> FCB8
+        !word open              ; FB0F -> F6C6
+        !word close             ; FB11 -> F5F4
+        !word chkin             ; FB13 -> F550
+        !word ckout             ; FB15 -> F5AA
+        !word clrch             ; FB17 -> F6AD
+        !word basin             ; FB19 -> F4A3
+        !word bsout             ; FB1B -> F4F5
+        !word stop              ; FB1D -> F972
+        !word getin             ; FB1F -> F444
+        !word clrall            ; FB21 -> F686
+        !word load              ; FB23 -> F74D
+        !word save              ; FB25 -> F853
+        !word mcmd              ; FB27 -> EE73
+        !word jescape           ; FB29 -> E01F
+        !word jescape           ; FB2B -> E01F
+        !word secnd             ; FB2D -> F27B
+        !word tksa              ; FB2F -> F287
+        !word acptr             ; FB31 -> F311
+        !word ciout             ; FB33 -> F29E
+        !word untalk            ; FB35 -> F2B2
+        !word unlsn             ; FB37 -> F2B6
+        !word listn             ; FB39 -> F23B
+        !word talk              ; FB3B -> F237
 ; ----------------------------------------------------------------------------
-; NMI entry, jumps indirect to NMI routine
-nmi:    jmp     (nminv)                         ; FB3D 6C 04 03                 l..
-
+; FB3D NMI entry, jumps indirect to NMI routine
+nmi:    jmp (nminv)             ; ($0304) default -> panic = $FCB8
 ; ----------------------------------------------------------------------------
 ; Set the file name address
 setnam: sta     fnlen                           ; FB40 85 9D                    ..
@@ -4067,15 +4067,14 @@ settmo: sta     timout                          ; FB83 8D 5E 03                 
 
 ; ----------------------------------------------------------------------------
 ; Get/set top of available memory
-memtop: bcc     settop                          ; FB87 90 09                    ..
-        lda     memsiz+2                        ; FB89 AD 5D 03                 .].
-        ldx     memsiz                          ; FB8C AE 5B 03                 .[.
-        ldy     memsiz+1                        ; FB8F AC 5C 03                 .\.
-settop: stx     memsiz                          ; FB92 8E 5B 03                 .[.
-        sty     memsiz+1                        ; FB95 8C 5C 03                 .\.
-        sta     memsiz+2                        ; FB98 8D 5D 03                 .].
-        rts                                     ; FB9B 60                       `
-
+memtop: bcc settop              ; set user memory top with C=0
+        lda memsiz+2            ; load memory top in A, Y, X
+        ldx memsiz
+        ldy memsiz+1
+settop: stx memsiz              ; set user memory top
+        sty memsiz+1
+        sta memsiz+2
+        rts
 ; ----------------------------------------------------------------------------
 ; Get/set bottom of available memory
 membot: bcc     setbot                          ; FB9C 90 09                    ..
