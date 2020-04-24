@@ -8,12 +8,16 @@
 !cpu 6502
 !ct scr         ; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
-; Constants
-FILL            = $AA           ; Fills free memory areas with $00
+; switches
 STANDARD_FKEYS  = 1             ; Standard F-keys
 FULL_RAMTEST    = 1             ; Standard full and slow RAM-test
 STANDARD_VIDEO  = 1             ; Standard doublechecked video writes 
 STANDARD_LOOKUP = 1             ; Standard lookup routine ??? 
+; Constants
+FILL            = $AA           ; Fills free memory areas with $00
+TEXTCOLOR       = $06           ; Default text color:   $06 = blue
+BACKGROUNDCOLOR = $01           ; background color      $01 = white
+EXTERIORCOLOR   = $03           ; exterior color        $03 = cyan
 ; ----------------------------------------------------------------------------
 ; Zero Page
 e6509           = $00           ; 6509 execution bank
@@ -358,21 +362,21 @@ kyset2: lda ctlvect+63,y                    ; E099 B9 AB EC                 ...
         dey
         bne kyset2
 noroom: jsr sreset              ; sub: home-home screen window full size
-        ldx #$11
+        ldx #$11                ; init vic registers $21 - $11
         ldy #$21
--       lda bits+7,x
-        jsr wrtvic              ; sub: write VIC register
+vicinlp:lda vicinit-1,x
+        jsr wrtvic              ; sub: write VIC register Y
         dey
         dex
-        bne -
+        bne vicinlp             ; write next register
         jsr grcrt                           ; E0B3 20 53 E2                  S.
-        ldx #$0A                            ; E0B6 A2 0A                    ..
--       lda vicinit+16,x                    ; E0B8 BD 07 ED                 ...
-        sta keyd+9,x                        ; E0BB 9D B4 03                 ...
+        ldx #$0A                ; copy extended editor vector table to $3B5
+edveclp:lda edvect-1,x
+        sta funvec-1,x
         dex
-        bne -
-        lda #$06
-        sta color                           ; E0C3 85 EC                    ..
+        bne edveclp
+        lda #TEXTCOLOR          ; load default textcolor
+        sta color               ; store default text color
 ; Clear the screen, cursor home
 clrscr: jsr home                            ; E0C5 20 D3 E0                  ..
 -       jsr scrset                          ; E0C8 20 E1 E0                  ..
@@ -1170,35 +1174,38 @@ LE60F:  jmp     ctluser                         ; E60F 4C 22 E3                 
 
 ; ----------------------------------------------------------------------------
 ; E612 Write a byte to the VIC chip
+!ifdef STANDARD_VIDEO{          ; ********** Standard video **********
 wrtvic: sta saver               ; remember value
-LE614:  lda saver
-        sta vic,y
-        eor vic,y
-        beq LE62F
+wrtvrpt:lda saver
+        sta vic,y               ; store value to VIC register
+        eor vic,y               ; check stored value
+        beq wrtvok              ; jump to end if success
         cpy #$20
-LE621       = * + 1
-        bcs LE62B
+        bcs wrtvg20             ; jump if reg >= $20
         cpy #$11
-        bcc LE614
-        and LE621,y
-        bne LE614
-LE62B:  and #$0F
-        bne LE614
-LE62F:  lda saver
+        bcc wrtvrpt             ; write again if register < $10 is different
+        and wrtvtbl - $11,y     ; clear unused bits with register mask table 
+        bne wrtvrpt             ; write register again if different
+wrtvg20:and #$0F                ; clear upper nibble because only bit#0-3 used
+        bne wrtvrpt             ; write register again if different
+wrtvok: lda saver
         rts
-; ----------------------------------------------------------------------------
-; e632 table ????????????????????????
-        !byte $7F,$00,$00,$00,$FF,$3F,$FF,$FE
+wrtvtbl:!byte $7F,$00,$00,$00,$FF,$3F,$FF,$FE
         !byte $00,$0F,$FF,$FF,$FF,$FF,$FF
+} else{                         ; ********** Fast video PATCH **********
+wrtvic: sta vic,y
+        rts
+}
+*= $E641
 ; ----------------------------------------------------------------------------
 ; E641 Write a byte to the video RAM
 !ifdef STANDARD_VIDEO{          ; ********** Standard video **********
 wrtvram:sta saver
-wrtvrpt:lda saver
+wrtrrpt:lda saver
         sta (pnt),y
         lda (pnt),y
         eor saver
-        bne wrtvrpt
+        bne wrtrrpt
         lda saver
         rts
 } else{                         ; ********** Fast video PATCH **********
@@ -1763,7 +1770,7 @@ getkey: lda     tpi2_pc                         ; E9EA AD 02 DF                 
 funjmp: jmp     (funvec)                        ; E9F3 6C B5 03                 l..
 
 ; ----------------------------------------------------------------------------
-LE9F6:  cpy     lstx                            ; E9F6 C4 CD                    ..
+funkey: cpy     lstx                            ; E9F6 C4 CD                    ..
         beq     funrts                          ; E9F8 F0 19                    ..
         lda     ndx                             ; E9FA A5 D1                    ..
         ora     kyndx                           ; E9FC 05 D6                    ..
@@ -1880,15 +1887,15 @@ settps: sta sctop               ; set first row
         rts
 ; ----------------------------------------------------------------------------
 ; EAA2 Bell on (esc-g)
-bellon: lda #$00
+bellon: lda #$00                ; $00 = bell on
 ; EAA4 Bell off (esc-h)
-belloff:sta bellmd
+belloff:sta bellmd              ; store bell flag - any value = bell off
 ; EAA7 Not implemented escape sequences jump here
 notimp: rts
 ; ----------------------------------------------------------------------------
 ; EAA8 Auto insert mode off (esc-c)
 autoff: lda #$00
-        !byte  $2C              ; skips next instruction with bit $xxxx
+        !byte $2C               ; skips next instruction with bit $xxxx
 ; EAAB Auto insert mode on (esc-a)
 auton:  lda #$FF
         sta insflg
@@ -2033,13 +2040,13 @@ keydef: !pet "run"                      ; F1
 ; ECEF Generic bit mask table
 bits:   !byte $80,$40,$20,$10,$08,$04,$02,$01
 ; ----------------------------------------------------------------------------
-; ECF7 Register values for VIC initialization
+; ECF7 VIC initialization table register $11-$21 
 vicinit:!byte $1B,$00,$00,$00,$00,$08,$00,$40
-        !byte $8F,$00,$00,$00,$00,$00,$00,$03
-        !byte $01
+        !byte $8F,$00,$00,$00,$00,$00,$00,EXTERIORCOLOR
+        !byte BACKGROUNDCOLOR
 ; ----------------------------------------------------------------------------
 ; ED08 Extended editor vector table (copied to $3B5)
-edvect: !word LE9F6
+edvect: !word funkey
         !word wrtvram
         !word wrtcram
         !word nofunc
