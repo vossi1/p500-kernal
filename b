@@ -1,4 +1,4 @@
 #!/bin/sh
 acme -v p500kernal.b
-diff -s kernal.bin p500fastboot.bin
-cmp kernal.bin p500fastboot.bin
+diff -s kernal.bin original/901234-02.bin
+cmp kernal.bin original/901234-02.bin

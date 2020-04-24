@@ -3,6 +3,7 @@
 ; modified for ACME assembling by Vossi 04/2020
 ; v1.1 special f-keys
 ; v1.2 full ramtest selection (fast test checks only byte $0002 in each page)
+; v1.3 all patches selectable
 
 !cpu 6502
 !ct scr         ; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
@@ -10,7 +11,9 @@
 ; Constants
 FILL            = $AA           ; Fills free memory areas with $00
 STANDARD_FKEYS  = 1             ; Standard F-keys
-;FULL_RAMTEST    = 1             ; Standard full and slow RAM-test
+FULL_RAMTEST    = 1             ; Standard full and slow RAM-test
+STANDARD_VIDEO  = 1             ; Standard doublechecked video writes 
+STANDARD_LOOKUP = 1             ; Standard lookup routine ??? 
 ; ----------------------------------------------------------------------------
 ; Zero Page
 e6509           = $00           ; 6509 execution bank
@@ -188,13 +191,13 @@ ijtab           = $0810
 ipptab          = $0910
 ; ----------------------------------------------------------------------------
 ; ROM + I/O addresses
-basic           = $8000
-charrom         = $C000
-vidram          = $D000
-clrram          = $D400
-vic             = $D800
+basic           = $8000         ; basic ROM
+charrom         = $C000         ; Character ROM
+vidram          = $D000         ; Video RAM
+clrram          = $D400         ; Color RAM nibbles
+vic             = $D800         ; VIC
 vic_addr        = $D818
-sid_s1freq      = $DA00
+sid_s1freq      = $DA00         ; SID
 sid_s1pw        = $DA02
 sid_s1ctl       = $DA04
 sid_s1ad        = $DA05
@@ -216,7 +219,7 @@ sid_potx        = $DA19
 sid_poty        = $DA1A
 sid_random      = $DA1B
 sid_env3        = $DA1C
-cia1_pra        = $DB00
+cia1_pra        = $DB00         ; CIA1 Coprocessor
 cia1_prb        = $DB01
 cia1_ddra       = $DB02
 cia1_ddrb       = $DB03
@@ -232,7 +235,7 @@ cia1_sdr        = $DB0C
 cia1_icr        = $DB0D
 cia1_cra        = $DB0E
 cia1_crb        = $DB0F
-cia2_pra        = $DC00
+cia2_pra        = $DC00         ; CIA2
 cia2_prb        = $DC01
 cia2_ddra       = $DC02
 cia2_ddrb       = $DC03
@@ -248,11 +251,11 @@ cia2_sdr        = $DC0C
 cia2_icr        = $DC0D
 cia2_cra        = $DC0E
 cia2_crb        = $DC0F
-acia_data       = $DD00
+acia_data       = $DD00         ; ACIA
 acia_status     = $DD01
 acia_cmd        = $DD02
 acia_ctrl       = $DD03
-tpi1_pa         = $DE00
+tpi1_pa         = $DE00         ; TPI1
 tpi1_pb         = $DE01
 tpi1_pc         = $DE02
 tpi1_ddra       = $DE03
@@ -260,7 +263,7 @@ tpi1_ddrb       = $DE04
 tpi1_ddrc       = $DE05
 tpi1_ctrl       = $DE06
 tpi1_air        = $DE07
-tpi2_pa         = $DF00
+tpi2_pa         = $DF00         ; TPI2
 tpi2_pb         = $DF01
 tpi2_pc         = $DF02
 tpi2_ddra       = $DF03
@@ -358,7 +361,7 @@ noroom: jsr sreset              ; sub: home-home screen window full size
         ldx #$11
         ldy #$21
 -       lda bits+7,x
-        jsr wrtvic                          ; E0AC 20 12 E6                  ..
+        jsr wrtvic              ; sub: write VIC register
         dey
         dex
         bne -
@@ -596,18 +599,17 @@ getych: jsr     pagscr                          ; E241 20 6E E2                 
         jmp     pagres                          ; E24E 4C 7C E2                 L|.
 
 ; ----------------------------------------------------------------------------
-; Switch the VIC to normal or graphics character set
-crtmode:bcs     txtcrt                          ; E251 B0 04                    ..
-grcrt:  ldy     #$02                            ; E253 A0 02                    ..
-        bne     LE259                           ; E255 D0 02                    ..
-txtcrt: ldy     #$00                            ; E257 A0 00                    ..
-LE259:  sty     grmode                          ; E259 84 CC                    ..
-        lda     vic_addr                        ; E25B AD 18 D8                 ...
-        and     #$FD                            ; E25E 29 FD                    ).
-        ora     grmode                          ; E260 05 CC                    ..
-        ldy     #$18                            ; E262 A0 18                    ..
-        jmp     wrtvic                          ; E264 4C 12 E6                 L..
-
+; E251 Switch the VIC to normal or graphics character set
+crtmode:bcs txtcrt              ; jump to normal character set if C=1
+grcrt:  ldy #$02                ; Set Bit#1 for graphics character set   
+        bne setcrt              ; skip next instruction
+txtcrt: ldy #$00                ; Clear Bit#1 for normal chacter set
+setcrt: sty grmode              ; store mode
+        lda vic_addr            ; load vic memory pointers register
+        and #$FD                ; clear bit#1 = CB11
+        ora grmode              ; set CB11 (Character-ROM base-address bit#11)
+        ldy #$18                ; load VIC register number in Y
+        jmp wrtvic              ; sub: write VIC register
 ; ----------------------------------------------------------------------------
 ; Switch to the indirect segment containing the key buffer
 pagkey: pha                                     ; E267 48                       H
@@ -1167,71 +1169,74 @@ LE604:  dey                                     ; E604 88                       
 LE60F:  jmp     ctluser                         ; E60F 4C 22 E3                 L".
 
 ; ----------------------------------------------------------------------------
-; Write a byte to the VIC chip
-wrtvic: sta     saver                           ; E612 85 EE                    ..
-LE614:  lda     saver                           ; E614 A5 EE                    ..
-        sta     vic,y                           ; E616 99 00 D8                 ...
-        eor     vic,y                           ; E619 59 00 D8                 Y..
-        beq     LE62F                           ; E61C F0 11                    ..
-        cpy     #$20                            ; E61E C0 20                    . 
-LE621           = * + 1
-        bcs     LE62B                           ; E620 B0 09                    ..
-        cpy     #$11                            ; E622 C0 11                    ..
-        bcc     LE614                           ; E624 90 EE                    ..
-        and     LE621,y                         ; E626 39 21 E6                 9!.
-        bne     LE614                           ; E629 D0 E9                    ..
-LE62B:  and     #$0F                            ; E62B 29 0F                    ).
-        bne     LE614                           ; E62D D0 E5                    ..
-LE62F:  lda     saver                           ; E62F A5 EE                    ..
-        rts                                     ; E631 60                       `
-
+; E612 Write a byte to the VIC chip
+wrtvic: sta saver               ; remember value
+LE614:  lda saver
+        sta vic,y
+        eor vic,y
+        beq LE62F
+        cpy #$20
+LE621       = * + 1
+        bcs LE62B
+        cpy #$11
+        bcc LE614
+        and LE621,y
+        bne LE614
+LE62B:  and #$0F
+        bne LE614
+LE62F:  lda saver
+        rts
 ; ----------------------------------------------------------------------------
-!byte   $7F,$00,$00,$00,$FF,$3F,$FF,$FE ; E632 7F 00 00 00 FF 3F FF FE  .....?..
-!byte   $00,$0F,$FF,$FF,$FF,$FF,$FF     ; E63A 00 0F FF FF FF FF FF     .......
+; e632 table ????????????????????????
+        !byte $7F,$00,$00,$00,$FF,$3F,$FF,$FE
+        !byte $00,$0F,$FF,$FF,$FF,$FF,$FF
 ; ----------------------------------------------------------------------------
-; Write a byte to the video RAM
-wrtvram:sta     saver                           ; E641 85 EE                    ..
-;LE643:
-        lda     saver                           ; E643 A5 EE                    ..
-        sta     (pnt),y                         ; E645 91 C8                    ..
-;        lda     (pnt),y                         ; E647 B1 C8                    ..
-;        eor     saver                           ; E649 45 EE                    E.
-;        bne     LE643                           ; E64B D0 F6                    ..
-;        lda     saver                           ; E64D A5 EE                    ..
-        rts                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        rts                                     ; E64F 60                       `
-
+; E641 Write a byte to the video RAM
+!ifdef STANDARD_VIDEO{          ; ********** Standard video **********
+wrtvram:sta saver
+wrtvrpt:lda saver
+        sta (pnt),y
+        lda (pnt),y
+        eor saver
+        bne wrtvrpt
+        lda saver
+        rts
+} else{                         ; ********** Fast video PATCH **********
+wrtvram:sta (pnt),y
+        rts
+}
+*= $E650
 ; ----------------------------------------------------------------------------
-; Write a byte to the color RAM
-wrtcram:sta     saver                           ; E650 85 EE                    ..
-        lda     i6509                           ; E652 A5 01                    ..
-        pha                                     ; E654 48                       H
-        lda     #$0F                            ; E655 A9 0F                    ..
-        sta     i6509                           ; E657 85 01                    ..
-;LE659:
-        lda     saver                           ; E659 A5 EE                    ..
-        sta     (user),y                        ; E65B 91 E8                    ..
-;        eor     (user),y                        ; E65D 51 E8                    Q.
-;        and     #$0F                            ; E65F 29 0F                    ).
-;        bne     LE659                           ; E661 D0 F6                    ..
-        pla                                     ; E663 68                       h
-        sta     i6509                           ; E664 85 01                    ..
-        lda     saver                           ; E666 A5 EE                    ..
-        rts                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        nop                     ; ********** FASTBOOT PATCH **********
-        rts                                     ; E668 60                       `
-
+; E650 Write a byte to the color RAM
+!ifdef STANDARD_VIDEO{          ; ********** Standard video **********
+wrtcram:sta saver
+        lda i6509
+        pha
+        lda #$0F
+        sta i6509
+wrtcrpt:lda saver
+        sta (user),y
+        eor (user),y
+        and #$0F
+        bne wrtcrpt
+        pla
+        sta i6509
+        lda saver
+        rts
+} else{                         ; ********** Fast video PATCH **********
+wrtcram:sta saver
+        lda i6509
+        pha
+        lda #$0F
+        sta i6509
+        lda saver
+        sta (user),y
+        pla
+        sta i6509
+        lda saver
+        rts
+}
+*= $E669
 ; ----------------------------------------------------------------------------
 junkwn1:jmp     (iunkwn1)                       ; E669 6C BB 03                 l..
 
@@ -2007,7 +2012,7 @@ keydef: !pet "print"                    ; F1
         !pet "directory"                ; F8
         !pet "scratch"                  ; F9
         !pet "chr$("                    ; F10
-} else{                         ; ********** Patched F-keys **********
+} else{                         ; ********** F-keys PATCH **********
 ; ECAC Length of function key texts
 keylen: !byte $03,$04,$06,$06,$05,$05,$04,$09
         !byte $08,$07
@@ -3271,8 +3276,11 @@ LF643:  clc                                     ; F643 18                       
 
 ; ----------------------------------------------------------------------------
 lookup: lda     #$00                            ; F645 A9 00                    ..
-;        sta     status                          ; F647 85 9C                    ..
-        adc     status          ; ********** FASTBOOT PATCH **********
+!ifdef STANDARD_LOOKUP{         ; ********** Standard lookup **********
+        sta     status                          ; F647 85 9C                    ..
+} else{                         ; ********** lookup PATCH **********
+        adc     status
+}
         txa                                     ; F649 8A                       .
 LF64A:  ldx     ldtnd                           ; F64A AE 60 03                 .`.
 LF64D:  dex                                     ; F64D CA                       .
@@ -3939,7 +3947,7 @@ siz100: lda (sal),y
 !ifdef FULL_RAMTEST{            ; ********** Full RAM-test **********
         iny
         bne siz100              ; test next byte
-} else{                         ; ********** Fast RAM-test **********
+} else{                         ; ********** Fast RAM-test PATCH **********
         nop
         nop
         nop
