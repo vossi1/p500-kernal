@@ -4,15 +4,15 @@
 ; v1.1 special f-keys
 ; v1.2 full ramtest selection (fast test checks only byte $0002 in each page)
 ; v1.3 all patches selectable
+; v1.4 new ff-keys for petsd
 
 !cpu 6502
 !ct scr         ; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
 ; switches
-STANDARD_FKEYS  = 1             ; Standard F-keys
-FULL_RAMTEST    = 1             ; Standard full and slow RAM-test
-STANDARD_VIDEO  = 1             ; Standard doublechecked video writes 
-STANDARD_LOOKUP = 1             ; Standard lookup routine ??? 
+;STANDARD_FKEYS  = 1             ; Standard F-keys
+;FULL_RAMTEST    = 1             ; Standard full and slow RAM-test
+;STANDARD_VIDEO  = 1             ; Standard doublechecked video writes 
 ; Constants
 FILL            = $AA           ; Fills free memory areas with $00
 TEXTCOLOR       = $06           ; Default text color:   $06 = blue
@@ -223,7 +223,7 @@ sid_potx        = $DA19
 sid_poty        = $DA1A
 sid_random      = $DA1B
 sid_env3        = $DA1C
-cia1_pra        = $DB00         ; CIA1 Coprocessor
+cia1_pra        = $DB00         ; CIA1 on coprocessor board
 cia1_prb        = $DB01
 cia1_ddra       = $DB02
 cia1_ddrb       = $DB03
@@ -2007,7 +2007,7 @@ ctlvect:!word ctluser-1
 !ifdef STANDARD_FKEYS{          ; ********** Standard F-keys **********
 ; ECAC Length of function key texts
 keylen: !byte $05,$04,$06,$06,$05,$06,$04,$09
-        !byte $07,$05
+        !byte $07,$05                   ; 57 bytes keydef-text
 ; ECB6 Function key definitions
 keydef: !pet "print"                    ; F1
         !pet "list"                     ; F2
@@ -2019,23 +2019,38 @@ keydef: !pet "print"                    ; F1
         !pet "directory"                ; F8
         !pet "scratch"                  ; F9
         !pet "chr$("                    ; F10
+; ----------------------------------------------------------------------------
 } else{                         ; ********** F-keys PATCH **********
 ; ECAC Length of function key texts
-keylen: !byte $03,$04,$06,$06,$05,$05,$04,$09
-        !byte $08,$07
-; ----------------------------------------------------------------------------
+keylen: !byte $03,$03,$03,$03,$0d,$0d,$04,$09
+        !byte $03,$03                   ; 57 bytes keydef-text
 ; ECB6 Function key definitions
-keydef: !pet "run"                      ; F1
-        !pet "list"                     ; F2
-        !pet "dload",$22                ; F3
-        !pet "dsave",$22                ; F4
-        !pet "print"                    ; F5
-        !pet "chr$("                    ; F6
-        !pet "bank"                     ; F7
-        !pet "directory"                ; F8
-        !pet "scratch",$22              ; F9
-        !pet "header",$22               ; F10
+keydef: !pet "rU",$0d                   ; F1
+        !pet "lI",$0d                   ; F2
+        !pet "dL",$22                   ; F3
+        !pet "dS",$22                   ; F4
+        !pet "oP8,8,15,",$22,"cd:"      ; F5
+        !pet "oP9,9,15,",$22,"cd:"      ; F6
+        !pet "dcL",$0d                  ; F7
+        !pet "diRd0onu8"                ; F8
+        !pet "sC",$22                   ; F9
+        !pet "hE",$22                   ; F10
 }
+; Length of function key texts
+;keylen: !byte $03,$04,$06,$06,$05,$05,$04,$09
+;        !byte $08,$07                   ; 57 bytes keydef-text
+; Function key definitions
+;keydef: !pet "run"                      ; F1
+;        !pet "list"                     ; F2
+;        !pet "dload",$22                ; F3
+;        !pet "dsave",$22                ; F4
+;        !pet "print"                    ; F5
+;        !pet "chr$("                    ; F6
+;        !pet "bank"                     ; F7
+;        !pet "directory"                ; F8
+;        !pet "scratch",$22              ; F9
+;        !pet "header",$22               ; F10
+;}
 ; ----------------------------------------------------------------------------
 ; ECEF Generic bit mask table
 bits:   !byte $80,$40,$20,$10,$08,$04,$02,$01
@@ -3283,11 +3298,7 @@ LF643:  clc                                     ; F643 18                       
 
 ; ----------------------------------------------------------------------------
 lookup: lda     #$00                            ; F645 A9 00                    ..
-!ifdef STANDARD_LOOKUP{         ; ********** Standard lookup **********
         sta     status                          ; F647 85 9C                    ..
-} else{                         ; ********** lookup PATCH **********
-        adc     status
-}
         txa                                     ; F649 8A                       .
 LF64A:  ldx     ldtnd                           ; F64A AE 60 03                 .`.
 LF64D:  dex                                     ; F64D CA                       .

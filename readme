@@ -5,3 +5,4 @@ modified for ACME assembling by Vossi 04/2020
 v1.1 special f-keys
 v1.2 full ramtest selection (fast test checks only byte $0002 in each page)
 v1.3 all patches selectable
+v1.4 new f-keys for petsd
