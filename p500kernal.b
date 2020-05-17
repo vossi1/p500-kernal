@@ -316,7 +316,7 @@ scrorg: ldx #$28
         ldy #$19
         rts
 ; ----------------------------------------------------------------------------
-; Screen editor init
+; $E044 Screen editor init
 cint:   lda #$00
         ldx #$2D
 cloop1: sta keypnt,x            ; clear key buffer
@@ -3854,10 +3854,10 @@ sloop3: ldy eah
         jsr ioinit              ; sub: I/O register init $F9FE
         lda #$F0
         sta pkybuf+1            ; start F-keys
-        jsr jcint               ; sub: initialize $E004
+        jsr jcint               ; sub: initialize $E004 -> $E044
         jsr ramtas              ; sub: ram-test $FA94
         jsr restor              ; sub: init standard-vectors $FBB1
-        jsr jcint               ; sub: initialize $E004
+        jsr jcint               ; sub: initialize $E004 -> $e044
         lda #$A5
         sta evect+2             ; save warm start flag
 ; F9FB Warm start entry
