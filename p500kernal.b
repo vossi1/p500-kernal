@@ -1,50 +1,68 @@
 ; Commodore P500 Kernal 901234-02 with Fastboot Patches from Steve Gray
 ; disassembled with DA65 18.4.2020 (Info-file from Ulrich Bassewitz)
-; modified for ACME assembling by Vossi 04/2020
+; modified for ACME assembling by Vossi 05/2020
 ; v1.1 special f-keys
 ; v1.2 full ramtest selection (fast test checks only byte $0002 in each page)
 ; v1.3 all patches selectable
-; v1.4 new ff-keys for petsd
+; v1.4 new F-keys for petsd+
 
 !cpu 6502
 !ct scr         ; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
 ; switches
-;STANDARD_FKEYS  = 1             ; Standard F-keys
-;FULL_RAMTEST    = 1             ; Standard full and slow RAM-test
-;STANDARD_VIDEO  = 1             ; Standard doublechecked video writes 
-; Constants
+STANDARD_FKEYS  = 1             ; Standard F-keys
+FULL_RAMTEST    = 1             ; Standard full and slow RAM-test
+STANDARD_VIDEO  = 1             ; Standard doublechecked video writes (original kernal unfinished)
+; ########################################### TODO ################################################
+; 
+; ########################################### BUGS ################################################
+;
+; ########################################### INFO ################################################
+;
+; ***************************************** CONSTANTS *********************************************
 FILL            = $AA           ; Fills free memory areas with $00
 TEXTCOLOR       = $06           ; Default text color:   $06 = blue
 BACKGROUNDCOLOR = $01           ; background color      $01 = white
 EXTERIORCOLOR   = $03           ; exterior color        $03 = cyan
-; ----------------------------------------------------------------------------
-; Zero Page
+; ***************************************** ZERO PAGE *********************************************
 e6509           = $00           ; 6509 execution bank
 i6509           = $01           ; 6509 indirect bank
-fnadr           = $90           ; Far address of file name
-sal             = $93           ; Start address low
-sah             = $94           ; Start address high
-sas             = $95           ; Start address seg
-eal             = $96           ; End address low
-eah             = $97           ; End address high
-eas             = $98           ; End address seg
-stal            = $99
-stah            = $9A
-stas            = $9B
-status          = $9C           ; Status byte
-fnlen           = $9D           ; Length of file name
-la              = $9E           ; Logical file number
-fa              = $9F           ; Device address
-sa              = $A0           ; Secondary address
-dfltn           = $A1           ; Current input device
-dflto           = $A2           ; Current output device
+;
+; $02-$8f BASIC zeropage 
+;
+; $90 Kernal page zero address variables
+; Kernal indirect address variables
+fnadr           = $90           ; Address of file name string
+sal             = $93           ; lo    Current load/store address
+sah             = $94           ; hi
+sas             = $95           ; segment / bank
+eal             = $96           ; lo    End of load/save
+eah             = $97           ; high
+eas             = $98           ; segment / bank
+stal            = $99           ; lo    Start of load/save
+stah            = $9A           ; high
+stas            = $9B           ; segment / bank
+; Frequently used kernal variables
+status          = $9C           ; i/o operation status
+fnlen           = $9D           ; File name length
+la              = $9E           ; Current logical index
+fa              = $9F           ; Current first address
+sa              = $A0           ; Current secondary address
+dfltn           = $A1           ; Default input device
+dflto           = $A2           ; Default output device
+; Tape buffer pointer
 tape1           = $A3           ; Address of tape buffer
-ribuf           = $A6           ; Address of rs232 buffer
+; RS-232 input buffer
+ribuf           = $A6           ; Input buffer
+; Variables for kernal speed
 stkey           = $A9           ; Stop key flag
-c3po            = $AA           ; IEC buffer flag
-bsour           = $AB           ; IEC output buffer
+c3po            = $AA           ; IEEE buffer flag
+                ; = ctemp         used to reduced cassette read times 
+bsour           = $AB           ; IEEE character buffer / also 
+                ; = snsw1         used to reduced cassette read times 
+; cassette temps - overlays ipc buffer
 ipoint          = $AC           ; RAM indirect pointer
+; next 18 bytes also uased for monitor
 pch             = $AE           ; Monitor: PC low
 pcl             = $AF           ; Monitor: PC high
 sp              = $B4           ; Monitor: stack pointer
@@ -56,57 +74,64 @@ tmp2            = $BB           ; Monitor: temp ptr 2
 tmpc            = $BD           ; Monitor: last command
 t6509           = $BE           ; Monitor: current indirect bank
 ddisk           = $BF           ; Monitor: disk device number
-pkybuf          = $C0           ; Start of function keys
-keypnt          = $C2
-sedsal          = $C4
-sedeal          = $C6
-pnt             = $C8           ; Current position in video RAM
-tblx            = $CA           ; Cursor position: line
-pntr            = $CB           ; Cursor position: column
-grmode          = $CC           ; Flag for text/graph mode
-lstx            = $CD           ; Scancode of last key pressed
-lstp            = $CE
+; Screen editor page zero variables
+; Editor indirect variables
+pkybuf          = $C0           ; Start adr of pgm key
+keypnt          = $C2           ; Current pgm key buf
+sedsal          = $C4           ; Scroll ptr
+sedeal          = $C6           ; Scroll ptr
+pnt             = $C8           ; Current character pointer
+; Editor variables for speed & size
+tblx            = $CA           ; Cursor line
+pntr            = $CB           ; Cursor column
+grmode          = $CC           ; graphic/text mode flag
+lstx            = $CD           ; Last character index
+lstp            = $CE           ; Screen editor start position
 lsxp            = $CF
 crsw            = $D0
-ndx             = $D1
+ndx             = $D1           ; Index to keyd queue
 qtsw            = $D2           ; Quote mode flag
 insrt           = $D3           ; Insert mode flag
-config          = $D4           ; Cursor type
-indx            = $D5
-kyndx           = $D6
-rptcnt          = $D7           ; Keyboard repeat counter
-delay           = $D8           ; Kbd repeat delay counter
-sedt1           = $D9           ; Screen editor temp storage #1
-sedt2           = $DA           ; Screen editor temp storage #2
-data            = $DB           ; Current output character
-sctop           = $DC           ; Top line of current window
-scbot           = $DD           ; Bottom line of current window
-sclf            = $DE           ; Left border of current window
-scrt            = $DF           ; Right border of current window
-modkey          = $E0           ; Flag for shift/control keys
-norkey          = $E1
+config          = $D4           ; Cursor type / char before blink (PET II)
+indx            = $D5           ; last byte position on line
+kyndx           = $D6           ; count of program key string
+rptcnt          = $D7           ; Deelay between chars
+delay           = $D8           ; Delay to next repeat
+sedt1           = $D9           ; Frequently used temp variables
+sedt2           = $DA
+; Frequently used editor variables
+data            = $DB           ; Current print data
+sctop           = $DC           ; Top screen 0-25 of current window
+scbot           = $DD           ; Bottom 0-25 of current window
+sclf            = $DE           ; Left margin of current window
+scrt            = $DF           ; Right margin of current window
+modkey          = $E0           ; Keyscanner shift/control flags ($ff-nokey)
+norkey          = $E1           ; Keyscanner normal key number ($ff-nokey)
+; Screen editor usage
 bitabl          = $E2
 blnon           = $E6           ; Blinking cursor on
 blncnt          = $E7           ; Blink counter
-user            = $E8           ; Ptr to color ram
+user            = $E8           ; Pointer to color RAM
 tcolor          = $EA           ; Temporary color
 blnsw           = $EB           ; Blink switch
 color           = $EC           ; Character color
 gdcol           = $ED           ; Color behind cursor
 saver           = $EE           ; Temp store for output char
-scrseg          = $EF           ; Segment of video ram
-; ----------------------------------------------------------------------------
-; CPU Stack
+scrseg          = $EF           ; Segment /bank of video RAM
+; $F0 - $FF Free zero page space 16 bytes
+; -------------------------------------------------------------------------------------------------
+; System stack area
 stack           = $0100         ; Stack
-stackp          = $01FF         ; Stack start
-; ----------------------------------------------------------------------------
-; Basic RAM
+                ; Cassette bad address table
+stackp          = $01FF         ; System Stack pointer transx code
+; -------------------------------------------------------------------------------------------------
+; $200 - $256 Basic's ROM page work area
 basbuf          = $0200         ; basic input buffer
-; ----------------------------------------------------------------------------
-; Kernal RAM
-cinv            = $0300         ; IRQ indirect vector
-cbinv           = $0302         ; BRK indirect vector
-nminv           = $0304         ; NMI indirect vector
+; -------------------------------------------------------------------------------------------------
+; System RAM vectors
+cinv            = $0300         ; IRQ vector
+cbinv           = $0302         ; BRK vector
+nminv           = $0304         ; NMI vector
 iopen           = $0306         ; Open file vector
 iclose          = $0308         ; Close file vector
 ichkin          = $030A
@@ -185,15 +210,15 @@ iwrtcrm         = $03B9         ; Vector: color ram write routine
 iunkwn1         = $03BB
 iunkwn2         = $03BD
 evect           = $03F8         ; Warm start vector and flags
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Free bank 15 RAM
 ramloc          = $0400         ; First free ram location
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Coprocessor ROM
 ipb             = $0800
 ijtab           = $0810
 ipptab          = $0910
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; ROM + I/O addresses
 basic           = $8000         ; basic ROM
 charrom         = $C000         ; Character ROM
@@ -275,10 +300,10 @@ tpi2_ddrb       = $DF04
 tpi2_ddrc       = $DF05
 tpi2_ctrl       = $DF06
 tpi2_air        = $DF07
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !initmem FILL
 *= $E000
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Jump vector table
 jmoncld:jmp moncold             ; Monitor cold start
         nop
@@ -293,7 +318,7 @@ jplot:  jmp plot                ; Get/set the cursor position to/from X, Y
 jiobase:jmp iobase              ; Return CIA base address to X, Y
 jescape:jmp escape              ; Handle an escape sequence
 jfunkey:jmp keyfun              ; Get/set/list function keys
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Get/set the cursor position depending on the carry flag
 plot:   bcs rdplt               ; if C=1 get cursor position
         stx tblx                ; store column 
@@ -305,17 +330,17 @@ plot:   bcs rdplt               ; if C=1 get cursor position
 rdplt:  ldx tblx                ; load column
         ldy pntr                ; load row
 nofunc: rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Return CIA base address
 iobase: ldx #$00
         ldy #$DC
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Return screen dimensions
 scrorg: ldx #$28
         ldy #$19
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; $E044 Screen editor init
 cint:   lda #$00
         ldx #$2D
@@ -402,7 +427,7 @@ scrset: lda ldtab2,x                        ; E0E1 BD 3A EC                 .:.
         ora #$D4                            ; E0EF 09 D4                    ..
         sta user+1                          ; E0F1 85 E9                    ..
         rts                                     ; E0F3 60                       `
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Read a key from kbd and return it in A
 rdkey:  ldx     kyndx                           ; E0F4 A6 D6                    ..
         beq     rdkbuf                          ; E0F6 F0 12                    ..
@@ -415,7 +440,7 @@ rdkey:  ldx     kyndx                           ; E0F4 A6 D6                    
         cli                                     ; E108 58                       X
         rts                                     ; E109 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Remove key from kbd buffer and return it in A
 rdkbuf: ldy     keyd                            ; E10A AC AB 03                 ...
         ldx     #$00                            ; E10D A2 00                    ..
@@ -429,7 +454,7 @@ LE10F:  lda     keyd+1,x                        ; E10F BD AC 03                 
         cli                                     ; E11D 58                       X
         rts                                     ; E11E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Screen input
 scrinp: jsr     print                           ; E11F 20 84 E2                  ..
         asl     $03BF                           ; E122 0E BF 03                 ...
@@ -470,7 +495,7 @@ LE16D:  sta     tblx                            ; E16D 85 CA                    
 LE16F:  sty     pntr                            ; E16F 84 CB                    ..
         jmp     LE186                           ; E171 4C 86 E1                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Read char from screen
 scrget: tya                                     ; E174 98                       .
         pha                                     ; E175 48                       H
@@ -517,7 +542,7 @@ LE1BF:  sta     data                            ; E1BF 85 DB                    
         lda     data                            ; E1C5 A5 DB                    ..
         rts                                     ; E1C7 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Switch quote mode depending on char in A
 qtswc:  cmp     #$22                            ; E1C8 C9 22                    ."
         bne     LE1D4                           ; E1CA D0 08                    ..
@@ -527,7 +552,7 @@ qtswc:  cmp     #$22                            ; E1C8 C9 22                    
         lda     #$22                            ; E1D2 A9 22                    ."
 LE1D4:  rts                                     ; E1D4 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE1D5:  bit     rvs                             ; E1D5 2C 83 03                 ,..
         bpl     LE1DC                           ; E1D8 10 02                    ..
         ora     #$80                            ; E1DA 09 80                    ..
@@ -555,7 +580,7 @@ LE203:  pla                                     ; E203 68                       
         pla                                     ; E205 68                       h
         rts                                     ; E206 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 doblnk: lda     #$20                            ; E207 A9 20                    . 
 LE209:  ldx     color                           ; E209 A6 EC                    ..
         bpl     LE20F                           ; E20B 10 02                    ..
@@ -571,7 +596,7 @@ dspp:   ldy     pntr                            ; E213 A4 CB                    
         pla                                     ; E220 68                       h
         jmp     pagres                          ; E221 4C 7C E2                 L|.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 clrlin: ldy     sclf                            ; E224 A4 DE                    ..
         jsr     clrbit                          ; E226 20 B6 E4                  ..
 clrprt: txa                                     ; E229 8A                       .
@@ -590,7 +615,7 @@ LE22F:  iny                                     ; E22F C8                       
         tax                                     ; E23D AA                       .
         rts                                     ; E23E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Get a character from the screen
 get1ch: ldy     pntr                            ; E23F A4 CB                    ..
 getych: jsr     pagscr                          ; E241 20 6E E2                  n.
@@ -602,7 +627,7 @@ getych: jsr     pagscr                          ; E241 20 6E E2                 
         pla                                     ; E24D 68                       h
         jmp     pagres                          ; E24E 4C 7C E2                 L|.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E251 Switch the VIC to normal or graphics character set
 crtmode:bcs txtcrt              ; jump to normal character set if C=1
 grcrt:  ldy #$02                ; Set Bit#1 for graphics character set   
@@ -614,13 +639,13 @@ setcrt: sty grmode              ; store mode
         ora grmode              ; set CB11 (Character-ROM base-address bit#11)
         ldy #$18                ; load VIC register number in Y
         jmp wrtvic              ; sub: write VIC register
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Switch to the indirect segment containing the key buffer
 pagkey: pha                                     ; E267 48                       H
         lda     keyseg                          ; E268 AD 82 03                 ...
         jmp     pagsub                          ; E26B 4C 71 E2                 Lq.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Switch to the indirect segment containing the video screen
 pagscr: pha                                     ; E26E 48                       H
         lda     scrseg                          ; E26F A5 EF                    ..
@@ -633,7 +658,7 @@ pagsub: pha                                     ; E271 48                       
         pla                                     ; E27A 68                       h
         rts                                     ; E27B 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Restore the indirect segment
 pagres: pha                                     ; E27C 48                       H
         lda     pagsav                          ; E27D AD 8C 03                 ...
@@ -641,7 +666,7 @@ pagres: pha                                     ; E27C 48                       
         pla                                     ; E282 68                       h
         rts                                     ; E283 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Print character on screen
 print:  pha                                     ; E284 48                       H
         cmp     #$FF                            ; E285 C9 FF                    ..
@@ -667,7 +692,7 @@ LE28B:  sta     data                            ; E28B 85 DB                    
         lda     data                            ; E2AB A5 DB                    ..
         jmp     LE2C5                           ; E2AD 4C C5 E2                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE2B0:  ldx     insrt                           ; E2B0 A6 D3                    ..
         bne     LE2C5                           ; E2B2 D0 11                    ..
         bit     $03BF                           ; E2B4 2C BF 03                 ,..
@@ -678,14 +703,14 @@ LE2B0:  ldx     insrt                           ; E2B0 A6 D3                    
         beq     LE2D2                           ; E2C0 F0 10                    ..
         jmp     LE1F6                           ; E2C2 4C F6 E1                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE2C5:  ldx     lstchr                          ; E2C5 AE 85 03                 ...
         cpx     #$1B                            ; E2C8 E0 1B                    ..
         bne     LE2D2                           ; E2CA D0 06                    ..
         jsr     escseq                          ; E2CC 20 DE E6                  ..
         jmp     LE1F6                           ; E2CF 4C F6 E1                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE2D2:  and     #$3F                            ; E2D2 29 3F                    )?
 LE2D4:  bit     data                            ; E2D4 24 DB                    $.
         bpl     LE2DA                           ; E2D6 10 02                    ..
@@ -693,7 +718,7 @@ LE2D4:  bit     data                            ; E2D4 24 DB                    
 LE2DA:  jsr     qtswc                           ; E2DA 20 C8 E1                  ..
         jmp     LE1D5                           ; E2DD 4C D5 E1                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ntcn:   cmp     #$0D                            ; E2E0 C9 0D                    ..
         beq     LE30D                           ; E2E2 F0 29                    .)
         cmp     #$1B                            ; E2E4 C9 1B                    ..
@@ -722,7 +747,7 @@ LE30D:  lda     data                            ; E30D A5 DB                    
         jsr     ctldisp                         ; E311 20 17 E3                  ..
         jmp     LE1F6                           ; E314 4C F6 E1                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Control code dispatcher
 ctldisp:lda     ctlvect+1,x                     ; E317 BD 6D EC                 .m.
         pha                                     ; E31A 48                       H
@@ -731,11 +756,11 @@ ctldisp:lda     ctlvect+1,x                     ; E317 BD 6D EC                 
         lda     data                            ; E31F A5 DB                    ..
         rts                                     ; E321 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; User control code jump vector
 ctluser:jmp     (ctlvec)                        ; E322 6C 22 03                 l".
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Handle cursor up/down
 cdnup:  bcs     cursup                          ; E325 B0 0D                    ..
         jsr     nxln                            ; E327 20 8B E3                  ..
@@ -746,7 +771,7 @@ cursdn1:jsr     getbit                          ; E32A 20 A6 E4                 
 cdrts:  clc                                     ; E332 18                       .
         rts                                     ; E333 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Cursor up
 cursup: ldx     sctop                           ; E334 A6 DC                    ..
         cpx     tblx                            ; E336 E4 CA                    ..
@@ -755,14 +780,14 @@ cursup1:jsr     cursdn1                         ; E33A 20 2A E3                 
         dec     tblx                            ; E33D C6 CA                    ..
         jmp     movcur                          ; E33F 4C DF E0                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Handle cursor right/left
 crtlf:  bcs     cleft                           ; E342 B0 06                    ..
         jsr     nextchr                         ; E344 20 21 E5                  !.
         bcs     cursdn1                         ; E347 B0 E1                    ..
 critgo: rts                                     ; E349 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Cursor left
 cleft:  jsr     bakchr                          ; E34A 20 34 E5                  4.
         bcs     critgo                          ; E34D B0 FA                    ..
@@ -774,19 +799,19 @@ rvsf:   eor     #$80                            ; E355 49 80                    
         sta     rvs                             ; E357 8D 83 03                 ...
         rts                                     ; E35A 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Handle home/clear
 homeclr:bcc     curhome                         ; E35B 90 03                    ..
         jmp     clrscr                          ; E35D 4C C5 E0                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Cursor home
 curhome:cmp     lstchr                          ; E360 CD 85 03                 ...
         bne     hm110                           ; E363 D0 03                    ..
         jsr     sreset                          ; E365 20 93 EA                  ..
 hm110:  jmp     home                            ; E368 4C D3 E0                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Set/reset a tabulator
 tabit:  ldy     pntr                            ; E36B A4 CB                    ..
         bcs     tabtog                          ; E36D B0 12                    ..
@@ -796,21 +821,21 @@ tab1:   cpy     scrt                            ; E36F C4 DF                    
         sta     pntr                            ; E375 85 CB                    ..
         rts                                     ; E377 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 tab2:   iny                                     ; E378 C8                       .
         jsr     gettab                          ; E379 20 26 EA                  &.
         beq     tab1                            ; E37C F0 F1                    ..
         sty     pntr                            ; E37E 84 CB                    ..
         rts                                     ; E380 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Toggle a tabulator at the current position
 tabtog: jsr     gettab                          ; E381 20 26 EA                  &.
         eor     bitmsk                          ; E384 4D 88 03                 M..
         sta     tab,x                           ; E387 9D A1 03                 ...
         rts                                     ; E38A 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 nxln:   ldx     tblx                            ; E38B A6 CA                    ..
         cpx     scbot                           ; E38D E4 DD                    ..
         bcc     nxln1                           ; E38F 90 0F                    ..
@@ -824,7 +849,7 @@ doscrl: jsr     scrup                           ; E39C 20 08 E4                 
 nxln1:  inc     tblx                            ; E3A0 E6 CA                    ..
 nowhop: jmp     movcur                          ; E3A2 4C DF E0                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 nxt1:   jsr     fndend                          ; E3A5 20 F7 E4                  ..
         inx                                     ; E3A8 E8                       .
         jsr     clrbit                          ; E3A9 20 B6 E4                  ..
@@ -833,7 +858,7 @@ nxt1:   jsr     fndend                          ; E3A5 20 F7 E4                 
         jsr     nxln                            ; E3B0 20 8B E3                  ..
         jmp     rstmode                         ; E3B3 4C 72 E7                 Lr.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 movlin: lda     ldtab2,x                        ; E3B6 BD 3A EC                 .:.
         sta     sedeal                          ; E3B9 85 C6                    ..
         sta     sedsal                          ; E3BB 85 C4                    ..
@@ -853,7 +878,7 @@ movl10: lda     (sedsal),y                      ; E3CB B1 C4                    
         bcc     movl10                          ; E3DA 90 EF                    ..
         jmp     pagres                          ; E3DC 4C 7C E2                 L|.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Scroll down
 scrdwn: ldx     lsxp                            ; E3DF A6 CF                    ..
         bmi     scd30                           ; E3E1 30 06                    0.
@@ -875,7 +900,7 @@ scd10:  jsr     scrset                          ; E3EB 20 E1 E0                 
 scd20:  jsr     clrlin                          ; E402 20 24 E2                  $.
         jmp     setbit                          ; E405 4C C3 E4                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Scroll up
 scrup:  ldx     sctop                           ; E408 A6 DC                    ..
 scru00: inx                                     ; E40A E8                       .
@@ -905,7 +930,7 @@ scru30: jsr     scr10                           ; E42A 20 3F E4                 
         bmi     scrup                           ; E43C 30 CA                    0.
 scru10: rts                                     ; E43E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 scr10:  jsr     scrset                          ; E43F 20 E1 E0                  ..
         ldy     sclf                            ; E442 A4 DE                    ..
         cpx     scbot                           ; E444 E4 DD                    ..
@@ -938,7 +963,7 @@ scr75:  ldx     #$7F                            ; E46E A2 7F                    
         stx     tpi2_pb                         ; E475 8E 01 DF                 ...
         rts                                     ; E478 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Scroll stop
 scr80:  ldx     #$F7                            ; E479 A2 F7                    ..
         ldy     #$FF                            ; E47B A0 FF                    ..
@@ -963,7 +988,7 @@ getlin: sei                                     ; E49A 78                       
         cli                                     ; E4A4 58                       X
         rts                                     ; E4A5 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Check for a double length line
 getbit: ldx     tblx                            ; E4A6 A6 CA                    ..
 getbt1: jsr     bitpos                          ; E4A8 20 CF E4                  ..
@@ -971,7 +996,7 @@ getbt1: jsr     bitpos                          ; E4A8 20 CF E4                 
         cmp     #$01                            ; E4AD C9 01                    ..
         jmp     bitout                          ; E4AF 4C BF E4                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Mark current line as double length line
 putbit: ldx     tblx                            ; E4B2 A6 CA                    ..
 putbt1: bcs     setbit                          ; E4B4 B0 0D                    ..
@@ -982,7 +1007,7 @@ bitsav: sta     bitabl,x                        ; E4BD 95 E2                    
 bitout: ldx     bitmsk                          ; E4BF AE 88 03                 ...
         rts                                     ; E4C2 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Mark a double length line
 setbit: bit     scrdis                          ; E4C3 2C 87 03                 ,..
         bvs     getbt1                          ; E4C6 70 E0                    p.
@@ -1003,7 +1028,7 @@ bitpos: stx     bitmsk                          ; E4CF 8E 88 03                 
         pla                                     ; E4E1 68                       h
         rts                                     ; E4E2 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         bcc     fndend                          ; E4E3 90 12                    ..
 ; E4E5 cursor to line start (esc-j)
 fndfst: ldy     sclf                            ; E4E5 A4 DE                    ..
@@ -1015,7 +1040,7 @@ fistrt: jsr     getbit                          ; E4E9 20 A6 E4                 
         inc     tblx                            ; E4F2 E6 CA                    ..
 fnd0:   jmp     movcur                          ; E4F4 4C DF E0                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E4F7 cursor to end of line (esc-k)
 fndend: inc     tblx                            ; E4F7 E6 CA                    ..
         jsr     getbit                          ; E4F9 20 A6 E4                  ..
@@ -1037,7 +1062,7 @@ eloup2: jsr     get1ch                          ; E50E 20 3F E2                 
 endbye: sty     indx                            ; E51E 84 D5                    ..
         rts                                     ; E520 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 nextchr:pha                                     ; E521 48                       H
         ldy     pntr                            ; E522 A4 CB                    ..
         cpy     scrt                            ; E524 C4 DF                    ..
@@ -1051,7 +1076,7 @@ bumpnt: iny                                     ; E52F C8                       
         pla                                     ; E532 68                       h
         rts                                     ; E533 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 bakchr: ldy     pntr                            ; E534 A4 CB                    ..
         dey                                     ; E536 88                       .
         bmi     bakot1                          ; E537 30 04                    0.
@@ -1070,14 +1095,14 @@ bakout: sty     pntr                            ; E54C 84 CB                    
         clc                                     ; E550 18                       .
 bakot2: rts                                     ; E551 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 savpos: ldy     pntr                            ; E552 A4 CB                    ..
         sty     sedt1                           ; E554 84 D9                    ..
         ldx     tblx                            ; E556 A6 CA                    ..
         stx     sedt2                           ; E558 86 DA                    ..
         rts                                     ; E55A 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 delins: bcs     insert                          ; E55B B0 34                    .4
 delete: jsr     cleft                           ; E55D 20 4A E3                  J.
         jsr     savpos                          ; E560 20 52 E5                  R.
@@ -1095,7 +1120,7 @@ delout: lda     sedt1                           ; E574 A5 D9                    
         sta     tblx                            ; E57A 85 CA                    ..
         jmp     movcur                          ; E57C 4C DF E0                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 delop1: jsr     nextchr                         ; E57F 20 21 E5                  !.
         jsr     get1ch                          ; E582 20 3F E2                  ?.
         jsr     bakchr                          ; E585 20 34 E5                  4.
@@ -1103,7 +1128,7 @@ delop1: jsr     nextchr                         ; E57F 20 21 E5                 
         jsr     nextchr                         ; E58B 20 21 E5                  !.
         jmp     deloop                          ; E58E 4C 65 E5                 Le.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 insert: jsr     savpos                          ; E591 20 52 E5                  R.
         jsr     fndend                          ; E594 20 F7 E4                  ..
         cpx     sedt2                           ; E597 E4 DA                    ..
@@ -1128,7 +1153,7 @@ ins50:  inc     insrt                           ; E5C0 E6 D3                    
         dec     insrt                           ; E5C4 C6 D3                    ..
 insout: jmp     delout                          ; E5C6 4C 74 E5                 Lt.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 stprun: bcc     runrts                          ; E5C9 90 0F                    ..
         sei                                     ; E5CB 78                       x
         ldx     #$09                            ; E5CC A2 09                    ..
@@ -1140,7 +1165,7 @@ runlop: lda     runtb-1,x
         cli                                     ; E5D9 58                       X
 runrts: rts                                     ; E5DA 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 movchr: cpy     scrt                            ; E5DB C4 DF                    ..
         bcc     movc10                          ; E5DD 90 0B                    ..
         ldx     tblx                            ; E5DF A6 CA                    ..
@@ -1160,7 +1185,7 @@ movc10: jsr     movcur                          ; E5EA 20 DF E0                 
 movc20: clc                                     ; E600 18                       .
 movc30: rts                                     ; E601 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 colorky:ldy     #$10                            ; E602 A0 10                    ..
 LE604:  dey                                     ; E604 88                       .
         bmi     LE60F                           ; E605 30 08                    0.
@@ -1169,10 +1194,10 @@ LE604:  dey                                     ; E604 88                       
         sty     color                           ; E60C 84 EC                    ..
         rts                                     ; E60E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE60F:  jmp     ctluser                         ; E60F 4C 22 E3                 L".
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E612 Write a byte to the VIC chip
 !ifdef STANDARD_VIDEO{          ; ********** Standard video **********
 wrtvic: sta saver               ; remember value
@@ -1197,7 +1222,7 @@ wrtvic: sta vic,y
         rts
 }
 *= $E641
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E641 Write a byte to the video RAM
 !ifdef STANDARD_VIDEO{          ; ********** Standard video **********
 wrtvram:sta saver
@@ -1213,7 +1238,7 @@ wrtvram:sta (pnt),y
         rts
 }
 *= $E650
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E650 Write a byte to the color RAM
 !ifdef STANDARD_VIDEO{          ; ********** Standard video **********
 wrtcram:sta saver
@@ -1244,21 +1269,21 @@ wrtcram:sta saver
         rts
 }
 *= $E669
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 junkwn1:jmp     (iunkwn1)                       ; E669 6C BB 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 junkwn2:jmp     (iunkwn2)                       ; E66C 6C BD 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Jump vector: Write a byte to video RAM
 jwrtvrm:jmp     (iwrtvrm)                       ; E66F 6C B7 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Jump vector: Write a byte to color RAM
 jwrtcrm:jmp     (iwrtcrm)                       ; E672 6C B9 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Ring the bell
 bell:   lda     bellmd                          ; E675 AD 8B 03                 ...
         bne     LE6A2                           ; E678 D0 28                    .(
@@ -1282,7 +1307,7 @@ LE69A:  iny                                     ; E69A C8                       
         stx     sid_s1ctl                       ; E69F 8E 04 DA                 ...
 LE6A2:  rts                                     ; E6A2 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Clear last input number
 ce:     lda     pntr                            ; E6A3 A5 CB                    ..
         pha                                     ; E6A5 48                       H
@@ -1310,17 +1335,17 @@ LE6C4:  cmp     #$2E                            ; E6C4 C9 2E                    
         jsr     delete                          ; E6D0 20 5D E5                  ].
         jmp     LE6A6                           ; E6D3 4C A6 E6                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE6D6:  pla                                     ; E6D6 68                       h
         cmp     pntr                            ; E6D7 C5 CB                    ..
         bne     LE6A2                           ; E6D9 D0 C7                    ..
         jmp     delete                          ; E6DB 4C 5D E5                 L].
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E6DE Handle an escape sequence
 escseq: jmp (escvec)
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E6E1 Insert a line (esc-i)
 iline:  jsr scrdwn
         jsr stu10
@@ -1333,7 +1358,7 @@ iline:  jsr scrdwn
         sec
         ror lsxp
 linrts: rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         bcs iline
 ; E6F8 Delete a line (esc-d)
 dline:  jsr fistrt
@@ -1355,7 +1380,7 @@ dline:  jsr fistrt
         sec
         ror lsxp
         jmp stu10
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E71F Erase to end of line (esc-q)
 eraeol: clc
         !byte $24               ; skips next instruction with bit $xx
@@ -1370,7 +1395,7 @@ LE727:  jsr clrprt                          ; E727 20 29 E2                  ).
         jsr getbit                          ; E731 20 A6 E4                  ..
         bcs LE727                           ; E734 B0 F1                    ..
 etout:  jmp delout                          ; E736 4C 74 E5                 Lt.
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE739:  jsr doblnk                          ; E739 20 07 E2                  ..
         cpy sclf                            ; E73C C4 DE                    ..
         bne LE745                           ; E73E D0 05                    ..
@@ -1393,7 +1418,7 @@ scroll: jsr     savpos                          ; E74D 20 52 E5                 
         sta     sedt2                           ; E758 85 DA                    ..
         jmp     etout                           ; E75A 4C 36 E7                 L6.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 sddn:   jsr     getbit                          ; E75D 20 A6 E4                  ..
         bcs     sddn2                           ; E760 B0 03                    ..
         sec                                     ; E762 38                       8
@@ -1404,7 +1429,7 @@ sddn2:  lda     sctop                           ; E765 A5 DC                    
         jsr     clrbit                          ; E76C 20 B6 E4                  ..
         jmp     etout                           ; E76F 4C 36 E7                 L6.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E772 Reset modes: insert, reverse, quote
 rstmode:lda #$00
         sta insrt
@@ -1412,7 +1437,7 @@ rstmode:lda #$00
         sta qtsw
         sta $03BF
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E77F Allow scrolling (esc-l)
 scrlon: clc
         bcc scrsw
@@ -1422,7 +1447,7 @@ scrsw:  lda #$00
         ror
         sta scrdis
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; E78A Insert mode off
 insoff: clc                                     ; E78A 18                       .
         bcc     inssw                           ; E78B 90 01                    ..
@@ -1432,7 +1457,7 @@ inssw:  lda     #$00                            ; E78E A9 00                    
         ror                                     ; E790 6A                       j
         sta     insflg                          ; E791 8D 86 03                 ...
         rts                                     ; E794 60                       `
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 logoff: clc                                     ; E795 18                       .
         bcc     logsw                           ; E796 90 01                    ..
 logon:  sec                                     ; E798 38                       8
@@ -1440,19 +1465,19 @@ logsw:  lda     #$00                            ; E799 A9 00                    
         ror                                     ; E79B 6A                       j
         sta     logscr                          ; E79C 8D 8A 03                 ...
         rts                                     ; E79F 60                       `
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE7A0:  lda     $03BF                           ; E7A0 AD BF 03                 ...
         eor     #$C0                            ; E7A3 49 C0                    I.
         sta     $03BF                           ; E7A5 8D BF 03                 ...
         rts                                     ; E7A8 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Get/set/list function keys
 keyfun: dey                                     ; E7A9 88                       .
         bmi     listkey                         ; E7AA 30 03                    0.
         jmp     addkey                          ; E7AC 4C 6C E8                 Ll.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; List function keys
 listkey:ldy     #$00                            ; E7AF A0 00                    ..
 listlp: iny                                     ; E7B1 C8                       .
@@ -1523,11 +1548,11 @@ nodefn: ldy     sedt1                           ; E831 A4 D9                    
         beq     LE83A                           ; E835 F0 03                    ..
         jmp     listlp                          ; E837 4C B1 E7                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE83A:  clc                                     ; E83A 18                       .
         rts                                     ; E83B 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LE83C:  clc                                     ; E83C 18                       .
 LE83D:  lda     crword,x                        ; E83D BD 5A E8                 .Z.
 LE840:  bcc     LE845                           ; E840 90 03                    ..
@@ -1543,13 +1568,13 @@ LE845:  php                                     ; E845 08                       
 ; Jump vector: BSOUT via indirect vector
 jbsout: jmp     (ibsout)                        ; E853 6C 12 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 keword: !scr   " YEK"                           ; E856 20 59 45 4B               YEK
 crword: !scr   "31($RHC+"                       ; E85A 33 31 28 24 52 48 43 2B  31($RHC+
 !byte   $22                                     ; E862 22                       "
 qtword: !scr   "43($RHC+"                       ; E863 34 33 28 24 52 48 43 2B  43($RHC+
 !byte   $22                                     ; E86B 22                       "
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Get/set a function key
 addkey: pha                                     ; E86C 48                       H
         tax                                     ; E86D AA                       .
@@ -1583,7 +1608,7 @@ addkey: pha                                     ; E86C 48                       
         pla                                     ; E8A0 68                       h
         rts                                     ; E8A1 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 keysho: jsr     pagkey                          ; E8A2 20 67 E2                  g.
 kymove: lda     sedeal                          ; E8A5 A5 C6                    ..
         clc                                     ; E8A7 18                       .
@@ -1635,12 +1660,12 @@ kyinlp: dey                                     ; E8F3 88                       
         sta     (sedsal),y                      ; E902 91 C4                    ..
         jmp     kyinlp                          ; E904 4C F3 E8                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 kyinok: jsr     pagres                          ; E907 20 7C E2                  |.
         clc                                     ; E90A 18                       .
         rts                                     ; E90B 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Keyboard scan
 scnkey: jsr     junkwn2                         ; E90C 20 6C E6                  l.
         lda     blnon                           ; E90F A5 E6                    ..
@@ -1742,7 +1767,7 @@ keyxt2: ldx     #$7F                            ; E9C3 A2 7F                    
         stx     tpi2_pb                         ; E9CA 8E 01 DF                 ...
         rts                                     ; E9CD 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Handle key repeat
 dorpt:  dec     delay                           ; E9CE C6 D8                    ..
         bpl     keyxt2                          ; E9D0 10 F1                    ..
@@ -1765,11 +1790,11 @@ getkey: lda     tpi2_pc                         ; E9EA AD 02 DF                 
         bne     getkey                          ; E9F0 D0 F8                    ..
         rts                                     ; E9F2 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Jump vector: Called when a function key has been pressed
 funjmp: jmp     (funvec)                        ; E9F3 6C B5 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 funkey: cpy     lstx                            ; E9F6 C4 CD                    ..
         beq     funrts                          ; E9F8 F0 19                    ..
         lda     ndx                             ; E9FA A5 D1                    ..
@@ -1788,7 +1813,7 @@ funkey: cpy     lstx                            ; E9F6 C4 CD                    
 funrts: sec                                     ; EA13 38                       8
         rts                                     ; EA14 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Find a function key definition
 findky: lda     pkybuf                          ; EA15 A5 C0                    ..
         ldx     pkybuf+1                        ; EA17 A6 C1                    ..
@@ -1801,7 +1826,7 @@ findlp: clc                                     ; EA19 18                       
         bne     findlp                          ; EA23 D0 F4                    ..
 fndout: rts                                     ; EA25 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Calculate tabulator position
 gettab: tya                                     ; EA26 98                       .
         and     #$07                            ; EA27 29 07                    ).
@@ -1817,7 +1842,7 @@ gettab: tya                                     ; EA26 98                       
         bit     bitmsk                          ; EA38 2C 88 03                 ,..
         rts                                     ; EA3B 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EA3C Handle an escape sequence
 escape: and #$7F
         sec
@@ -1825,7 +1850,7 @@ escape: and #$7F
         cmp #$1A
         bcc escgo
 escrts: rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Call an escape sequence routine
 escgo:  asl                                     ; EA46 0A                       .
         tax                                     ; EA47 AA                       .
@@ -1835,7 +1860,7 @@ escgo:  asl                                     ; EA46 0A                       
         pha                                     ; EA4F 48                       H
         rts                                     ; EA50 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Alphabetical table of escape sequence handlers
 escvect:!word auton-1           ; esc-a Auto insert mode on
         !word sethtb-1          ; esc-b Set bottom right window corner
@@ -1863,7 +1888,7 @@ escvect:!word auton-1           ; esc-a Auto insert mode on
         !word escrts-1          ; esc-x Break escape
         !word notimp-1          ; esc-y
         !word notimp-1          ; esc-z
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EA85 Set top left window corner (esc-t)
 sethtt: clc                     ; set upper left corner with C=0
         !byte $24               ; skip next instruction with bit $xx
@@ -1875,7 +1900,7 @@ window: ldx pntr                ; load cursor column
 setbts: sta scbot               ; store last row
         stx scrt                ; store last column
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EA93 Window to full screen (off)
 sreset: lda #$18                ; last row = 24
         ldx #$27                ; last columns = 39
@@ -1885,14 +1910,14 @@ sreset: lda #$18                ; last row = 24
 settps: sta sctop               ; set first row
         stx sclf                ; set first column
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EAA2 Bell on (esc-g)
 bellon: lda #$00                ; $00 = bell on
 ; EAA4 Bell off (esc-h)
 belloff:sta bellmd              ; store bell flag - any value = bell off
 ; EAA7 Not implemented escape sequences jump here
 notimp: rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EAA8 Auto insert mode off (esc-c)
 autoff: lda #$00
         !byte $2C               ; skips next instruction with bit $xxxx
@@ -1900,7 +1925,7 @@ autoff: lda #$00
 auton:  lda #$FF
         sta insflg
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EAB1 Keyboard tables
 normtb: !byte $E0,$1B,$09,$FF,$00,$01,$E1,$31 ; no modifiers
         !byte $51,$41,$5A,$FF,$E2,$32,$57,$53
@@ -1953,12 +1978,12 @@ ctrltb: !byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$A1 ; with control
         !byte $FF,$96,$9E,$9C,$05,$90,$FF,$99
         !byte $81,$1E,$1C,$FF,$FF,$9A,$95,$1F
         !byte $9F,$FF,$FF,$97,$98,$9B,$FF,$FF    
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EC31 <SHIFT> <RUN/STOP> String: DLOAD "*" + RUN
 runtb:  !pet "d",$CC,$22        ; dL"
         !pet "*",$0D            ; * <RETURN>
         !pet "run",$0D          ; run <RETURN>
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EC3A Start of screen lines, low bytes
 ldtab2: !byte $00,$28,$50,$78,$A0,$C8,$F0,$18
         !byte $40,$68,$90,$B8,$E0,$08,$30,$58
@@ -1969,7 +1994,7 @@ ldtab1: !byte $D0,$D0,$D0,$D0,$D0,$D0,$D0,$D1
         !byte $D1,$D1,$D1,$D1,$D1,$D2,$D2,$D2
         !byte $D2,$D2,$D2,$D2,$D3,$D3,$D3,$D3
         !byte $D3
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EC6C Control key handler table
 ctlvect:!word ctluser-1
         !word colorky-1
@@ -2003,7 +2028,7 @@ ctlvect:!word ctluser-1
         !word crtlf-1
         !word colorky-1
         !word colorky-1
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !ifdef STANDARD_FKEYS{          ; ********** Standard F-keys **********
 ; ECAC Length of function key texts
 keylen: !byte $05,$04,$06,$06,$05,$06,$04,$09
@@ -2019,7 +2044,7 @@ keydef: !pet "print"                    ; F1
         !pet "directory"                ; F8
         !pet "scratch"                  ; F9
         !pet "chr$("                    ; F10
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 } else{                         ; ********** F-keys PATCH **********
 ; ECAC Length of function key texts
 keylen: !byte $03,$03,$03,$03,$0d,$0d,$04,$09
@@ -2051,30 +2076,30 @@ keydef: !pet "rU",$0d                   ; F1
 ;        !pet "scratch",$22              ; F9
 ;        !pet "header",$22               ; F10
 ;}
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; ECEF Generic bit mask table
 bits:   !byte $80,$40,$20,$10,$08,$04,$02,$01
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; ECF7 VIC initialization table register $11-$21 
 vicinit:!byte $1B,$00,$00,$00,$00,$08,$00,$40
         !byte $8F,$00,$00,$00,$00,$00,$00,EXTERIORCOLOR
         !byte BACKGROUNDCOLOR
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; ED08 Extended editor vector table (copied to $3B5)
 edvect: !word funkey
         !word wrtvram
         !word wrtcram
         !word nofunc
         !word nofunc
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; ED12 Table with color values
 colortb:!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
         !byte $81,$95,$96,$97,$98,$99,$9A,$9B
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; ED22 Unused space
         !byte $00
 *= $EE00
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; EE00 Monitor entry after boot (no basic)
 monitor:jsr     ioinit                          ; EE00 20 FE F9                  ..
         jsr     restor                          ; EE03 20 B1 FB                  ..
@@ -2137,7 +2162,7 @@ st1:    jsr     kbasin                          ; EE69 20 CF FF                 
         beq     st1                             ; EE6E F0 F9                    ..
         jmp     (usrcmd)                        ; EE70 6C 1E 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Search for a monitor command in the table
 mcmd:   ldx     #$00                            ; EE73 A2 00                    ..
         stx     fnlen                           ; EE75 86 9D                    ..
@@ -2156,7 +2181,7 @@ s1:     cmp     cmds,x                          ; EE7F DD D1 EE                 
         sta     tmp1+1                          ; EE8F 85 BA                    ..
         jmp     (tmp1)                          ; EE91 6C B9 00                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Increment X to point to next command in table
 s2:     inx                                     ; EE94 E8                       .
         inx                                     ; EE95 E8                       .
@@ -2191,67 +2216,67 @@ s4:     sta     tmpc                            ; EEAE 85 BD                    
         lda     tmpc                            ; EECB A5 BD                    ..
         jmp     (stal)                          ; EECD 6C 99 00                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 s5:     rts                                     ; EED0 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Table with monitor commands. One letter command followed by address.
 cmds:
 !scr         ":"                                ; EED1 3A                       :
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   msetmem                         ; EED2 F7 EF                    ..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         ";"                                ; EED4 3B                       ;
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   msetreg                         ; EED5 C5 EF                    ..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "R"                                ; EED7 52                       R
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mregs                           ; EED8 41 EF                    A.
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "M"                                ; EEDA 4D                       M
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mdump                           ; EEDB 84 EF                    ..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "G"                                ; EEDD 47                       G
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mgo                             ; EEDE 14 F0                    ..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "L"                                ; EEE0 4C                       L
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mload                           ; EEE1 43 F0                    C.
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "S"                                ; EEE3 53                       S
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mload                           ; EEE4 43 F0                    C.
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "V"                                ; EEE6 56                       V
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mbank                           ; EEE7 DF EF                    ..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !pet   "@"                                      ; EEE9 40                       @
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mdisk                           ; EEEA 68 F1                    h.
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "Z"                                ; EEEC 5A                       Z
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   kipcgo                          ; EEED 72 FF                    r.
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "X"                                ; EEEF 58                       X
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mexit                           ; EEF0 F5 EE                    ..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !scr         "U"                                ; EEF2 55                       U
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         !word   mdunit                          ; EEF3 EB EF                    ..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor command 'x' (exit)
 mexit:  pla                                     ; EEF5 68                       h
         pla                                     ; EEF6 68                       h
         sei                                     ; EEF7 78                       x
         jmp     (evect)                         ; EEF8 6C F8 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Move tmp1/tmp1+1 to PC memory location
 putpc:  lda     tmp1                            ; EEFB A5 B9                    ..
         sta     pcl                             ; EEFD 85 AF                    ..
@@ -2259,7 +2284,7 @@ putpc:  lda     tmp1                            ; EEFB A5 B9                    
         sta     pch                             ; EF01 85 AE                    ..
         rts                                     ; EF03 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Set tmp1 to point to the saved regs in zero page
 setr:   lda     #$B0                            ; EF04 A9 B0                    ..
         sta     tmp1                            ; EF06 85 B9                    ..
@@ -2270,7 +2295,7 @@ setr:   lda     #$B0                            ; EF04 A9 B0                    
         lda     #$05                            ; EF10 A9 05                    ..
         rts                                     ; EF12 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Print CR + '.' + A + ' '
 altrit: pha                                     ; EF13 48                       H
         jsr     crlf                            ; EF14 20 21 EF                  !.
@@ -2286,7 +2311,7 @@ outqst: lda     #$3F                            ; EF1E A9 3F                    
 crlf:   lda     #$0D                            ; EF21 A9 0D                    ..
         jmp     kbsout                          ; EF23 4C D2 FF                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Header for 'r' command
 reghead:
 !byte   $0D                                     ; EF26 0D                       .
@@ -2294,7 +2319,7 @@ reghead:
                                                 ; EF2F 52 51 20 20 53 52 20 41  RQ  SR A
                                                 ; EF37 43 20 58 52 20 59 52 20  C XR YR 
                                                 ; EF3F 53 50                    SP
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor command 'r' (regs)
 mregs:  ldx     #$00                            ; EF41 A2 00                    ..
 LEF43:  lda     reghead,x                       ; EF43 BD 26 EF                 .&.
@@ -2327,7 +2352,7 @@ LEF7F:  dec     tmpc                            ; EF7F C6 BD                    
         bne     LEF6D                           ; EF81 D0 EA                    ..
         rts                                     ; EF83 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor command 'm' (memory dump)
 mdump:  jsr     rdfour                          ; EF84 20 26 F1                  &.
         bcs     LEFC2                           ; EF87 B0 39                    .9
@@ -2358,10 +2383,10 @@ LEF9C:  jsr     kstop                           ; EF9C 20 E1 FF                 
         bcs     LEF9C                           ; EFBF B0 DB                    ..
 LEFC1:  rts                                     ; EFC1 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LEFC2:  jmp     erropr                          ; EFC2 4C 50 EE                 LP.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor command ';' (set registers)
 msetreg:jsr     rdfour                          ; EFC5 20 26 F1                  &.
         bcs     LEFC2                           ; EFC8 B0 F8                    ..
@@ -2382,7 +2407,7 @@ mbank:  jsr     rdtwo                           ; EFDF 20 33 F1                 
         sta     i6509                           ; EFE8 85 01                    ..
         rts                                     ; EFEA 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor command 'u' (unit)
 mdunit: jsr     rdtwo                           ; EFEB 20 33 F1                  3.
         bcs     LEFC2                           ; EFEE B0 D2                    ..
@@ -2391,7 +2416,7 @@ mdunit: jsr     rdtwo                           ; EFEB 20 33 F1                 
         sta     ddisk                           ; EFF4 85 BF                    ..
         rts                                     ; EFF6 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor command ':' (set memory)
 msetmem:jsr     rdfour                          ; EFF7 20 26 F1                  &.
         bcs     LEFC2                           ; EFFA B0 C6                    ..
@@ -2408,7 +2433,7 @@ LEFFE:  sta     tmpc                            ; EFFE 85 BD                    
         bne     -                               ; F011 D0 ED                    ..
 ++      rts                                     ; F013 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor command 'g' (go)
 mgo:    jsr     rdone                           ; F014 20 62 F1                  b.
         beq     LF021                           ; F017 F0 08                    ..
@@ -2432,10 +2457,10 @@ LF035:  lda     pch,x                           ; F035 B5 AE                    
         bne     LF035                           ; F03B D0 F8                    ..
         jmp     prend                           ; F03D 4C B3 FC                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF040:  jmp     erropr                          ; F040 4C 50 EE                 LP.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor commands 'l' and 's' (load & save)
 mload:  ldy     #$01                            ; F043 A0 01                    ..
         sty     fa                              ; F045 84 9F                    ..
@@ -2472,7 +2497,7 @@ LF077:  lda     savx                            ; F077 AD 66 03                 
         ldy     tmp1+1                          ; F084 A4 BA                    ..
         jmp     kload                           ; F086 4C D5 FF                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF089:  jsr     rdone                           ; F089 20 62 F1                  b.
         beq     LF077                           ; F08C F0 E9                    ..
         cmp     #$2C                            ; F08E C9 2C                    .,
@@ -2523,10 +2548,10 @@ LF0E6:  bne     LF0A0                           ; F0E6 D0 B8                    
         ldy     #$96                            ; F0F1 A0 96                    ..
         jmp     ksave                           ; F0F3 4C D8 FF                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF0F6:  jmp     erropr                          ; F0F6 4C 50 EE                 LP.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output X/Y as 4 hex bytes
 hex4:   txa                                     ; F0F9 8A                       .
         jsr     hex2                            ; F0FA 20 FE F0                  ..
@@ -2549,7 +2574,7 @@ hex1:   clc                                     ; F10A 18                       
 LF111:  adc     #$3A                            ; F111 69 3A                    i:
         jmp     kbsout                          ; F113 4C D2 FF                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Exchange tmp1 and invl
 xchgtmp:ldx     #$02                            ; F116 A2 02                    ..
 -       lda     invl,x                          ; F118 B5 B8                    ..
@@ -2562,7 +2587,7 @@ xchgtmp:ldx     #$02                            ; F116 A2 02                    
         bne     -                               ; F123 D0 F3                    ..
         rts                                     ; F125 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Read 4 chars from input into tmp1/tmp1+1
 rdfour: jsr     rdtwo                           ; F126 20 33 F1                  3.
         bcs     +                               ; F129 B0 07                    ..
@@ -2571,7 +2596,7 @@ rdfour: jsr     rdtwo                           ; F126 20 33 F1                 
         sta     tmp1                            ; F130 85 B9                    ..
 +       rts                                     ; F132 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Read 2 chars from input into A
 rdtwo:  lda     #$00                            ; F133 A9 00                    ..
         sta     stack                           ; F135 8D 00 01                 ...
@@ -2591,7 +2616,7 @@ rdtwo:  lda     #$00                            ; F133 A9 00                    
         ora     stack                           ; F153 0D 00 01                 ...
 +       rts                                     ; F156 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Convert char in A into hex value
 hexit:  cmp     #$3A                            ; F157 C9 3A                    .:
         php                                     ; F159 08                       .
@@ -2601,13 +2626,13 @@ hexit:  cmp     #$3A                            ; F157 C9 3A                    
         adc     #$08                            ; F15F 69 08                    i.
 +       rts                                     ; F161 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Input one char, check for CR
 rdone:  jsr     kbasin                          ; F162 20 CF FF                  ..
         cmp     #$0D                            ; F165 C9 0D                    ..
         rts                                     ; F167 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Monitor command '@' (disk commands)
 mdisk:  lda     #$00                            ; F168 A9 00                    ..
         sta     status                          ; F16A 85 9C                    ..
@@ -2656,9 +2681,9 @@ LF1BF:  jsr     kclrch                          ; F1BF 20 CC FF                 
         clc                                     ; F1C4 18                       .
         jmp     kclose                          ; F1C5 4C C3 FF                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 !byte   $EA,$EA                         ; F1C8 EA EA                    ..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Table with kernal messages
 kmsgtab:
 !byte   $0D                                     ; F1CA 0D                       .
@@ -2686,7 +2711,7 @@ kmsgtab:
 !byte   $8D,$0D                                 ; F21C 8D 0D                    ..
 !scr   "BREA"                                   ; F21E 42 52 45 41              BREA
 !byte   $CB                                     ; F222 CB                       .
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Test error flag, print system message
 spmsg:  bit     msgflg                          ; F223 2C 61 03                 ,a.
         bpl     LF235                           ; F226 10 0D                    ..
@@ -2701,7 +2726,7 @@ msg:    lda     kmsgtab,y                       ; F228 B9 CA F1                 
 LF235:  clc                                     ; F235 18                       .
         rts                                     ; F236 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output talk on IEC bus
 talk:   ora     #$40                            ; F237 09 40                    .@
         bne     LF23D                           ; F239 D0 02                    ..
@@ -2734,7 +2759,7 @@ LF26F:  lda     tpi1_pa                         ; F26F AD 00 DE                 
         pla                                     ; F277 68                       h
         jmp     txbyte                          ; F278 4C C0 F2                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output secondary address after listen on IEC bus
 secnd:  jsr     txbyte                          ; F27B 20 C0 F2                  ..
 ; NOT ATN high after secnd
@@ -2743,7 +2768,7 @@ secatn: lda     tpi1_pa                         ; F27E AD 00 DE                 
         sta     tpi1_pa                         ; F283 8D 00 DE                 ...
         rts                                     ; F286 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output secondary address on IEC bus
 tksa:   jsr     txbyte                          ; F287 20 C0 F2                  ..
 tkatn:  lda     #$3D                            ; F28A A9 3D                    .=
@@ -2768,7 +2793,7 @@ LF2AA:  ora     #$80                            ; F2AA 09 80                    
         sta     bsour                           ; F2AF 85 AB                    ..
         rts                                     ; F2B1 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output untalk on IEC
 untalk: lda     #$5F                            ; F2B2 A9 5F                    ._
         bne     LF2B8                           ; F2B4 D0 02                    ..
@@ -2778,7 +2803,7 @@ LF2B8:  jsr     LF23D                           ; F2B8 20 3D F2                 
         lda     #$FD                            ; F2BB A9 FD                    ..
         jmp     setlns                          ; F2BD 4C 8F F2                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output A on IEC without EOF flag
 txbyte: eor     #$FF                            ; F2C0 49 FF                    I.
         sta     cia2_pra                        ; F2C2 8D 00 DC                 ...
@@ -2815,7 +2840,7 @@ txbyt6: lda     #$FF                            ; F30B A9 FF                    
         sta     cia2_pra                        ; F30D 8D 00 DC                 ...
         rts                                     ; F310 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Read char from IEC bus into A
 acptr:  lda     tpi1_pa                         ; F311 AD 00 DE                 ...
         and     #$BD                            ; F314 29 BD                    ).
@@ -2841,7 +2866,7 @@ LF321:  lda     tpi1_pa                         ; F321 AD 00 DE                 
         lda     #$0D                            ; F343 A9 0D                    ..
         rts                                     ; F345 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF346:  lda     tpi1_pa                         ; F346 AD 00 DE                 ...
         and     #$7F                            ; F349 29 7F                    ).
         sta     tpi1_pa                         ; F34B 8D 00 DE                 ...
@@ -2864,7 +2889,7 @@ LF365:  lda     tpi1_pa                         ; F365 AD 00 DE                 
         pla                                     ; F374 68                       h
         rts                                     ; F375 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Set timer for timeout on IEC
 timeron:lda     #$80                            ; F376 A9 80                    ..
         sta     cia2_tbhi                       ; F378 8D 07 DC                 ...
@@ -2874,10 +2899,10 @@ timeron:lda     #$80                            ; F376 A9 80                    
         clc                                     ; F383 18                       .
         rts                                     ; F384 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         jmp     error9                          ; F385 4C 58 F9                 LX.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Open the RS232 port
 open232:jsr     rdst232                         ; F388 20 35 F4                  5.
         ldy     #$00                            ; F38B A0 00                    ..
@@ -2910,10 +2935,10 @@ LF39C:  lda     m51ctr                          ; F39C AD 76 03                 
 LF3C8:  bcc     LF3CD                           ; F3C8 90 03                    ..
         jmp     errorx                          ; F3CA 4C 5A F9                 LZ.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF3CD:  rts                                     ; F3CD 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Convert PETSCII into ASCII for RS232
 toascii:cmp     #$41                            ; F3CE C9 41                    .A
         bcc     LF3E2                           ; F3D0 90 10                    ..
@@ -2927,7 +2952,7 @@ LF3D8:  cmp     #$C1                            ; F3D8 C9 C1                    
         and     #$7F                            ; F3E0 29 7F                    ).
 LF3E2:  rts                                     ; F3E2 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Convert ASCII to PETSCII for RS232
 tocbm:  cmp     #$41                            ; F3E3 C9 41                    .A
         bcc     LF3F7                           ; F3E5 90 10                    ..
@@ -2941,7 +2966,7 @@ LF3ED:  cmp     #$61                            ; F3ED C9 61                    
         and     #$DF                            ; F3F5 29 DF                    ).
 LF3F7:  rts                                     ; F3F7 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Allow RS232 interrupts
 xon232: lda     acia_cmd                        ; F3F8 AD 02 DD                 ...
         ora     #$09                            ; F3FB 09 09                    ..
@@ -2949,7 +2974,7 @@ xon232: lda     acia_cmd                        ; F3F8 AD 02 DD                 
         sta     acia_cmd                        ; F3FF 8D 02 DD                 ...
         rts                                     ; F402 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Allocate 256 bytes as RS232 buffer
 aloc256:ldx     #$00                            ; F403 A2 00                    ..
         ldy     #$01                            ; F405 A0 01                    ..
@@ -2970,7 +2995,7 @@ LF41D:  ora     #$40                            ; F41D 09 40                    
         sec                                     ; F41F 38                       8
         rts                                     ; F420 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF421:  cpy     memsiz+1                        ; F421 CC 5C 03                 .\.
         bcc     LF41D                           ; F424 90 F7                    ..
         bne     LF42D                           ; F426 D0 05                    ..
@@ -2981,7 +3006,7 @@ LF42D:  stx     hiadr                           ; F42D 8E 55 03                 
         clc                                     ; F433 18                       .
         rts                                     ; F434 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Read the RS232 status
 rdst232:php                                     ; F435 08                       .
         sei                                     ; F436 78                       x
@@ -2992,7 +3017,7 @@ rdst232:php                                     ; F435 08                       
         plp                                     ; F442 28                       (
         rts                                     ; F443 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; GETIN: Input 1 byte from the current input device
 getin:  lda     dfltn                           ; F444 A5 A1                    ..
         bne     getinc2                         ; F446 D0 0C                    ..
@@ -3004,13 +3029,13 @@ getin:  lda     dfltn                           ; F444 A5 A1                    
         clc                                     ; F452 18                       .
         rts                                     ; F453 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Check for input from device 2 (RS232)
 getinc2:cmp     #$02                            ; F454 C9 02                    ..
         beq     getin2                          ; F456 F0 03                    ..
         jmp     kbasin                          ; F458 4C CF FF                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; GETIN routine for device 2 (RS232)
 getin2: sty     xsav                            ; F45B 8C 65 03                 .e.
         stx     savx                            ; F45E 8E 66 03                 .f.
@@ -3044,7 +3069,7 @@ LF49B:  ldy     xsav                            ; F49B AC 65 03                 
 LF4A1:  clc                                     ; F4A1 18                       .
         rts                                     ; F4A2 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; BASIN: Input 1 byte from the current input device
 basin:  lda     dfltn                           ; F4A3 A5 A1                    ..
         bne     basinc3                         ; F4A5 D0 0B                    ..
@@ -3054,7 +3079,7 @@ basin:  lda     dfltn                           ; F4A3 A5 A1                    
         sta     lsxp                            ; F4AD 85 CF                    ..
         jmp     basin3                          ; F4AF 4C BC F4                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Check for input from device 3 (screen)
 basinc3:cmp     #$03                            ; F4B2 C9 03                    ..
         bne     LF4C1                           ; F4B4 D0 0B                    ..
@@ -3066,7 +3091,7 @@ basin3: jsr     jscrget                         ; F4BC 20 0A E0                 
         clc                                     ; F4BF 18                       .
         rts                                     ; F4C0 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; BASIN dispatcher, check inut devices
 LF4C1:  bcs     LF4CA                           ; F4C1 B0 07                    ..
         cmp     #$02                            ; F4C3 C9 02                    ..
@@ -3078,13 +3103,13 @@ LF4CE:  lda     #$0D                            ; F4CE A9 0D                    
 LF4D0:  clc                                     ; F4D0 18                       .
 LF4D1:  rts                                     ; F4D1 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; BASIN entry for IEC devices
 basind: jsr     kacptr                          ; F4D2 20 A5 FF                  ..
         clc                                     ; F4D5 18                       .
         rts                                     ; F4D6 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; BASIN routine for device 2 (RS232)
 basin2: jsr     kgetin                          ; F4D7 20 E4 FF                  ..
         bcs     LF4D1                           ; F4DA B0 F5                    ..
@@ -3101,7 +3126,7 @@ basin2: jsr     kgetin                          ; F4D7 20 E4 FF                 
         sec                                     ; F4F3 38                       8
         rts                                     ; F4F4 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output 1 byte on current output device
 bsout:  pha                                     ; F4F5 48                       H
         lda     dflto                           ; F4F6 A5 A2                    ..
@@ -3112,14 +3137,14 @@ bsout:  pha                                     ; F4F5 48                       
         clc                                     ; F500 18                       .
         rts                                     ; F501 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF502:  bcc     LF50A                           ; F502 90 06                    ..
         pla                                     ; F504 68                       h
         jsr     kciout                          ; F505 20 A8 FF                  ..
         clc                                     ; F508 18                       .
         rts                                     ; F509 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF50A:  cmp     #$02                            ; F50A C9 02                    ..
         beq     LF518                           ; F50C F0 0A                    ..
         pla                                     ; F50E 68                       h
@@ -3129,7 +3154,7 @@ LF512:  pla                                     ; F512 68                       
         lda     #$00                            ; F515 A9 00                    ..
 LF517:  rts                                     ; F517 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF518:  stx     t1                              ; F518 8E 63 03                 .c.
         sty     t2                              ; F51B 8C 64 03                 .d.
         lda     rsstat                          ; F51E AD 7A 03                 .z.
@@ -3157,13 +3182,13 @@ LF547:  pla                                     ; F547 68                       
         clc                                     ; F54E 18                       .
         rts                                     ; F54F 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Open an input channel (la in X)
 chkin:  jsr     lookup                          ; F550 20 45 F6                  E.
         beq     LF558                           ; F553 F0 03                    ..
         jmp     error3                          ; F555 4C 46 F9                 LF.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF558:  jsr     fz100                           ; F558 20 57 F6                  W.
         lda     fa                              ; F55B A5 9F                    ..
         beq     LF58D                           ; F55D F0 2E                    ..
@@ -3189,12 +3214,12 @@ LF583:  lda     #$02                            ; F583 A9 02                    
 LF587:  jsr     tape                            ; F587 20 68 FE                  h.
 LF58A:  jmp     error6                          ; F58A 4C 4F F9                 LO.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF58D:  sta     dfltn                           ; F58D 85 A1                    ..
         clc                                     ; F58F 18                       .
         rts                                     ; F590 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF591:  tax                                     ; F591 AA                       .
         jsr     ktalk                           ; F592 20 B4 FF                  ..
         lda     sa                              ; F595 A5 A0                    ..
@@ -3202,26 +3227,26 @@ LF591:  tax                                     ; F591 AA                       
         jsr     tkatn                           ; F599 20 8A F2                  ..
         jmp     LF5A2                           ; F59C 4C A2 F5                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF59F:  jsr     ktksa                           ; F59F 20 96 FF                  ..
 LF5A2:  txa                                     ; F5A2 8A                       .
         bit     status                          ; F5A3 24 9C                    $.
         bpl     LF58D                           ; F5A5 10 E6                    ..
         jmp     error5                          ; F5A7 4C 4C F9                 LL.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Open an output channel (la in X)
 ckout:  jsr     lookup                          ; F5AA 20 45 F6                  E.
         beq     LF5B2                           ; F5AD F0 03                    ..
         jmp     error3                          ; F5AF 4C 46 F9                 LF.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF5B2:  jsr     fz100                           ; F5B2 20 57 F6                  W.
         lda     fa                              ; F5B5 A5 9F                    ..
         bne     LF5BC                           ; F5B7 D0 03                    ..
 LF5B9:  jmp     error7                          ; F5B9 4C 52 F9                 LR.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF5BC:  cmp     #$03                            ; F5BC C9 03                    ..
         beq     LF5D8                           ; F5BE F0 18                    ..
         bcs     LF5DC                           ; F5C0 B0 1A                    ..
@@ -3239,7 +3264,7 @@ LF5D8:  sta     dflto                           ; F5D8 85 A2                    
         clc                                     ; F5DA 18                       .
         rts                                     ; F5DB 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF5DC:  tax                                     ; F5DC AA                       .
         jsr     klisten                         ; F5DD 20 B1 FF                  ..
         lda     sa                              ; F5E0 A5 A0                    ..
@@ -3252,7 +3277,7 @@ LF5EC:  txa                                     ; F5EC 8A                       
         bpl     LF5D8                           ; F5EF 10 E7                    ..
         jmp     error5                          ; F5F1 4C 4C F9                 LL.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Close a logical file
 close:  php                                     ; F5F4 08                       .
         jsr     LF64A                           ; F5F5 20 4A F6                  J.
@@ -3261,7 +3286,7 @@ close:  php                                     ; F5F4 08                       
         clc                                     ; F5FB 18                       .
         rts                                     ; F5FC 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF5FD:  jsr     fz100                           ; F5FD 20 57 F6                  W.
         plp                                     ; F600 28                       (
         txa                                     ; F601 8A                       .
@@ -3296,7 +3321,7 @@ LF625:  tax                                     ; F625 AA                       
 LF643:  clc                                     ; F643 18                       .
         rts                                     ; F644 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 lookup: lda     #$00                            ; F645 A9 00                    ..
         sta     status                          ; F647 85 9C                    ..
         txa                                     ; F649 8A                       .
@@ -3308,7 +3333,7 @@ LF64D:  dex                                     ; F64D CA                       
         clc                                     ; F655 18                       .
         rts                                     ; F656 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 fz100:  lda     lat,x                           ; F657 BD 34 03                 .4.
         sta     la                              ; F65A 85 9E                    ..
         lda     fat,x                           ; F65C BD 3E 03                 .>.
@@ -3317,7 +3342,7 @@ fz100:  lda     lat,x                           ; F657 BD 34 03                 
         sta     sa                              ; F664 85 A0                    ..
         rts                                     ; F666 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 lkupsa: tya                                     ; F667 98                       .
         ldx     ldtnd                           ; F668 AE 60 03                 .`.
 LF66B:  dex                                     ; F66B CA                       .
@@ -3331,17 +3356,17 @@ LF674:  jsr     fz100                           ; F674 20 57 F6                 
         ldx     fa                              ; F67A A6 9F                    ..
         rts                                     ; F67C 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF67D:  sec                                     ; F67D 38                       8
         rts                                     ; F67E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 lkupla: tax                                     ; F67F AA                       .
         jsr     lookup                          ; F680 20 45 F6                  E.
         bcc     LF674                           ; F683 90 EF                    ..
         rts                                     ; F685 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Close all logical files
 clrall: ror     xsav                            ; F686 6E 65 03                 ne.
         sta     savx                            ; F689 8D 66 03                 .f.
@@ -3373,24 +3398,24 @@ LF6BD:  ldx     #$03                            ; F6BD A2 03                    
         sta     dfltn                           ; F6C3 85 A1                    ..
         rts                                     ; F6C5 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Open a logical file, output the filename
 open:   bcc     LF6CB                           ; F6C6 90 03                    ..
         jmp     tranr                           ; F6C8 4C 41 F7                 LA.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF6CB:  ldx     la                              ; F6CB A6 9E                    ..
         jsr     lookup                          ; F6CD 20 45 F6                  E.
         bne     LF6D5                           ; F6D0 D0 03                    ..
         jmp     error2                          ; F6D2 4C 43 F9                 LC.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF6D5:  ldx     ldtnd                           ; F6D5 AE 60 03                 .`.
         cpx     #$0A                            ; F6D8 E0 0A                    ..
         bcc     LF6DF                           ; F6DA 90 03                    ..
         jmp     error1                          ; F6DC 4C 40 F9                 L@.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF6DF:  inc     ldtnd                           ; F6DF EE 60 03                 .`.
         lda     la                              ; F6E2 A5 9E                    ..
         sta     lat,x                           ; F6E4 9D 34 03                 .4.
@@ -3410,12 +3435,12 @@ LF702:  cmp     #$02                            ; F702 C9 02                    
         bne     LF709                           ; F704 D0 03                    ..
         jmp     open232                         ; F706 4C 88 F3                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF709:  jsr     tape                            ; F709 20 68 FE                  h.
 LF70C:  clc                                     ; F70C 18                       .
         rts                                     ; F70D 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Open on IEC
 openi:  lda     sa                              ; F70E A5 A0                    ..
         bmi     LF73F                           ; F710 30 2D                    0-
@@ -3433,7 +3458,7 @@ openib: jsr     ksecnd                          ; F71F 20 93 FF                 
         pla                                     ; F727 68                       h
         jmp     error5                          ; F728 4C 4C F9                 LL.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LF72B:  lda     fnlen                           ; F72B A5 9D                    ..
         beq     LF73C                           ; F72D F0 0D                    ..
 ; Output filename on IEC
@@ -3447,7 +3472,7 @@ LF73C:  jsr     kunlsn                          ; F73C 20 AE FF                 
 LF73F:  clc                                     ; F73F 18                       .
         rts                                     ; F740 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output sa 15 + name on IEC
 tranr:  lda     fa                              ; F741 A5 9F                    ..
         jsr     klisten                         ; F743 20 B1 FF                  ..
@@ -3455,7 +3480,7 @@ tranr:  lda     fa                              ; F741 A5 9F                    
         sta     sa                              ; F748 85 A0                    ..
         jmp     openib                          ; F74A 4C 1F F7                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Load from logical file
 load:   stx     relsal                          ; F74D 8E 6F 03                 .o.
         sty     relsah                          ; F750 8C 70 03                 .p.
@@ -3467,14 +3492,14 @@ load:   stx     relsal                          ; F74D 8E 6F 03                 
         bne     load2                           ; F75F D0 03                    ..
 load1:  jmp     error9                          ; F761 4C 58 F9                 LX.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Dispatch based on load device
 load2:  cmp     #$03                            ; F764 C9 03                    ..
         beq     load1                           ; F766 F0 F9                    ..
         bcs     load3                           ; F768 B0 03                    ..
         jmp     load11                          ; F76A 4C 17 F8                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Load from IEC
 load3:  lda     #$60                            ; F76D A9 60                    .`
         sta     sa                              ; F76F 85 A0                    ..
@@ -3482,7 +3507,7 @@ load3:  lda     #$60                            ; F76D A9 60                    
         bne     load4                           ; F773 D0 03                    ..
         jmp     error8                          ; F775 4C 55 F9                 LU.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 load4:  jsr     srching                         ; F778 20 22 F8                  ".
         jsr     openi                           ; F77B 20 0E F7                  ..
         lda     fa                              ; F77E A5 9F                    ..
@@ -3498,7 +3523,7 @@ load4:  jsr     srching                         ; F778 20 22 F8                 
         bcc     load5                           ; F793 90 03                    ..
         jmp     error4                          ; F795 4C 49 F9                 LI.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 load5:  jsr     kacptr                          ; F798 20 A5 FF                  ..
         sta     eah                             ; F79B 85 97                    ..
         sta     stah                            ; F79D 85 9A                    ..
@@ -3524,7 +3549,7 @@ load6:  lda     #$FD                            ; F7C1 A9 FD                    
         bne     load7                           ; F7CA D0 03                    ..
         jmp     break                           ; F7CC 4C BA F8                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 load7:  jsr     kacptr                          ; F7CF 20 A5 FF                  ..
         tax                                     ; F7D2 AA                       .
         lda     status                          ; F7D3 A5 9C                    ..
@@ -3560,10 +3585,10 @@ load10: bit     status                          ; F807 24 9C                    
         jsr     clsei                           ; F80E 20 C6 F8                  ..
         jmp     load12                          ; F811 4C 1A F8                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         jmp     error4                          ; F814 4C 49 F9                 LI.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Load from cassette
 load11: jsr     tape                            ; F817 20 68 FE                  h.
 load12: clc                                     ; F81A 18                       .
@@ -3572,7 +3597,7 @@ load12: clc                                     ; F81A 18                       
         ldy     eah                             ; F81F A4 97                    ..
         rts                                     ; F821 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; In direct mode, print "searching ..."
 srching:bit     msgflg                          ; F822 2C 61 03                 ,a.
         bpl     LF846                           ; F825 10 1F                    ..
@@ -3592,7 +3617,7 @@ LF83B:  jsr     fnadry                          ; F83B 20 A0 FE                 
         bne     LF83B                           ; F844 D0 F5                    ..
 LF846:  rts                                     ; F846 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; In direct mode, print "loading ..."
 loading:ldy     #$1B                            ; F847 A0 1B                    ..
         lda     verck                           ; F849 AD 5F 03                 ._.
@@ -3600,7 +3625,7 @@ loading:ldy     #$1B                            ; F847 A0 1B                    
         ldy     #$2B                            ; F84E A0 2B                    .+
 LF850:  jmp     spmsg                           ; F850 4C 23 F2                 L#.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Save to logical file
 save:   lda     e6509,x                         ; F853 B5 00                    ..
         sta     stal                            ; F855 85 99                    ..
@@ -3620,7 +3645,7 @@ save:   lda     e6509,x                         ; F853 B5 00                    
         bne     save2                           ; F86F D0 03                    ..
 save1:  jmp     error9                          ; F871 4C 58 F9                 LX.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 save2:  cmp     #$03                            ; F874 C9 03                    ..
         beq     save1                           ; F876 F0 F9                    ..
         bcc     save8                           ; F878 90 63                    .c
@@ -3630,7 +3655,7 @@ save2:  cmp     #$03                            ; F874 C9 03                    
         bne     save3                           ; F880 D0 03                    ..
         jmp     error8                          ; F882 4C 55 F9                 LU.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Open file on IEC for writing
 save3:  jsr     openi                           ; F885 20 0E F7                  ..
         jsr     saving                          ; F888 20 E0 F8                  ..
@@ -3658,7 +3683,7 @@ break:  jsr     clsei                           ; F8BA 20 C6 F8                 
         sec                                     ; F8BF 38                       8
         rts                                     ; F8C0 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 save5:  stx     i6509                           ; F8C1 86 01                    ..
         jsr     kunlsn                          ; F8C3 20 AE FF                  ..
 ; Close IEC program file
@@ -3674,7 +3699,7 @@ clsei:  bit     sa                              ; F8C6 24 A0                    
 save6:  clc                                     ; F8DB 18                       .
 save7:  rts                                     ; F8DC 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Open device number < 3 for writing
 save8:  jsr     tape                            ; F8DD 20 68 FE                  h.
 ; In direct mode, print "saving ..."
@@ -3684,7 +3709,7 @@ saving: lda     msgflg                          ; F8E0 AD 61 03                 
         jsr     spmsg                           ; F8E7 20 23 F2                  #.
         jmp     outfn                           ; F8EA 4C 35 F8                 L5.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Read the time from the TOD clock
 rdtim:  lda     cia2_tod10                      ; F8ED AD 08 DC                 ...
         pha                                     ; F8F0 48                       H
@@ -3711,7 +3736,7 @@ rdtim:  lda     cia2_tod10                      ; F8ED AD 08 DC                 
         lda     sal                             ; F912 A5 93                    ..
         rts                                     ; F914 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Set the time
 settim: pha                                     ; F915 48                       H
         pha                                     ; F916 48                       H
@@ -3739,7 +3764,7 @@ settim: pha                                     ; F915 48                       
         sta     cia2_tod10                      ; F93C 8D 08 DC                 ...
         rts                                     ; F93F 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Output "i/o error: 1" (too many files)
 error1: lda     #$01                            ; F940 A9 01                    ..
 !byte   $2C                                     ; F942 2C                       ,
@@ -3781,7 +3806,7 @@ LF96F:  pla                                     ; F96F 68                       
         sec                                     ; F970 38                       8
         rts                                     ; F971 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Check the stop key
 stop:   lda     stkey                           ; F972 A5 A9                    ..
         and     #$01                            ; F974 29 01                    ).
@@ -3792,7 +3817,7 @@ stop:   lda     stkey                           ; F972 A5 A9                    
         plp                                     ; F97E 28                       (
 LF97F:  rts                                     ; F97F 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 udtim:  lda     tpi2_pc                         ; F980 AD 02 DF                 ...
         lsr                                     ; F983 4A                       J
         bcs     LF998                           ; F984 B0 12                    ..
@@ -3808,10 +3833,10 @@ LF998:  rol                                     ; F998 2A                       
         sta     stkey                           ; F999 85 A9                    ..
         rts                                     ; F99B 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; F99C Test bytes for ROMs
 patall: !byte $C2,$CD
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; F99E System reset routine
 cold:   ldx #$FE
         sei                     ; disable interrupts
@@ -3862,7 +3887,7 @@ sloop3: ldy eah
         sta evect+2             ; save warm start flag
 ; F9FB Warm start entry
 swarm:  jmp (evect)             ; jump to basic warm start $BBA0
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; F9FE I/O register init
 ioinit: lda #$F3
         sta tpi1_ctrl
@@ -3926,7 +3951,7 @@ io120:  lda #$08
         ora tpi1_pb 
         sta tpi1_pb 
         rts         
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FA94 RAM-test / vector init
 ramtas: lda #$00                ; init value A = $00, counter X = $00
         tax
@@ -3992,7 +4017,7 @@ size:   ldx i6509
         lda #$FE
         sta itape+1
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FB09 standard vector table
 jmptab: !word kirq              ; FB09 -> FBF8
         !word timb              ; FB0B -> EE21
@@ -4020,10 +4045,10 @@ jmptab: !word kirq              ; FB09 -> FBF8
         !word unlsn             ; FB37 -> F2B6
         !word listn             ; FB39 -> F23B
         !word talk              ; FB3B -> F237
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FB3D NMI entry, jumps indirect to NMI routine
 nmi:    jmp (nminv)             ; ($0304) default -> panic = $FCB8
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Set the file name address
 setnam: sta     fnlen                           ; FB40 85 9D                    ..
         lda     e6509,x                         ; FB42 B5 00                    ..
@@ -4034,14 +4059,14 @@ setnam: sta     fnlen                           ; FB40 85 9D                    
         sta     fnadr+2                         ; FB4C 85 92                    ..
         rts                                     ; FB4E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Set logical file number
 setlfs: sta     la                              ; FB4F 85 9E                    ..
         stx     fa                              ; FB51 86 9F                    ..
         sty     sa                              ; FB53 84 A0                    ..
         rts                                     ; FB55 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Read/write the system status byte
 readst: bcc     storst                          ; FB56 90 1B                    ..
         lda     fa                              ; FB58 A5 9F                    ..
@@ -4054,7 +4079,7 @@ readst: bcc     storst                          ; FB56 90 1B                    
         pla                                     ; FB67 68                       h
         rts                                     ; FB68 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Set the system message flag
 setmsg: sta     msgflg                          ; FB69 8D 61 03                 .a.
 readss: lda     status                          ; FB6C A5 9C                    ..
@@ -4063,7 +4088,7 @@ udst:   ora     status                          ; FB6E 05 9C                    
         sta     status                          ; FB70 85 9C                    ..
         rts                                     ; FB72 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Write the status byte
 storst: pha                                     ; FB73 48                       H
         lda     fa                              ; FB74 A5 9F                    ..
@@ -4073,17 +4098,17 @@ storst: pha                                     ; FB73 48                       
         sta     rsstat                          ; FB7B 8D 7A 03                 .z.
         rts                                     ; FB7E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 storss: pla                                     ; FB7F 68                       h
         sta     status                          ; FB80 85 9C                    ..
         rts                                     ; FB82 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; IEC timeout on/off
 settmo: sta     timout                          ; FB83 8D 5E 03                 .^.
         rts                                     ; FB86 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Get/set top of available memory
 memtop: bcc settop              ; set user memory top with C=0
         lda memsiz+2            ; load memory top in A, Y, X
@@ -4093,7 +4118,7 @@ settop: stx memsiz              ; set user memory top
         sty memsiz+1
         sta memsiz+2
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Get/set bottom of available memory
 membot: bcc     setbot                          ; FB9C 90 09                    ..
         lda     memstr+2                        ; FB9E AD 5A 03                 .Z.
@@ -4104,7 +4129,7 @@ setbot: stx     memstr                          ; FBA7 8E 58 03                 
         sta     memstr+2                        ; FBAD 8D 5A 03                 .Z.
         rts                                     ; FBB0 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Restore the system vector table
 restor: ldx     #$09                            ; FBB1 A2 09                    ..
         ldy     #$FB                            ; FBB3 A0 FB                    ..
@@ -4129,14 +4154,14 @@ LFBCE:  lda     (sal),y                         ; FBCE B1 93                    
         stx     i6509                           ; FBD6 86 01                    ..
         rts                                     ; FBD8 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 vreset: stx     evect                           ; FBD9 8E F8 03                 ...
         sty     evect+1                         ; FBDC 8C F9 03                 ...
         lda     #$5A                            ; FBDF A9 5A                    .Z
         sta     evect+3                         ; FBE1 8D FB 03                 ...
         rts                                     ; FBE4 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; IRQ routine
 irq:    pha                                     ; FBE5 48                       H
         txa                                     ; FBE6 8A                       .
@@ -4149,10 +4174,10 @@ irq:    pha                                     ; FBE5 48                       
         bne     brkirq                          ; FBF0 D0 03                    ..
         jmp     (cinv)                          ; FBF2 6C 00 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 brkirq: jmp     (cbinv)                         ; FBF5 6C 02 03                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Standard IRQ routine via indirect vector cinv
 kirq:   lda     i6509                           ; FBF8 A5 01                    ..
         pha                                     ; FBFA 48                       H
@@ -4161,13 +4186,13 @@ kirq:   lda     i6509                           ; FBF8 A5 01                    
         bne     kirq1                           ; FBFF D0 03                    ..
         jmp     prendn                          ; FC01 4C B0 FC                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Check for ACIA IRQ
 kirq1:  cmp     #$10                            ; FC04 C9 10                    ..
         beq     kirq2                           ; FC06 F0 03                    ..
         jmp     kirq8                           ; FC08 4C 69 FC                 Li.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Handle ACIA IRQ
 kirq2:  lda     acia_status                     ; FC0B AD 01 DD                 ...
         tax                                     ; FC0E AA                       .
@@ -4181,7 +4206,7 @@ kirq2:  lda     acia_status                     ; FC0B AD 01 DD                 
         sta     rsstat                          ; FC1E 8D 7A 03                 .z.
         jmp     LFCAD                           ; FC21 4C AD FC                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LFC24:  txa                                     ; FC24 8A                       .
         and     #$08                            ; FC25 29 08                    ).
         beq     LFC4E                           ; FC27 F0 25                    .%
@@ -4213,7 +4238,7 @@ LFC4E:  lda     acia_status                     ; FC4E AD 01 DD                 
         sta     acia_cmd                        ; FC63 8D 02 DD                 ...
 LFC66:  jmp     LFCAD                           ; FC66 4C AD FC                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Check for coprozessor IRQ
 kirq8:  cmp     #$08                            ; FC69 C9 08                    ..
         bne     kirq9                           ; FC6B D0 0A                    ..
@@ -4222,7 +4247,7 @@ kirq8:  cmp     #$08                            ; FC69 C9 08                    
         jsr     ipserv                          ; FC71 20 56 FD                  V.
         jmp     LFCAD                           ; FC74 4C AD FC                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Check for CIA IRQ
 kirq9:  cli                                     ; FC77 58                       X
         cmp     #$04                            ; FC78 C9 04                    ..
@@ -4232,13 +4257,13 @@ kirq9:  cli                                     ; FC77 58                       
         sta     alarm                           ; FC82 8D 69 03                 .i.
         jmp     LFCAD                           ; FC85 4C AD FC                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Check for IEC bus IRQ (and ignore it)
 kirq10: cmp     #$02                            ; FC88 C9 02                    ..
         bne     kirq11                          ; FC8A D0 03                    ..
         jmp     LFCAD                           ; FC8C 4C AD FC                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Must be a 50/60Hz IRQ - poll keyboard, update time
 kirq11: jsr     jscnkey                         ; FC8F 20 13 E0                  ..
         jsr     udtim                           ; FC92 20 80 F9                  ..
@@ -4265,7 +4290,7 @@ prend:  pla                                     ; FCB3 68                       
 ; Default NMI routine
 panic:  rti                                     ; FCB8 40                       @
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Coprocessor request
 ipcrq:  lda     ipb                             ; FCB9 AD 00 08                 ...
         and     #$7F                            ; FCBC 29 7F                    ).
@@ -4337,7 +4362,7 @@ LFD50:  cpy     ipb+4                           ; FD50 CC 04 08                 
         bne     LFD3D                           ; FD53 D0 E8                    ..
         rts                                     ; FD55 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Coprocessor irq handler
 ipserv: lda     #$00                            ; FD56 A9 00                    ..
         sta     cia1_ddra                       ; FD58 8D 02 DB                 ...
@@ -4375,7 +4400,7 @@ LFD99:  bit     ipb                             ; FD99 2C 00 08                 
         pha                                     ; FDA3 48                       H
         jmp     (ipb+1)                         ; FDA4 6C 01 08                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         jsr     acklo                           ; FDA7 20 04 FE                  ..
         ldy     #$00                            ; FDAA A0 00                    ..
         beq     LFDCB                           ; FDAC F0 1D                    ..
@@ -4394,7 +4419,7 @@ LFDCB:  cpy     ipb+4                           ; FDCB CC 04 08                 
         bne     LFDAE                           ; FDCE D0 DE                    ..
 LFDD0:  rts                                     ; FDD0 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LFDD1:  lda     #$FD                            ; FDD1 A9 FD                    ..
         pha                                     ; FDD3 48                       H
         lda     #$DC                            ; FDD4 A9 DC                    ..
@@ -4402,7 +4427,7 @@ LFDD1:  lda     #$FD                            ; FDD1 A9 FD                    
         jsr     getbus                          ; FDD7 20 1F FE                  ..
         jmp     (ipb+1)                         ; FDDA 6C 01 08                 l..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         jsr     frebus                          ; FDDD 20 16 FE                  ..
         lda     ipb+4                           ; FDE0 AD 04 08                 ...
         sta     ipb+3                           ; FDE3 8D 03 08                 ...
@@ -4412,38 +4437,38 @@ LFDD1:  lda     #$FD                            ; FDD1 A9 FD                    
         jsr     ipcrq                           ; FDEE 20 B9 FC                  ..
         jmp     LFDD0                           ; FDF1 4C D0 FD                 L..
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 waitlo: lda     cia1_prb                        ; FDF4 AD 01 DB                 ...
         and     #$04                            ; FDF7 29 04                    ).
         bne     waitlo                          ; FDF9 D0 F9                    ..
         rts                                     ; FDFB 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 waithi: lda     cia1_prb                        ; FDFC AD 01 DB                 ...
         and     #$04                            ; FDFF 29 04                    ).
         beq     waithi                          ; FE01 F0 F9                    ..
         rts                                     ; FE03 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 acklo:  lda     cia1_prb                        ; FE04 AD 01 DB                 ...
         and     #$F7                            ; FE07 29 F7                    ).
         sta     cia1_prb                        ; FE09 8D 01 DB                 ...
         rts                                     ; FE0C 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ackhi:  lda     #$08                            ; FE0D A9 08                    ..
         ora     cia1_prb                        ; FE0F 0D 01 DB                 ...
         sta     cia1_prb                        ; FE12 8D 01 DB                 ...
         rts                                     ; FE15 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Free the bus for the coprocessor
 frebus: lda     tpi1_pb                         ; FE16 AD 01 DE                 ...
         and     #$EF                            ; FE19 29 EF                    ).
         sta     tpi1_pb                         ; FE1B 8D 01 DE                 ...
         rts                                     ; FE1E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Wait until we own the bus
 getbus: lda     cia1_prb                        ; FE1F AD 01 DB                 ...
         and     #$02                            ; FE22 29 02                    ).
@@ -4453,7 +4478,7 @@ getbus: lda     cia1_prb                        ; FE1F AD 01 DB                 
         sta     tpi1_pb                         ; FE2B 8D 01 DE                 ...
         rts                                     ; FE2E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Place coprocessor parameters into buffer
 getpar: lda     ipptab,y                        ; FE2F B9 10 09                 ...
         pha                                     ; FE32 48                       H
@@ -4467,7 +4492,7 @@ getpar: lda     ipptab,y                        ; FE2F B9 10 09                 
         sta     ipb+4                           ; FE3D 8D 04 08                 ...
         rts                                     ; FE40 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; End of coprocessor irq handler
 ipcgo:  ldx     #$FF                            ; FE41 A2 FF                    ..
         stx     i6509                           ; FE43 86 01                    ..
@@ -4480,7 +4505,7 @@ ipcgo:  ldx     #$FF                            ; FE41 A2 FF                    
         bcs     ipcgx                           ; FE52 B0 01                    ..
         rts                                     ; FE54 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Prepare for coprocessor takeover
 ipcgx:  lda     #$00                            ; FE55 A9 00                    ..
         sei                                     ; FE57 78                       x
@@ -4495,17 +4520,17 @@ ipcgx:  lda     #$00                            ; FE55 A9 00                    
 ; Wait while the coprocessor has the bus
 iploop: jmp     iploop                          ; FE65 4C 65 FE                 Le.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Cassette entry. Standard value for itape is notape (below).
 tape:   jmp     (itape)                         ; FE68 6C 6A 03                 lj.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Default cassette routines (device not present)
 notape: pla                                     ; FE6B 68                       h
         pla                                     ; FE6C 68                       h
         jmp     error5                          ; FE6D 4C 4C F9                 LL.
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 LFE70:  lda     stah                            ; FE70 A5 9A                    ..
         sta     sah                             ; FE72 85 94                    ..
         lda     stal                            ; FE74 A5 99                    ..
@@ -4515,7 +4540,7 @@ LFE70:  lda     stah                            ; FE70 A5 9A                    
         sta     i6509                           ; FE7C 85 01                    ..
         rts                                     ; FE7E 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 cmpste: sec                                     ; FE7F 38                       8
         lda     sal                             ; FE80 A5 93                    ..
         sbc     eal                             ; FE82 E5 96                    ..
@@ -4525,7 +4550,7 @@ cmpste: sec                                     ; FE7F 38                       
         sbc     eas                             ; FE8A E5 98                    ..
         rts                                     ; FE8C 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 incsal: inc     sal                             ; FE8D E6 93                    ..
         bne     LFE9F                           ; FE8F D0 0E                    ..
         inc     sah                             ; FE91 E6 94                    ..
@@ -4537,7 +4562,7 @@ incsal: inc     sal                             ; FE8D E6 93                    
         sta     sal                             ; FE9D 85 93                    ..
 LFE9F:  rts                                     ; FE9F 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Load a byte from the file name
 fnadry: ldx     i6509                           ; FEA0 A6 01                    ..
         lda     fnadr+2                         ; FEA2 A5 92                    ..
@@ -4546,7 +4571,7 @@ fnadry: ldx     i6509                           ; FEA0 A6 01                    
         stx     i6509                           ; FEA8 86 01                    ..
         rts                                     ; FEAA 60                       `
 
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; Support routine for cross bank calls
 farcall:php                                     ; FEAB 08                       .
         sei                                     ; FEAC 78                       x
@@ -4596,7 +4621,7 @@ LFEDE:  pla                                     ; FEDE 68                       
         txs                                     ; FEF7 9A                       .
         lda     i6509                           ; FEF8 A5 01                    ..
         jmp     kgbye                           ; FEFA 4C F6 FF                 L..
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
         nop
 ; FEFE Return from call to foreign bank
 excrts: php
@@ -4611,7 +4636,7 @@ excrts: php
         sta i6509
         jsr ipinit
         jmp excomm
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FF11 ipoint = $100, Y = $FF (stack)
 ipinit: ldy #$01
         sty ipoint+1
@@ -4620,7 +4645,7 @@ ipinit: ldy #$01
         dey
         lda (ipoint),y
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FF1C Place X/A to ipoint (build stack in foreign bank)
 putaxs: pha
         txa
@@ -4631,7 +4656,7 @@ putaxs: pha
 putag:  sta (ipoint),y
         dey
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FF26 Pull registers after calling subroutine in foreign bank
 expull: pla
         tay
@@ -4640,24 +4665,24 @@ expull: pla
         pla
         plp
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FF2D Helper routine to route interrupts from foreign to system bank
 exnmi:  php
         jmp (hanmi)
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FF31 Helper routine to route BRK insns from foreign to system bank
 exbrk:  brk
         nop
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FF34 Helper routine to route interrupts from foreign to system bank
 exirq:  cli
         rts
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FF36 Unused space
         !byte $AC
 *= $FF6F
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FF6F Jump table kernal functions
 kvreset:jmp vreset              ; Video reset
 kipcgo: jmp ipcgo               ; Monitor command 'Z' switch to copro
@@ -4704,12 +4729,12 @@ kudtim: jmp udtim
 kscrorg:jmp jscrorg
 kplot:  jmp jplot
 kiobase:jmp jiobase
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FFF6 Actual execution segment switch routine
 kgbye:  sta e6509
         rts
         !byte $80
-; ----------------------------------------------------------------------------
+; -------------------------------------------------------------------------------------------------
 ; FFFA Hardware vector table
 hanmi:  !word nmi               ; NMI vector FB3D
 hares:  !word cold              ; Reset vector F99E
