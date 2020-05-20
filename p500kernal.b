@@ -20,7 +20,7 @@ STANDARD_VIDEO  = 1             ; Standard doublechecked video writes (original 
 ; ########################################### INFO ################################################
 ;
 ; ***************************************** CONSTANTS *********************************************
-FILL            = $AA           ; Fills free memory areas with $00
+FILL            = $AA           ; Fills free memory areas with $AA
 TEXTCOLOR       = $06           ; Default text color:   $06 = blue
 BACKGROUNDCOLOR = $01           ; background color      $01 = white
 EXTERIORCOLOR   = $03           ; exterior color        $03 = cyan
@@ -33,19 +33,19 @@ i6509           = $01           ; 6509 indirect bank
 ; $90 Kernal page zero address variables
 ; Kernal indirect address variables
 fnadr           = $90           ; Address of file name string
-sal             = $93           ; lo    Current load/store address
-sah             = $94           ; hi
+sal             = $93           ; low   Current load/store address
+sah             = $94           ; high
 sas             = $95           ; segment / bank
-eal             = $96           ; lo    End of load/save
+eal             = $96           ; low   End of load/save
 eah             = $97           ; high
 eas             = $98           ; segment / bank
-stal            = $99           ; lo    Start of load/save
+stal            = $99           ; low   Start of load/save
 stah            = $9A           ; high
 stas            = $9B           ; segment / bank
 ; Frequently used kernal variables
-status          = $9C           ; i/o operation status
+status          = $9C           ; I/O operation status
 fnlen           = $9D           ; File name length
-la              = $9E           ; Current logical index
+la              = $9E           ; Current logical index / file #
 fa              = $9F           ; Current first address
 sa              = $A0           ; Current secondary address
 dfltn           = $A1           ; Default input device
@@ -57,34 +57,34 @@ ribuf           = $A6           ; Input buffer
 ; Variables for kernal speed
 stkey           = $A9           ; Stop key flag
 c3po            = $AA           ; IEEE buffer flag
-                ; = ctemp         used to reduced cassette read times 
-bsour           = $AB           ; IEEE character buffer / also 
-                ; = snsw1         used to reduced cassette read times 
-; cassette temps - overlays ipc buffer
+        ; ctemp = $AA             used to reduce cassette read times 
+bsour           = $AB           ; IEEE character buffer 
+        ; snsw1 = $AB             used to reduce cassette read times 
+; cassette temps - overlays IPC buffer
 ipoint          = $AC           ; RAM indirect pointer
-; next 18 bytes also uased for monitor
+; next 18 bytes also used for monitor
 pch             = $AE           ; Monitor: PC low
 pcl             = $AF           ; Monitor: PC high
 sp              = $B4           ; Monitor: stack pointer
 xi6509          = $B5           ; Monitor: indirect bank
 invh            = $B7           ; Monitor: user irq low
 invl            = $B8           ; Monitor: user irq high
-tmp1            = $B9           ; Monitor: temp ptr 1
-tmp2            = $BB           ; Monitor: temp ptr 2
+tmp1            = $B9           ; Monitor: temp pointer 1
+tmp2            = $BB           ; Monitor: temp pointer 2
 tmpc            = $BD           ; Monitor: last command
 t6509           = $BE           ; Monitor: current indirect bank
 ddisk           = $BF           ; Monitor: disk device number
 ; Screen editor page zero variables
 ; Editor indirect variables
-pkybuf          = $C0           ; Start adr of pgm key
-keypnt          = $C2           ; Current pgm key buf
-sedsal          = $C4           ; Scroll ptr
-sedeal          = $C6           ; Scroll ptr
+pkybuf          = $C0           ; Start address of pgm key
+keypnt          = $C2           ; Current pgm key buffer
+sedsal          = $C4           ; Scroll pointer
+sedeal          = $C6           ; Scroll pointer
 pnt             = $C8           ; Current character pointer
 ; Editor variables for speed & size
 tblx            = $CA           ; Cursor line
 pntr            = $CB           ; Cursor column
-grmode          = $CC           ; graphic/text mode flag
+grmode          = $CC           ; Graphic/text mode flag
 lstx            = $CD           ; Last character index
 lstp            = $CE           ; Screen editor start position
 lsxp            = $CF
@@ -92,7 +92,7 @@ crsw            = $D0
 ndx             = $D1           ; Index to keyd queue
 qtsw            = $D2           ; Quote mode flag
 insrt           = $D3           ; Insert mode flag
-config          = $D4           ; Cursor type / char before blink (PET II)
+config          = $D4           ; Char before blink
 indx            = $D5           ; last byte position on line
 kyndx           = $D6           ; count of program key string
 rptcnt          = $D7           ; Deelay between chars
@@ -101,8 +101,8 @@ sedt1           = $D9           ; Frequently used temp variables
 sedt2           = $DA
 ; Frequently used editor variables
 data            = $DB           ; Current print data
-sctop           = $DC           ; Top screen 0-25 of current window
-scbot           = $DD           ; Bottom 0-25 of current window
+sctop           = $DC           ; Top screen 0-24 of current window
+scbot           = $DD           ; Bottom 0-24 of current window
 sclf            = $DE           ; Left margin of current window
 scrt            = $DF           ; Right margin of current window
 modkey          = $E0           ; Keyscanner shift/control flags ($ff-nokey)
@@ -134,121 +134,135 @@ cbinv           = $0302         ; BRK vector
 nminv           = $0304         ; NMI vector
 iopen           = $0306         ; Open file vector
 iclose          = $0308         ; Close file vector
-ichkin          = $030A
-ickout          = $030C
-iclrch          = $030E
-ibasin          = $0310
-ibsout          = $0312
-istop           = $0314
-igetin          = $0316
-iclall          = $0318
-iload           = $031A
-isave           = $031C
-usrcmd          = $031E         ; Vector for monitor command extensions
-escvec          = $0320
-ctlvec          = $0322
-isecnd          = $0324
-itksa           = $0326
-iacptr          = $0328
-iciout          = $032A
-iuntlk          = $032C
-iunlsn          = $032E
-ilistn          = $0330
-italk           = $0332
-lat             = $0334         ; Logical file number table
-fat             = $033E         ; Device number table
-sat             = $0348         ; Secondary address table
-lowadr          = $0352         ; Start of system memory: lowbyte, highbyte, bank
-hiadr           = $0355         ; End of system memory: lowbyte, highbyte, bank
-memstr          = $0358         ; Start of user memory: lowbyte, highbyte, bank
-memsiz          = $035B         ; End of user memory: lowbyte, highbyte, bank
+ichkin          = $030A         ; Open channel in vector
+ickout          = $030C         ; Open channel out vector
+iclrch          = $030E         ; Close channel vector
+ibasin          = $0310         ; Input from channel vector 
+ibsout          = $0312         ; Output to channel vector
+istop           = $0314         ; Check stop key vector
+igetin          = $0316         ; Get from queue vector
+iclall          = $0318         ; Close all files vector
+iload           = $031A         ; Load from file vector
+isave           = $031C         ; Save to file vector
+usrcmd          = $031E         ; Monitor extension vector
+escvec          = $0320         ; User ESC key vector
+ctlvec          = $0322         ; unused control key vector
+isecnd          = $0324         ; IEEE listen secondary address
+itksa           = $0326         ; IEEE talk secondary address
+iacptr          = $0328         ; IEEE character in routine
+iciout          = $032A         ; IEEE character out routine
+iuntlk          = $032C         ; IEEE bus untalk
+iunlsn          = $032E         ; IEEE bus unlisten
+ilistn          = $0330         ; IEEE listen device primary address
+italk           = $0332         ; IEEE talk device primary address
+; Kernal absolute variables
+lat             = $0334         ; Logical file numbers / table
+fat             = $033E         ; Device numbers / table
+sat             = $0348         ; Secondary addresses / table
+;
+lowadr          = $0352         ; Start of system memory: low, high, bank
+hiadr           = $0355         ; Top of system memory: low, high, bank
+memstr          = $0358         ; Start of user memory: low, high, bank
+memsiz          = $035B         ; Top of user memory: low, high, bank
 timout          = $035E         ; IEEE timeout enable
 verck           = $035F         ; Load/verify flag
 ldtnd           = $0360         ; Device table index
 msgflg          = $0361         ; Message flag
 bufpt           = $0362         ; Cassette buffer index
+; Kernal temporary (local) variables
 t1              = $0363
-t2              = $0364
-xsav            = $0365
-savx            = $0366
-svxt            = $0367
-temp            = $0368
-alarm           = $0369
-itape           = $036A         ; Vector: Tape routines
-cassvo          = $036C
-aservo          = $036D
-caston          = $036E
-relsal          = $036F
-relsah          = $0370
-relsas          = $0371
-oldinv          = $0372
-cas1            = $0375
-m51ctr          = $0376
-m51cdr          = $0377
-rsstat          = $037A         ; rs232 status byte
-dcdsr           = $037B
-ridbs           = $037C
-ridbe           = $037D
-pkyend          = $0380
+t2              = $0364 
+xsav            = $0365 
+savx            = $0366 
+svxt            = $0367 
+temp            = $0368 
+alarm           = $0369         ; IRQ variable holds 6526 IRQ's
+; Kernal cassette variables
+itape           = $036A         ; Indirect for cassette code
+cassvo          = $036C         ; Cassette read variable
+aservo          = $036D         ; Flag1 indicates t1 timeout cassette read
+caston          = $036E         ; How to turn on timers
+relsal          = $036F         ; moveable start load address
+relsah          = $0370         ; 
+relsas          = $0371         ; 
+oldinv          = $0372         ; Restore user IRQ and i6509 after cassettes
+cas1            = $0375         ; Cassette switch flag
+; RS-232 information storage
+m51ctr          = $0376         ; 6551 control image
+m51cdr          = $0377         ; 6551  command image
+rsstat          = $037A         ; perm. RS-232 status
+dcdsr           = $037B         ; last DCD/DSR value
+ridbs           = $037C         ; Input start index
+ridbe           = $037D         ; Input end index
+; Screen editor absolute
+; $037E - $037F Block some area for editor
+pkyend          = $0380         ; Program key buffer end address
 keyseg          = $0382         ; Segment of function key texts
 rvs             = $0383         ; Reverse mode flag
-lintmp          = $0384
-lstchr          = $0385
+lintmp          = $0384 
+lstchr          = $0385 
 insflg          = $0386         ; Insert mode flag
-scrdis          = $0387
-bitmsk          = $0388
-keyidx          = $0389
-logscr          = $038A
+scrdis          = $0387 
+bitmsk          = $0388 
+keyidx          = $0389 
+logscr          = $038A 
 bellmd          = $038B         ; Bell on/off flag
-pagsav          = $038C
+pagsav          = $038C 
 keysiz          = $038D         ; Sizes of function key texts
-tab             = $03A1
+tab             = $03A1 
 keyd            = $03AB         ; Keyboard buffer
 funvec          = $03B5         ; Vector: funktion key handler
 iwrtvrm         = $03B7         ; Vector: video ram write routine
 iwrtcrm         = $03B9         ; Vector: color ram write routine
-iunkwn1         = $03BB
+iunkwn1         = $03BB 
 iunkwn2         = $03BD
-evect           = $03F8         ; Warm start vector and flags
+; $03C0 - $3F7 Free absolute space
+; System warm start variables and vectors
+evect           = $03F8         ; Warm start vector and flags 5 bytes
+; warm          = $03FD = $A5     Warm start flag
+; winit         = $03DE = $5A     Initialization complete flag
 ; -------------------------------------------------------------------------------------------------
-; Free bank 15 RAM
+; Free bank 15 RAM 1024 bytes
 ramloc          = $0400         ; First free ram location
 ; -------------------------------------------------------------------------------------------------
-; Coprocessor ROM
-ipb             = $0800
-ijtab           = $0810
-ipptab          = $0910
+; Kernal inter-process communication variables 
+ipb             = $0800         ; IPC buffer size
+ijtab           = $0810         ; IPC jump table
+ipptab          = $0910         ; IPC parameter spec table
 ; -------------------------------------------------------------------------------------------------
 ; ROM + I/O addresses
-basic           = $8000         ; basic ROM
+basic           = $8000         ; BASIC ROM
 charrom         = $C000         ; Character ROM
 vidram          = $D000         ; Video RAM
 clrram          = $D400         ; Color RAM nibbles
+; VIC Video interface device
 vic             = $D800         ; VIC
-vic_addr        = $D818
-sid_s1freq      = $DA00         ; SID
+vic_addr        = $D818         ; VIC memory pointers reg
+; SID Sound interface device
+sid_s1freq      = $DA00         ; Oscillator 1
 sid_s1pw        = $DA02
 sid_s1ctl       = $DA04
 sid_s1ad        = $DA05
 sid_s1sr        = $DA06
-sid_s2freq      = $DA07
+sid_s2freq      = $DA07         ; Oscillator 2
 sid_s2pw        = $DA09
 sid_s2ctl       = $DA0B
 sid_s2ad        = $DA0C
 sid_s2sr        = $DA0D
-sid_s3freq      = $DA0E
+sid_s3freq      = $DA0E         ; Oscillator 3
 sid_s3pw        = $DA10
 sid_s3ctl       = $DA12
 sid_s3ad        = $DA13
-sid_s3sr        = $DA14
-sid_filter      = $DA15
+sid_s3sr        = $DA14                 
+sid_filter      = $DA15         ; filter control
 sid_fltctl      = $DA17
-sid_volume      = $DA18
-sid_potx        = $DA19
-sid_poty        = $DA1A
-sid_random      = $DA1B
-sid_env3        = $DA1C
-cia1_pra        = $DB00         ; CIA1 on coprocessor board
+sid_volume      = $DA18         ; Volume
+sid_potx        = $DA19         ; Pot X
+sid_poty        = $DA1A         ; Pot Y
+sid_random      = $DA1B         ; Random
+sid_env3        = $DA1C         ; Envelope osc 3
+; CIA1 for inter-process communication
+cia1_pra        = $DB00
 cia1_prb        = $DB01
 cia1_ddra       = $DB02
 cia1_ddrb       = $DB03
@@ -264,44 +278,48 @@ cia1_sdr        = $DB0C
 cia1_icr        = $DB0D
 cia1_cra        = $DB0E
 cia1_crb        = $DB0F
-cia2_pra        = $DC00         ; CIA2
-cia2_prb        = $DC01
-cia2_ddra       = $DC02
-cia2_ddrb       = $DC03
-cia2_talo       = $DC04
-cia2_tahi       = $DC05
-cia2_tblo       = $DC06
-cia2_tbhi       = $DC07
-cia2_tod10      = $DC08
-cia2_todsec     = $DC09
-cia2_todmin     = $DC0A
-cia2_todhr      = $DC0B
-cia2_sdr        = $DC0C
-cia2_icr        = $DC0D
-cia2_cra        = $DC0E
-cia2_crb        = $DC0F
-acia_data       = $DD00         ; ACIA
-acia_status     = $DD01
-acia_cmd        = $DD02
-acia_ctrl       = $DD03
-tpi1_pa         = $DE00         ; TPI1
-tpi1_pb         = $DE01
-tpi1_pc         = $DE02
-tpi1_ddra       = $DE03
-tpi1_ddrb       = $DE04
-tpi1_ddrc       = $DE05
-tpi1_ctrl       = $DE06
-tpi1_air        = $DE07
-tpi2_pa         = $DF00         ; TPI2
-tpi2_pb         = $DF01
-tpi2_pc         = $DF02
-tpi2_ddra       = $DF03
-tpi2_ddrb       = $DF04
-tpi2_ddrc       = $DF05
-tpi2_ctrl       = $DF06
-tpi2_air        = $DF07
+; CIA2 Complex interface adapter
+cia2_pra        = $DC00         ; Data A: IEEE data / #0-1 paddle 1,2 / #6-7 trigger 1,2
+cia2_prb        = $DC01         ; Data B: #0-3 game1 / #4-7 game2
+cia2_ddra       = $DC02         ; Direction A
+cia2_ddrb       = $DC03         ; Direction B
+cia2_talo       = $DC04         ; Timer A low
+cia2_tahi       = $DC05         ; Timer A high
+cia2_tblo       = $DC06         ; Timer B low
+cia2_tbhi       = $DC07         ; Timer B high
+cia2_tod10      = $DC08         ; TOD 10th of seconds
+cia2_todsec     = $DC09         ; TOD seconds
+cia2_todmin     = $DC0A         ; TOD minutes
+cia2_todhr      = $DC0B         ; TOD hours
+cia2_sdr        = $DC0C         ; Serial data reg
+cia2_icr        = $DC0D         ; Interrupt control reg
+cia2_cra        = $DC0E         ; Control reg A
+cia2_crb        = $DC0F         ; Control reg B
+; ACIA RS-232 and network interface
+acia_data       = $DD00         ; Transmit/receive data reg        
+acia_status     = $DD01         ; Status reg
+acia_cmd        = $DD02         ; Command reg
+acia_ctrl       = $DD03         ; Control reg
+; TPI1 Triport interface device #1
+tpi1_pa         = $DE00         ; Port A: IEEE control lines 
+tpi1_pb         = $DE01         ; Port B: #0-1 IEEE / #2-3 network / #4 arbitration / #5-7 cassette
+tpi1_pc         = $DE02         ; IRQ latch reg: #0 50/60Hz / #1 IEEE / #2 6526 / #3 cass / #4 6551
+tpi1_ddra       = $DE03         ; Direction A
+tpi1_ddrb       = $DE04         ; Direction B
+tpi1_ddrc       = $DE05         ; Interrupt mask register
+tpi1_ctrl       = $DE06         ; Control reg
+tpi1_air        = $DE07         ; Active interrupt reg
+; TPI2 Triport interface device #2
+tpi2_pa         = $DF00         ; Port A: keyboard out 8-15
+tpi2_pb         = $DF01         ; Port B: keyboard out 0-7
+tpi2_pc         = $DF02         ; Port C: keyboard in 0-5, #6,7 VIC 16k bank select low, high
+tpi2_ddra       = $DF03         ; Direction A
+tpi2_ddrb       = $DF04         ; Direction B
+tpi2_ddrc       = $DF05         ; Direction C
+tpi2_ctrl       = $DF06         ; Control reg
+tpi2_air        = $DF07         ; Active interrupt reg
 ; -------------------------------------------------------------------------------------------------
-!initmem FILL
+!initmem FILL                   ; All unused memory filled with $AA
 *= $E000
 ; -------------------------------------------------------------------------------------------------
 ; Jump vector table
