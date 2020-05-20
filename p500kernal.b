@@ -362,6 +362,7 @@ scrorg: ldx #$28
         rts
 ; -------------------------------------------------------------------------------------------------
 ; $E044 Screen editor init (editor, F-Keys, VIC)
+; Clear editor varables
 cint:   lda #$00
         ldx #$2D
 cloop1: sta keypnt,x            ; clear editor variables area $C2-$EF
@@ -371,11 +372,13 @@ cloop1: sta keypnt,x            ; clear editor variables area $C2-$EF
 cloop2: sta keysiz,x            ; clear editor variables area $038D-$03C9
         dex
         bpl cloop2
+; init some variables
         lda #SYSTEMBANK
         sta scrseg              ; store bank with video RAM = system bank
         lda #$0C
         sta blncnt              ; init blink counter
         sta blnon
+; init F-keys
         lda pkybuf              ; load start address of F-key buffer
         ora pkybuf+1
         bne keycpy              ; branch if start address already set
@@ -383,29 +386,30 @@ cloop2: sta keysiz,x            ; clear editor variables area $038D-$03C9
         sta pkyend              ; set F-key buffer to top of system RAM
         lda hiadr+1
         sta pkyend+1
-        lda #$40
-        ldx #$00
+        lda #$40                ; NO SENSE - will be overwritten in alloc                
+        ldx #$00                ; Allocate $0200 from  system memory below $FEFF
         ldy #$02
-        jsr kalloc
-        bcs noroom
+        jsr kalloc              ; sub: alloc - Allocate space for F-keys
+        bcs noroom              ; if C=1 skip F-keys - no space for F-keys found
         sta keyseg              ; store bank for F-keys
         inx
-        stx pkybuf
+        stx pkybuf              ; store F-key buffer low (returned X+1)
         bne room10
-        iny
-room10: sty pkybuf+1
+        iny                     ; if low = $00 increase high
+room10: sty pkybuf+1            ; store F-key buffer high
 keycpy: ldy #$39                ; load size of F-key texts
-        jsr pagkey
-kyset1: lda keylen+9,y                      ; E08C B9 B5 EC                 ...
+        jsr pagkey              ; sub: Switch to indirect bank with key buffer
+kyset1: lda keydef-1,y
         dey
-        sta (pkybuf),y                      ; E090 91 C0                    ..
+        sta (pkybuf),y          ; copy key texts to buffer in RAM
         bne kyset1
-        jsr pagres                          ; E094 20 7C E2                  |.
-        ldy #$0A                            ; E097 A0 0A                    ..
-kyset2: lda ctlvect+63,y                    ; E099 B9 AB EC                 ...
-        sta pagsav,y                        ; E09C 99 8C 03                 ...
+        jsr pagres              ; Restore the indirect segment
+        ldy #$0A                ; 10 F-key length bytes
+kyset2: lda keylen-1,y
+        sta keysiz-1,y          ; copy F-key text length to $038D
         dey
         bne kyset2
+; init VIC, screen
 noroom: jsr sreset              ; sub: home-home screen window full size
         ldx #$11                ; init vic registers $21 - $11
         ldy #$21
@@ -414,7 +418,7 @@ vicinlp:lda vicinit-1,x
         dey
         dex
         bne vicinlp             ; write next register
-        jsr grcrt                           ; E0B3 20 53 E2                  S.
+        jsr grcrt
         ldx #$0A                ; copy extended editor vector table to $3B5
 edveclp:lda edvect-1,x
         sta funvec-1,x
@@ -664,31 +668,27 @@ setcrt: sty grmode              ; store mode
         jmp wrtvic              ; sub: write VIC register
 ; -------------------------------------------------------------------------------------------------
 ; E267 Switch to the indirect segment containing the key buffer
-pagkey: pha                                     ; E267 48                       H
-        lda     keyseg                          ; E268 AD 82 03                 ...
-        jmp     pagsub                          ; E26B 4C 71 E2                 Lq.
-
-; -------------------------------------------------------------------------------------------------
+pagkey: pha                     ; remember A
+        lda keyseg              ; load F-key bank
+        jmp pagsub              ; sub: switch to ibank in A
 ; E26E Switch to the indirect segment containing the video screen
-pagscr: pha                                     ; E26E 48                       H
-        lda     scrseg                          ; E26F A5 EF                    ..
+pagscr: pha                     ; remember A
+        lda scrseg              ; load screen memory bank
 ; E271 Switch to the indirect segment in A
-pagsub: pha                                     ; E271 48                       H
-        lda     i6509                           ; E272 A5 01                    ..
-        sta     pagsav                          ; E274 8D 8C 03                 ...
-        pla                                     ; E277 68                       h
-        sta     i6509                           ; E278 85 01                    ..
-        pla                                     ; E27A 68                       h
-        rts                                     ; E27B 60                       `
-
+pagsub: pha                     ; remember new ibank
+        lda i6509
+        sta pagsav              ; store old ibank temporary
+        pla
+        sta i6509               ; switch to new ibank
+        pla                     ; restore A
+        rts
 ; -------------------------------------------------------------------------------------------------
 ; E27C Restore the indirect segment
-pagres: pha                                     ; E27C 48                       H
-        lda     pagsav                          ; E27D AD 8C 03                 ...
-        sta     i6509                           ; E280 85 01                    ..
-        pla                                     ; E282 68                       h
-        rts                                     ; E283 60                       `
-
+pagres: pha                     ; remember A
+        lda pagsav
+        sta i6509               ; restore temporary stored ibank
+        pla                     ; restore A
+        rts
 ; -------------------------------------------------------------------------------------------------
 ; E284 Print character on screen
 print:  pha                                     ; E284 48                       H
@@ -2992,37 +2992,34 @@ xon232: lda     acia_cmd                        ; F3F8 AD 02 DD                 
 
 ; -------------------------------------------------------------------------------------------------
 ; F403 Allocate 256 bytes as RS232 buffer
-aloc256:ldx     #$00                            ; F403 A2 00                    ..
-        ldy     #$01                            ; F405 A0 01                    ..
-; F407 Allocate buffer space
-alloc:  txa                                     ; F407 8A                       .
-        sec                                     ; F408 38                       8
-        eor     #$FF                            ; F409 49 FF                    I.
-        adc     hiadr                           ; F40B 6D 55 03                 mU.
-        tax                                     ; F40E AA                       .
-        tya                                     ; F40F 98                       .
-        eor     #$FF                            ; F410 49 FF                    I.
-        adc     hiadr+1                         ; F412 6D 56 03                 mV.
-        tay                                     ; F415 A8                       .
-        lda     hiadr+2                         ; F416 AD 57 03                 .W.
-        bcs     LF421                           ; F419 B0 06                    ..
-        lda     #$FF                            ; F41B A9 FF                    ..
-LF41D:  ora     #$40                            ; F41D 09 40                    .@
-        sec                                     ; F41F 38                       8
-        rts                                     ; F420 60                       `
+aloc256:ldx     #$00
+        ldy     #$01            ; one page = 256 bytes
+; F407 Allocate buffer space X=low, Y=high bytes
+alloc:  txa
+        sec
+        eor     #$FF
+        adc     hiadr           ; substract low from end of system RAM
+        tax
+        tya
+        eor     #$FF
+        adc     hiadr+1         ; substract high from end of system RAM
+        tay
+        lda     hiadr+2         ; load highest system RAM bank
+        bcs     top010
+        lda     #$FF
+topbad: ora     #$40
+        sec                     ; C=1 Not enough memory available 
+        rts                     ; retun unsuccessful with bank A=$FF or bit #6=1
 
-; -------------------------------------------------------------------------------------------------
-; F421
-LF421:  cpy     memsiz+1                        ; F421 CC 5C 03                 .\.
-        bcc     LF41D                           ; F424 90 F7                    ..
-        bne     LF42D                           ; F426 D0 05                    ..
-        cpx     memsiz                          ; F428 EC 5B 03                 .[.
-        bcc     LF41D                           ; F42B 90 F0                    ..
-LF42D:  stx     hiadr                           ; F42D 8E 55 03                 .U.
-        sty     hiadr+1                         ; F430 8C 56 03                 .V.
-        clc                                     ; F433 18                       .
-        rts                                     ; F434 60                       `
-
+top010: cpy     memsiz+1        ; compare new high address with user memory high
+        bcc     topbad          ; branch if new high lower = not enough memory allocatable
+        bne     topxit          ; branch to memoryok if new high > 
+        cpx     memsiz          ; if higbyte equal compare low
+        bcc     topbad          ; branch if lower = not enough memory allocatable
+topxit: stx     hiadr           ; store new end of system memory ($)
+        sty     hiadr+1
+        clc                     ; C=0 allocation successfull
+        rts                     ; return with X,Y,A = start of buffer -1 (new end address)
 ; -------------------------------------------------------------------------------------------------
 ; F435 Read the RS232 status
 rdst232:php                                     ; F435 08                       .
@@ -4749,9 +4746,9 @@ kvreset:jmp vreset              ; Video reset
 kipcgo: jmp ipcgo               ; Monitor command 'Z' switch to copro
 kfunkey:jmp jfunkey             ; F-key vector
 kipcrq: jmp ipcrq               ; IPC request
-kioinit:jmp ioinit              ; I/O init
-kcint:  jmp jcint               ; Init screen
-kalloc: jmp alloc
+kioinit:jmp ioinit              ; I/O init (TPI1, TPI2, CIA, TOD)
+kcint:  jmp jcint               ; Init screen editor, VIC, F-keys
+kalloc: jmp alloc               ; Allocate buffer space
 kvector:jmp vector
 krestor:jmp restor
 klkupsa:jmp lkupsa
@@ -4759,7 +4756,7 @@ klkupla:jmp lkupla
 ksetmsg:jmp setmsg
 ksecnd: jmp (isecnd)
 ktksa:  jmp (itksa)
-kmemtop:jmp memtop
+kmemtop:jmp memtop              ; Get/set top of available memory
 kmembot:jmp membot
 kscnkey:jmp jscnkey
 ksettmo:jmp settmo
