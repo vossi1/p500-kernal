@@ -3937,21 +3937,21 @@ ioinit: lda #$F3
         sty cia2_crb            ; CIA2 CRB Timer B stop, PB7=off, cont, Phi2, activate TOD write
         sta cia2_tod10          ; CIA2 clear TOD 1/10 seconds
         sty tpi1_lir            ; TPI1 clear all interrupts
+; check for 50/60 Hz system frequency
 io100:  lda tpi1_lir            ; load interrupt latch reg
         ror                     ; shift bit #0 to carry
-        bcc io100               ; shift again till bit #5 /IRQ=1 is reached (all really cleared) 
-        sty tpi1_lir            ; store it again
+        bcc io100               ; check again till bit #0 appears (50/60Hz source from PSU) 
+        sty tpi1_lir            ; TPI1 clear all interrupts
         ldx #$00   
         ldy #$00
-; check for 50/60 Hz
 io110:  inx
         bne io110               ; delay 256x
         iny        
         lda tpi1_lir            ; load interrrupt latch reg
         ror                     ; shift bit #0 to carry
-        bcc io110               ; shift again till bit #5 /IRQ=1 is reached (all latches cleared)               
+        bcc io110               ; check again till bit #0 appears (50/60Hz source from PSU)              
         cpy #$0E   
-        bcc io120               ; branch if clearing was successful in 14 tries = <18ms -> 60Hz
+        bcc io120               ; branch if signal appears again in 14 tries = <18ms -> 60Hz
         lda #$88                ; if not -> 50Hz / set extra bit #7 in A for TOD=50Hz
         !byte $2C               ; and skip next instruction
 io120:  lda #$08
