@@ -3888,34 +3888,38 @@ cold:   ldx #$FE
         txs                     ; init stack
         cld                     ; clear decimal flag
         lda #$FF
-        eor evect+2             ; compare warm start flags if both are $A5
-        eor evect+3
-        beq swarm               ; jump to warm start
+        eor evect+2
+        eor evect+3             ; compare warm start flags if both are $A5
+        beq swarm               ; if yes, branches to warm start
 ; F9AD System cold start
-        lda #$06                ; set pointer to $0006 = position rom ident bytes
+; Searches every $1000 +6 for the string CBM# or cBM# - # has to be 1,2... = the highest nibble of
+; the address, if string found it stores the ROM position $1000... to the pointer evect. If 'c' it
+; jumps to warm start directly. If 'C' it calls all inits subs first and jumps to the found ROM.
+; If no cartridge, it founds the BASIC at $8000, if no BASIC there it founds the monitor at $E000.
+        lda #$06                ; set pointer to $0006 = position ROM ident bytes
         sta eal
         lda #$00
         sta eah
-        sta evect               ; set warm start lowbyte to $00
+        sta evect               ; set warm start vector lowbyte to $00
         ldx #$30                ; init 4. rom ident byte compare value to $30 = '0'
-sloop0: ldy #$03                ; init start compare counter to 4th rom ident byte
+sloop0: ldy #$03                ; set counter to 4th ROM ident byte
         lda eah
-        bmi sloop2              ; no rom found -> monitor cold boot
+        bmi sloop2              ; no ROM found -> monitor cold boot
         clc
         adc #$10                ; next rom position to check highbyte +$10
         sta eah
         inx                     ; next 4. byte compare value $31, $32, $33...
         txa
-        cmp (eal),y             ; compare if 4. byte $31 at address $1006+3...
-        bne sloop0              ; 4. byte does not mach - > next rom pos. $2000, $3000...
+        cmp (eal),y             ; compare if 4. byte $31 at address $1006+3, $32 at $2006...
+        bne sloop0              ; 4. byte does not mach - > next ROM pos. $2000, $3000...
         dey                     ; check next byte backwards if 4th byte matches
 sloop1: lda (eal),y             ; load 3., 2., 1. byte
         dey
-        bmi sloop3              ; 2. + 3. byte matches - autostart rom found!
+        bmi sloop3              ; 2. + 3. byte matches - autostart ROM found!
         cmp patall,y            ; compare test bytes 'M', 'B'
         beq sloop1              ; 3. byte OK -> check 2. byte
-        bne sloop0              ; 2. or 3. ident byte does not mach -> next rom position
-sloop2: ldy #$E0                ; set warm start to $e000 = monitor cold boot
+        bne sloop0              ; 2. or 3. ident byte does not mach -> next ROM position
+sloop2: ldy #$E0                ; if no ROM found set start vector to $E000 = monitor cold boot
         !byte $2C
 sloop3: ldy eah
         sty evect+1             ; store rom address highbyte to warm start vector
@@ -3924,12 +3928,12 @@ sloop3: ldy eah
         jsr ioinit              ; sub: I/O register init $F9FE
         lda #$F0
         sta pkybuf+1            ; start F-keys
-        jsr jcint               ; sub: initialize $E004 -> $E044
+        jsr jcint               ; sub: initialize $E004 -> cint $E044
         jsr ramtas              ; sub: ram-test $FA94
         jsr restor              ; sub: init standard-vectors $FBB1
-        jsr jcint               ; sub: initialize $E004 -> $e044
+        jsr jcint               ; sub: initialize $E004 -> cint $e044
         lda #$A5
-        sta evect+2             ; save warm start flag
+        sta evect+2             ; save first warm start flag $A5
 ; F9FB Warm start entry
 swarm:  jmp (evect)             ; jump to basic warm start $BBA0
 ; -------------------------------------------------------------------------------------------------
