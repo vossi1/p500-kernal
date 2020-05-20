@@ -327,7 +327,7 @@ tpi2_air        = $DF07         ; Active interrupt reg
 ; E000 Jump vector table
 jmoncld:jmp moncold             ; Monitor cold start
         nop
-jcint:  jmp cint                ; Screen editor, F-key init
+jcint:  jmp cint                ; Init Screen editor, VIC, F-keys
 jrdkey: jmp rdkey               ; Read a key from keyboard to A
 jscrget:jmp scrget              ; Read character from screen to A
 jprint: jmp print               ; Print character from A on screen
@@ -361,41 +361,41 @@ scrorg: ldx #$28
         ldy #$19
         rts
 ; -------------------------------------------------------------------------------------------------
-; $E044 Screen editor init
+; $E044 Screen editor init (editor, F-Keys, VIC)
 cint:   lda #$00
         ldx #$2D
-cloop1: sta keypnt,x            ; clear key buffer
+cloop1: sta keypnt,x            ; clear editor variables area $C2-$EF
         dex
         bpl cloop1
         ldx #$3C
-cloop2: sta keysiz,x            ; clear reverse flags
+cloop2: sta keysiz,x            ; clear editor variables area $038D-$03C9
         dex
         bpl cloop2
-        lda #$0F
-        sta scrseg
+        lda #SYSTEMBANK
+        sta scrseg              ; store bank with video RAM = system bank
         lda #$0C
-        sta blncnt                          ; E05B 85 E7                    ..
-        sta blnon                           ; E05D 85 E6                    ..
-        lda pkybuf                          ; E05F A5 C0                    ..
-        ora pkybuf+1                        ; E061 05 C1                    ..
-        bne +
-        lda hiadr                           ; E065 AD 55 03                 .U.
-        sta pkyend                          ; E068 8D 80 03                 ...
-        lda hiadr+1                         ; E06B AD 56 03                 .V.
-        sta pkyend+1                        ; E06E 8D 81 03                 ...
+        sta blncnt              ; init blink counter
+        sta blnon
+        lda pkybuf              ; load start address of F-key buffer
+        ora pkybuf+1
+        bne keycpy              ; branch if start address already set
+        lda hiadr
+        sta pkyend              ; set F-key buffer to top of system RAM
+        lda hiadr+1
+        sta pkyend+1
         lda #$40
         ldx #$00
         ldy #$02
-        jsr kalloc                          ; E077 20 81 FF                  ..
+        jsr kalloc
         bcs noroom
-        sta keyseg                          ; E07C 8D 82 03                 ...
+        sta keyseg              ; store bank for F-keys
         inx
-        stx pkybuf                          ; E080 86 C0                    ..
+        stx pkybuf
         bne room10
         iny
-room10: sty pkybuf+1                        ; E085 84 C1                    ..
-+       ldy #$39
-        jsr pagkey                          ; E089 20 67 E2                  g.
+room10: sty pkybuf+1
+keycpy: ldy #$39                ; load size of F-key texts
+        jsr pagkey
 kyset1: lda keylen+9,y                      ; E08C B9 B5 EC                 ...
         dey
         sta (pkybuf),y                      ; E090 91 C0                    ..
@@ -3925,19 +3925,19 @@ sloop3: ldy eah
         sty evect+1             ; store rom address highbyte to warm start vector
         tax                     ; move 1. ident byte to x to set N-flag
         bpl swarm               ; jump to warm start if value is positive ('c'=$43)
-        jsr ioinit              ; sub: I/O register init $F9FE
+        jsr ioinit              ; sub: I/O register init $F9FE (TPI1, TPI2, CIA, TOD)
         lda #$F0
         sta pkybuf+1            ; start F-keys
-        jsr jcint               ; sub: initialize $E004 -> cint $E044
+        jsr jcint               ; sub: initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
         jsr ramtas              ; sub: ram-test $FA94
-        jsr restor              ; sub: init standard-vectors $FBB1
-        jsr jcint               ; sub: initialize $E004 -> cint $e044
+        jsr restor              ; sub: init standard-vectors $FBB1 (copies $0300 Vector Table)
+        jsr jcint               ; sub: initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
         lda #$A5
         sta evect+2             ; save first warm start flag $A5
 ; F9FB Warm start entry
 swarm:  jmp (evect)             ; jump to basic warm start $BBA0
 ; -------------------------------------------------------------------------------------------------
-; F9FE I/O register init
+; F9FE I/O register init (TPI1, TPI2, CIA, TOD)
 ioinit: lda #$F3
         sta tpi1_ctrl           ; TPI1 interrupt mode = on, parity / VIC bank 15 selected for both
         lda #$FF
