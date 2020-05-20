@@ -25,8 +25,8 @@ TEXTCOLOR       = $06           ; Default text color:   $06 = blue
 BACKGROUNDCOLOR = $01           ; background color      $01 = white
 EXTERIORCOLOR   = $03           ; exterior color        $03 = cyan
 ; ***************************************** ZERO PAGE *********************************************
-e6509           = $00           ; 6509 execution bank
-i6509           = $01           ; 6509 indirect bank
+e6509           = $00           ; 6509 execution bank reg
+i6509           = $01           ; 6509 indirect bank reg
 ;
 ; $02-$8f BASIC zeropage 
 ;
@@ -108,7 +108,7 @@ scrt            = $DF           ; Right margin of current window
 modkey          = $E0           ; Keyscanner shift/control flags ($ff-nokey)
 norkey          = $E1           ; Keyscanner normal key number ($ff-nokey)
 ; Screen editor usage
-bitabl          = $E2
+bitabl          = $E2           ; Wrap bitmap
 blnon           = $E6           ; Blinking cursor on
 blncnt          = $E7           ; Blink counter
 user            = $E8           ; Pointer to color RAM
@@ -197,19 +197,19 @@ ridbe           = $037D         ; Input end index
 ; Screen editor absolute
 ; $037E - $037F Block some area for editor
 pkyend          = $0380         ; Program key buffer end address
-keyseg          = $0382         ; Segment of function key texts
+keyseg          = $0382         ; Segment / bank of function key texts
 rvs             = $0383         ; Reverse mode flag
-lintmp          = $0384 
-lstchr          = $0385 
+lintmp          = $0384         ; Line # between in and out 
+lstchr          = $0385         ; Last char printed
 insflg          = $0386         ; Insert mode flag
-scrdis          = $0387 
-bitmsk          = $0388 
-keyidx          = $0389 
-logscr          = $038A 
+scrdis          = $0387         ; Scroll disable flag
+bitmsk          = $0388         ; Temorary bitmask
+keyidx          = $0389         ; Index to programmables
+logscr          = $038A         ; Logical/physical scroll flag
 bellmd          = $038B         ; Bell on/off flag
-pagsav          = $038C 
+pagsav          = $038C         ; Temp RAM page
 keysiz          = $038D         ; Sizes of function key texts
-tab             = $03A1 
+tab             = $03A1         ; Tabstop flags
 keyd            = $03AB         ; Keyboard buffer
 funvec          = $03B5         ; Vector: funktion key handler
 iwrtvrm         = $03B7         ; Vector: video ram write routine
