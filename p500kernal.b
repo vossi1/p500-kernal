@@ -303,11 +303,12 @@ acia_ctrl       = $DD03         ; Control reg
 ; TPI1 Triport interface device #1
 tpi1_pa         = $DE00         ; Port A: IEEE control lines 
 tpi1_pb         = $DE01         ; Port B: #0-1 IEEE / #2-3 network / #4 arbitration / #5-7 cassette
-tpi1_pc         = $DE02         ; IRQ latch reg: #0 50/60Hz / #1 IEEE / #2 6526 / #3 cass / #4 6551
+tpi1_lir        = $DE02         ; IRQ latch reg: #0 50/60Hz / #1 IEEE / #2 6526 / #3 cass / #4 6551
 tpi1_ddra       = $DE03         ; Direction A
 tpi1_ddrb       = $DE04         ; Direction B
-tpi1_ddrc       = $DE05         ; Interrupt mask register
-tpi1_ctrl       = $DE06         ; Control reg
+tpi1_mir        = $DE05         ; Interrupt mask register
+tpi1_ctrl       = $DE06         ; Control reg: #4-5 CA VIC matrix bank / #6-7 CB VIC dot/char bank
+                                ;  #0-1 IRQ mode, parity=1 / %1111xxxx = bank 15, %1010xxxx bank 0
 tpi1_air        = $DE07         ; Active interrupt reg
 ; TPI2 Triport interface device #2
 tpi2_pa         = $DF00         ; Port A: keyboard out 8-15
@@ -3860,8 +3861,8 @@ cold:   ldx #$FE
         sei                     ; disable interrupts
         txs                     ; init stack
         cld                     ; clear decimal flag
-        lda #$FF                ; compare warm start flags if both are $A5
-        eor evect+2
+        lda #$FF
+        eor evect+2             ; compare warm start flags if both are $A5
         eor evect+3
         beq swarm               ; jump to warm start
 ; F9AD System cold start
@@ -3908,65 +3909,66 @@ swarm:  jmp (evect)             ; jump to basic warm start $BBA0
 ; -------------------------------------------------------------------------------------------------
 ; F9FE I/O register init
 ioinit: lda #$F3
-        sta tpi1_ctrl
+        sta tpi1_ctrl           ; TPI1 interrupt mode = on, parity / VIC bank 15 selected for both
         lda #$FF
-        sta tpi1_ddrc
+        sta tpi1_mir            ; TPI1 enable all interrupts
         lda #$5C
-        sta tpi1_pb
-        lda #$7D
-        sta tpi1_ddrb
+        sta tpi1_pb             ; TPI1 PB IEEE ifc=0, netw.=0, arb.sw.=1, cass. write=0,motor=1 
+        lda #$7D                ; TPI1 DDRB input: cassette switch, IEEE srq
+        sta tpi1_ddrb           ; TPI1 DDRB output: IEEE ifc, network, arb.sw., cass. motor,write
         lda #$3D     
-        sta tpi1_pa  
-        lda #$3F     
-        sta tpi1_ddra
+        sta tpi1_pa             ; TPI1 PA IEEE dc=1, te=0, ren=1, atn=1, dav=1, eo=1
+        lda #$3F                ; TPI1 DDRA input:  IEEE ndac, nfrd
+        sta tpi1_ddra           ; TPI1 DDRA output: IEEE dc, te, ren, atn, dav, eoi
         lda #$FF     
-        sta tpi2_pa  
-        sta tpi1_pb  
-        sta tpi2_ddra
-        sta tpi2_ddrb
-        lsr tpi2_pa  
+        sta tpi2_pa             ; TPI2 PA keyboard 8-15=1
+        sta tpi1_pb             ; TPI1 PB IEEE ifc=1, network=1, arb.sw.=1, cass. motor=1,write=1
+        sta tpi2_ddra           ; TPI2 DDRA output keyboard 8-15
+        sta tpi2_ddrb           ; TPI2 DDRB output keyboard 0-7
+        lsr tpi2_pa             ; TPI2 PA keyboard 15 bit #7=0
         lda #$C0     
-        sta tpi2_pc  
-        sta tpi2_ddrc
+        sta tpi2_pc             ; TPI2 PC VIC 16k bank select=11 $c000-$ffff
+        sta tpi2_ddrc           ; TPI2 DDRC input: #0-5 keyboard 0-5 / output: #6-7 VIC 16k bank
         lda #$84     
-        sta cia2_icr 
+        sta cia2_icr            ; CIA2 ICR #7=set, #2=ALRM enable TOD interrupt
         ldy #$00     
-        sty cia2_ddra
-        sty cia2_ddrb
-        sty cia2_crb 
-        sta cia2_tod10
-        sty tpi1_pc   
-io100:  lda tpi1_pc   
-        ror        
-        bcc io100  
-        sty tpi1_pc
+        sty cia2_ddra           ; CIA2 DDRA input: IEEE data, #6,7 also trigger 1,2
+        sty cia2_ddrb           ; CIA2 DDRB input: game 1,2
+        sty cia2_crb            ; CIA2 CRB Timer B stop, PB7=off, cont, Phi2, activate TOD write
+        sta cia2_tod10          ; CIA2 clear TOD 1/10 seconds
+        sty tpi1_lir            ; TPI1 clear all interrupts
+io100:  lda tpi1_lir            ; load interrupt latch reg
+        ror                     ; shift bit #0 to carry
+        bcc io100               ; shift again till bit #5 /IRQ=1 is reached (all really cleared) 
+        sty tpi1_lir            ; store it again
         ldx #$00   
-        ldy #$00   
-io110:  inx        
-        bne io110  
+        ldy #$00
+; check for 50/60 Hz
+io110:  inx
+        bne io110               ; delay 256x
         iny        
-        lda tpi1_pc
-        ror        
-        bcc io110  
+        lda tpi1_lir            ; load interrrupt latch reg
+        ror                     ; shift bit #0 to carry
+        bcc io110               ; shift again till bit #5 /IRQ=1 is reached (all latches cleared)               
         cpy #$0E   
-        bcc io120  
-        lda #$88   
-        !byte $2C  
-io120:  lda #$08   
-        sta cia2_cra
-        lda cia1_icr
+        bcc io120               ; branch if clearing was successful in 14 tries = <18ms -> 60Hz
+        lda #$88                ; if not -> 50Hz / set extra bit #7 in A for TOD=50Hz
+        !byte $2C               ; and skip next instruction
+io120:  lda #$08
+        sta cia2_cra            ; CIA2 CRA set TOD=50/60Hz / run mode=continuous
+        lda cia1_icr            ; CIA1 clear interrupt reg
         lda #$90    
-        sta cia1_icr
+        sta cia1_icr            ; CIA1 set flag interrupt source
         lda #$40    
-        sta cia1_prb
+        sta cia1_prb            ; CIA1 set bit #6
         lda #$00    
-        sta cia1_ddra
-        sta cia1_crb 
-        sta cia1_cra 
+        sta cia1_ddra           ; CIA1 DDRA input
+        sta cia1_crb            ; CIA1 CRB stop timer B
+        sta cia1_cra            ; CIA1 CRA stop timer A
         lda #$48     
-        sta cia1_ddrb
+        sta cia1_ddrb           ; CIA1 DDRB output: bit # 3,6 / all other input
         lda #$01    
-        ora tpi1_pb 
+        ora tpi1_pb             ; TPI1 PB set bit #0 IEEE ifc=1
         sta tpi1_pb 
         rts         
 ; -------------------------------------------------------------------------------------------------
