@@ -21,6 +21,7 @@ STANDARD_VIDEO  = 1             ; Standard doublechecked video writes (original 
 ;
 ; ***************************************** CONSTANTS *********************************************
 FILL            = $AA           ; Fills free memory areas with $AA
+SYSTEMBANK      = $0F           ; System bank
 TEXTCOLOR       = $06           ; Default text color:   $06 = blue
 BACKGROUNDCOLOR = $01           ; background color      $01 = white
 EXTERIORCOLOR   = $03           ; exterior color        $03 = cyan
@@ -3609,7 +3610,7 @@ load7:  jsr     kacptr                          ; F7CF 20 A5 FF                 
         beq     load9                           ; F7ED F0 08                    ..
         lda     #$10                            ; F7EF A9 10                    ..
         jsr     udst                            ; F7F1 20 6E FB                  n.
-!byte   $AD                                     ; F7F4 AD                       .
+        !byte   $AD                                     ; F7F4 AD                       .
 load8:  sta     (eal),y                         ; F7F5 91 96                    ..
 load9:  stx     i6509                           ; F7F7 86 01                    ..
         inc     eal                             ; F7F9 E6 96                    ..
@@ -4015,7 +4016,7 @@ px1:    sta $0002,x             ; clear ZP above 6509 bank regs
         dec i6509               ; decrease bank because of inc in next line
 sizlop: inc i6509               ; increase bank
         lda i6509
-        cmp #$0F                ; check if bank 15
+        cmp #SYSTEMBANK         ; check if bank 15
         beq size                ; end RAM test if reached bank 15
         ldy #$02                ; start RAM test at $0002, sal/sah already $0000
 siz100: lda (sal),y
@@ -4063,7 +4064,7 @@ size:   ldx i6509
         sta itape+1
         rts
 ; -------------------------------------------------------------------------------------------------
-; FB09 standard vector table
+; FB09 standard vector table - initialized at boot from restor sub to cinv $0300
 jmptab: !word kirq              ; FB09 -> FBF8
         !word timb              ; FB0B -> EE21
         !word panic             ; FB0D -> FCB8
@@ -4174,30 +4175,31 @@ setbot: stx     memstr                          ; FBA7 8E 58 03                 
         rts                                     ; FBB0 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; FBB1 Restore the system vector table
-restor: ldx     #$09                            ; FBB1 A2 09                    ..
-        ldy     #$FB                            ; FBB3 A0 FB                    ..
-        lda     #$0F                            ; FBB5 A9 0F                    ..
-        clc                                     ; FBB7 18                       .
+; FBB1 Restore the system vector table at $0300
+restor: ldx     #<jmptab        ; load vector table address in kernal
+        ldy     #>jmptab
+        lda     #SYSTEMBANK
+        clc
 ; FBB8 Get/set the system vector table
-vector: stx     sal                             ; FBB8 86 93                    ..
-        sty     sah                             ; FBBA 84 94                    ..
-        ldx     i6509                           ; FBBC A6 01                    ..
-        sta     i6509                           ; FBBE 85 01                    ..
-        bcc     LFBCC                           ; FBC0 90 0A                    ..
-        ldy     #$33                            ; FBC2 A0 33                    .3
-LFBC4:  lda     cinv,y                          ; FBC4 B9 00 03                 ...
-        sta     (sal),y                         ; FBC7 91 93                    ..
-        dey                                     ; FBC9 88                       .
-        bpl     LFBC4                           ; FBCA 10 F8                    ..
-LFBCC:  ldy     #$33                            ; FBCC A0 33                    .3
-LFBCE:  lda     (sal),y                         ; FBCE B1 93                    ..
-        sta     cinv,y                          ; FBD0 99 00 03                 ...
-        dey                                     ; FBD3 88                       .
-        bpl     LFBCE                           ; FBD4 10 F8                    ..
-        stx     i6509                           ; FBD6 86 01                    ..
-        rts                                     ; FBD8 60                       `
-
+vector: stx     sal             ; store address
+        sty     sah
+        ldx     i6509           ; remember ibank
+        sta     i6509           ; set new ibank
+        bcc     vect50          ; carry=0 -> set/restore table
+; get table/copy to new address
+        ldy     #$33
+vect20: lda     cinv,y
+        sta     (sal),y         ; copy from $F0300 to new address/bank
+        dey
+        bpl     vect20
+; set/restore table
+vect50: ldy     #$33
+vect60: lda     (sal),y
+        sta     cinv,y          ; copy to table at $F0300
+        dey
+        bpl     vect60
+        stx     i6509           ; restore ibank
+        rts
 ; -------------------------------------------------------------------------------------------------
 ; FBD9 
 vreset: stx     evect                           ; FBD9 8E F8 03                 ...
