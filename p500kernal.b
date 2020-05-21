@@ -352,13 +352,13 @@ rdplt:  ldx tblx                ; load column
 nofunc: rts
 ; -------------------------------------------------------------------------------------------------
 ; E03A Return CIA base address
-iobase: ldx #$00
-        ldy #$DC
+iobase: ldx #<cia2_pra
+        ldy #>cia2_pra
         rts
 ; -------------------------------------------------------------------------------------------------
 ; E03F Return screen dimensions
-scrorg: ldx #$28
-        ldy #$19
+scrorg: ldx #40					; 40 columns
+        ldy #25					; 25 rows
         rts
 ; -------------------------------------------------------------------------------------------------
 ; $E044 Screen editor init (editor, F-Keys, VIC)
@@ -398,12 +398,12 @@ cloop2: sta keysiz,x            ; clear editor variables area $038D-$03C9
         iny                     ; if low = $00 increase high
 room10: sty pkybuf+1            ; store F-key buffer high
 keycpy: ldy #$39                ; load size of F-key texts
-        jsr pagkey              ; sub: Switch to indirect bank with key buffer
+        jsr pagkey				; sub: Switch to indirect bank with key buffer
 kyset1: lda keydef-1,y
         dey
         sta (pkybuf),y          ; copy key texts to buffer in RAM
         bne kyset1
-        jsr pagres              ; Restore the indirect segment
+        jsr pagres    			; sub: Restore indirect bank
         ldy #$0A                ; 10 F-key length bytes
 kyset2: lda keylen-1,y
         sta keysiz-1,y          ; copy F-key text length to $038D
@@ -426,39 +426,40 @@ edveclp:lda edvect-1,x
         bne edveclp
         lda #TEXTCOLOR          ; load default textcolor
         sta color               ; store default text color
-; Clear the screen, cursor home
-clrscr: jsr home                            ; E0C5 20 D3 E0                  ..
--       jsr scrset                          ; E0C8 20 E1 E0                  ..
-        jsr clrlin                          ; E0CB 20 24 E2                  $.
-        cpx scbot                           ; E0CE E4 DD                    ..
+; E0C8 Clear the screen, cursor home
+clrscr: jsr home				; sub: Cursor home - returns top line in X
+clrlp1: jsr scrset				; sub: Set screen pointers to line X
+        jsr clrlin
+        cpx scbot				; compare to bottom line of window
         inx
-        bcc -
-; Cursor home
-home:   ldx sctop                           ; E0D3 A6 DC                    ..
-        stx tblx                            ; E0D5 86 CA                    ..
-        stx lsxp                            ; E0D7 86 CF                    ..
-stu10:  ldy sclf                            ; E0D9 A4 DE                    ..
-        sty pntr                            ; E0DB 84 CB                    ..
-        sty lstp                            ; E0DD 84 CE                    ..
-; Set screen pointers to cursor position
-movcur: ldx tblx                            ; E0DF A6 CA                    ..
-scrset: lda ldtab2,x                        ; E0E1 BD 3A EC                 .:.
-        sta pnt                             ; E0E4 85 C8                    ..
-        sta user                            ; E0E6 85 E8                    ..
-        lda ldtab1,x                        ; E0E8 BD 53 EC                 .S.
-        sta pnt+1                           ; E0EB 85 C9                    ..
-        and #$03                            ; E0ED 29 03                    ).
-        ora #$D4                            ; E0EF 09 D4                    ..
-        sta user+1                          ; E0F1 85 E9                    ..
-        rts                                     ; E0F3 60                       `
+        bcc clrlp1				; next line
+; E0D3 Cursor home
+home:   ldx sctop
+        stx tblx							; load top row of window and store to cursor line
+        stx lsxp							; and store to screen editor start
+stu10:  ldy sclf
+        sty pntr							; load left margin of window and store cursor column
+        sty lstp							; and store to screen editor start
+; E0DF Set screen pointers to cursor line
+movcur: ldx tblx
+; E0F1 Set screen pointers to line X 
+scrset: lda ldtab2,x						; load start of screen line low
+        sta pnt								; and store to char, color RAM pointer
+        sta user
+        lda ldtab1,x						; load start of screen line high
+        sta pnt+1							; and store to char pointer
+        and #$03
+        ora #$D4							; calc color RAM high and store to color RAM pointer
+        sta user+1
+        rts
 ; -------------------------------------------------------------------------------------------------
 ; E0F4 Read a key from kbd and return it in A
 rdkey:  ldx     kyndx                           ; E0F4 A6 D6                    ..
         beq     rdkbuf                          ; E0F6 F0 12                    ..
         ldy     keyidx                          ; E0F8 AC 89 03                 ...
-        jsr     pagkey                          ; E0FB 20 67 E2                  g.
+        jsr pagkey				; sub: Switch to indirect bank with key buffer
         lda     (keypnt),y                      ; E0FE B1 C2                    ..
-        jsr     pagres                          ; E100 20 7C E2                  |.
+        jsr pagres    			; sub: Restore indirect bank
         dec     kyndx                           ; E103 C6 D6                    ..
         inc     keyidx                          ; E105 EE 89 03                 ...
         cli                                     ; E108 58                       X
@@ -494,7 +495,7 @@ LE128:  lda     ndx                             ; E128 A5 D1                    
         ldy     #$00                            ; E137 A0 00                    ..
         sty     blnsw                           ; E139 84 EB                    ..
         ldx     gdcol                           ; E13B A6 ED                    ..
-        jsr     LE20F                           ; E13D 20 0F E2                  ..
+        jsr     dspcol                           ; E13D 20 0F E2                  ..
 LE140:  jsr     rdkey                           ; E140 20 F4 E0                  ..
         cmp     #$0D                            ; E143 C9 0D                    ..
         bne     scrinp                          ; E145 D0 D8                    ..
@@ -591,7 +592,7 @@ LE1E2:  bit     insflg                          ; E1E2 2C 86 03                 
         ldx     #$00                            ; E1EB A2 00                    ..
         stx     insrt                           ; E1ED 86 D3                    ..
         pla                                     ; E1EF 68                       h
-LE1F0:  jsr     LE209                           ; E1F0 20 09 E2                  ..
+LE1F0:  jsr     dsppcc                           ; E1F0 20 09 E2                  ..
         jsr     movchr                          ; E1F3 20 DB E5                  ..
 LE1F6:  lda     data                            ; E1F6 A5 DB                    ..
         sta     lstchr                          ; E1F8 8D 85 03                 ...
@@ -606,54 +607,57 @@ LE203:  pla                                     ; E203 68                       
         rts                                     ; E206 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; E207
-doblnk: lda     #$20                            ; E207 A9 20                    . 
-LE209:  ldx     color                           ; E209 A6 EC                    ..
-        bpl     LE20F                           ; E20B 10 02                    ..
-LE20D:  ldx     tcolor                          ; E20D A6 EA                    ..
-LE20F:  ldy     #$02                            ; E20F A0 02                    ..
-        sty     blncnt                          ; E211 84 E7                    ..
-dspp:   ldy     pntr                            ; E213 A4 CB                    ..
-        jsr     pagscr                          ; E215 20 6E E2                  n.
-        jsr     jwrtvrm                         ; E218 20 6F E6                  o.
-        pha                                     ; E21B 48                       H
-        txa                                     ; E21C 8A                       .
-        jsr     jwrtcrm                         ; E21D 20 72 E6                  r.
-        pla                                     ; E220 68                       h
-        jmp     pagres                          ; E221 4C 7C E2                 L|.
-
+; E207 Write blank ($20) at cusor position
+doblnk: lda #' '				; load blank
+; E209 Write char A with color or tcolor if color bit#7=1
+dsppcc: ldx color				; load char color
+        bpl dspcol
+; E20D Write char A with tcolor
+dsptco: ldx tcolor
+; E20f Write char A with color X and set blink counter
+dspcol: ldy #$02
+        sty blncnt				; blink cusor
+; E213 Write char A with color X
+dspp:   ldy pntr				; load column
+        jsr pagscr				; sub: Switch to indirect bank with video screen
+        jsr jwrtvrm				; sub: write char to video screen
+        pha
+        txa						; move color to A
+        jsr jwrtcrm				; sub: write color to color RAM
+        pla
+        jmp pagres    			; sub: Restore indirect bank
 ; -------------------------------------------------------------------------------------------------
-; E224
-clrlin: ldy     sclf                            ; E224 A4 DE                    ..
-        jsr     clrbit                          ; E226 20 B6 E4                  ..
-clrprt: txa                                     ; E229 8A                       .
-        pha                                     ; E22A 48                       H
-        lda     pntr                            ; E22B A5 CB                    ..
-        pha                                     ; E22D 48                       H
-        dey                                     ; E22E 88                       .
-LE22F:  iny                                     ; E22F C8                       .
-        sty     pntr                            ; E230 84 CB                    ..
-        jsr     doblnk                          ; E232 20 07 E2                  ..
-        cpy     scrt                            ; E235 C4 DF                    ..
-        bne     LE22F                           ; E237 D0 F6                    ..
-        pla                                     ; E239 68                       h
-        sta     pntr                            ; E23A 85 CB                    ..
-        pla                                     ; E23C 68                       h
-        tax                                     ; E23D AA                       .
-        rts                                     ; E23E 60                       `
-
+; E224 Clear the cursor line and double length bit for line X
+clrlin: ldy sclf				; load left margin of window
+        jsr clrbit				; sub: clear double line bit for line X
+; E229 Clear from column Y till end of line
+clrprt: txa
+        pha						; remember line
+        lda pntr
+        pha						; remember cursor column
+        dey
+clrllp: iny
+        sty pntr				; store column to cursor pos
+        jsr doblnk				; sub: Write blank ($20) at cusor position
+        cpy scrt				; compare to right margin of window
+        bne clrllp				; next char
+        pla
+        sta pntr				; restore cursor column
+        pla
+        tax
+        rts
 ; -------------------------------------------------------------------------------------------------
-; E23F Get a character from the screen
-get1ch: ldy     pntr                            ; E23F A4 CB                    ..
-getych: jsr     pagscr                          ; E241 20 6E E2                  n.
-        lda     (pnt),y                         ; E244 B1 C8                    ..
-        pha                                     ; E246 48                       H
-        lda     #$00                            ; E247 A9 00                    ..
-        ora     (user),y                        ; E249 11 E8                    ..
-        sta     tcolor                          ; E24B 85 EA                    ..
-        pla                                     ; E24D 68                       h
-        jmp     pagres                          ; E24E 4C 7C E2                 L|.
-
+; E23F Get character from the screen to A, tcolor
+get1ch: ldy pntr				; load column
+; E241 Get char from column Y
+getych: jsr pagscr				; sub: Switch to indirect bank with video screen
+        lda (pnt),y				; load char from screen and remember it
+        pha
+        lda #$00
+        ora (user),y			; load color from systembank (ORA)
+        sta tcolor				; and store it to tcolor
+        pla
+        jmp pagres      		; sub: Restore indirect bank
 ; -------------------------------------------------------------------------------------------------
 ; E251 Switch the VIC to normal or graphics character set
 crtmode:bcs txtcrt              ; jump to normal character set if C=1
@@ -667,14 +671,13 @@ setcrt: sty grmode              ; store mode
         ldy #$18                ; load VIC register number in Y
         jmp wrtvic              ; sub: write VIC register
 ; -------------------------------------------------------------------------------------------------
-; E267 Switch to the indirect segment containing the key buffer
+; E267 Switch to indirect bank with key buffer
 pagkey: pha                     ; remember A
         lda keyseg              ; load F-key bank
         jmp pagsub              ; sub: switch to ibank in A
-; E26E Switch to the indirect segment containing the video screen
+; E26E Switch to indirect bank with video screen
 pagscr: pha                     ; remember A
         lda scrseg              ; load screen memory bank
-; E271 Switch to the indirect segment in A
 pagsub: pha                     ; remember new ibank
         lda i6509
         sta pagsav              ; store old ibank temporary
@@ -683,11 +686,11 @@ pagsub: pha                     ; remember new ibank
         pla                     ; restore A
         rts
 ; -------------------------------------------------------------------------------------------------
-; E27C Restore the indirect segment
-pagres: pha                     ; remember A
+; E27C Restore indirect bank
+pagres: pha
         lda pagsav
         sta i6509               ; restore temporary stored ibank
-        pla                     ; restore A
+        pla
         rts
 ; -------------------------------------------------------------------------------------------------
 ; E284 Print character on screen
@@ -890,7 +893,7 @@ movlin: lda     ldtab2,x                        ; E3B6 BD 3A EC                 
         and     #$03                            ; E3C2 29 03                    ).
         ora     #$D4                            ; E3C4 09 D4                    ..
         sta     sedeal+1                        ; E3C6 85 C7                    ..
-        jsr     pagscr                          ; E3C8 20 6E E2                  n.
+        jsr pagscr				; sub: Switch to indirect bank with video screen
 movl10: lda     (sedsal),y                      ; E3CB B1 C4                    ..
         jsr     jwrtvrm                         ; E3CD 20 6F E6                  o.
         lda     #$00                            ; E3D0 A9 00                    ..
@@ -899,7 +902,7 @@ movl10: lda     (sedsal),y                      ; E3CB B1 C4                    
         cpy     scrt                            ; E3D7 C4 DF                    ..
         iny                                     ; E3D9 C8                       .
         bcc     movl10                          ; E3DA 90 EF                    ..
-        jmp     pagres                          ; E3DC 4C 7C E2                 L|.
+        jmp pagres    			; sub: Restore indirect bank
 
 ; -------------------------------------------------------------------------------------------------
 ; E3DF Scroll down
@@ -1014,43 +1017,45 @@ getlin: sei                                     ; E49A 78                       
 
 ; -------------------------------------------------------------------------------------------------
 ; E4A6 Check for a double length line
-getbit: ldx     tblx                            ; E4A6 A6 CA                    ..
-getbt1: jsr     bitpos                          ; E4A8 20 CF E4                  ..
-        and     bitabl,x                        ; E4AB 35 E2                    5.
-        cmp     #$01                            ; E4AD C9 01                    ..
-        jmp     bitout                          ; E4AF 4C BF E4                 L..
-
+getbit: ldx tblx				; load current line
+; E4a8 Check line X for double length
+getbt1: jsr bitpos				; sub: Find bit table position for line X
+        and bitabl,x			; check if bit for line is set in table
+        cmp #$01
+        jmp bitout				; return 0 if not a double length line
 ; -------------------------------------------------------------------------------------------------
-; E4B2 Mark current line as double length line
-putbit: ldx     tblx                            ; E4B2 A6 CA                    ..
-putbt1: bcs     setbit                          ; E4B4 B0 0D                    ..
-clrbit: jsr     bitpos                          ; E4B6 20 CF E4                  ..
-        eor     #$FF                            ; E4B9 49 FF                    I.
-        and     bitabl,x                        ; E4BB 35 E2                    5.
-bitsav: sta     bitabl,x                        ; E4BD 95 E2                    ..
-bitout: ldx     bitmsk                          ; E4BF AE 88 03                 ...
-        rts                                     ; E4C2 60                       `
-
+; E4B2 Mark current line as double length C=1, unmark C=0
+putbit: ldx tblx				; load current line
+; E4B4 Mark line X as double length C=1, unmark C=0
+putbt1: bcs setbit				; branch to mark line if C=1
+; E4B6 Clear double length line mark
+clrbit: jsr bitpos				; sub: Find bit table position for line X
+        eor #$FF				; bit value = 0
+        and bitabl,x			; clear bit
+bitsav: sta bitabl,x			; and store it to table at byte position X
+bitout: ldx bitmsk				; Move byte table position to X
+        rts
 ; -------------------------------------------------------------------------------------------------
 ; E4C3 Mark a double length line
-setbit: bit     scrdis                          ; E4C3 2C 87 03                 ,..
-        bvs     getbt1                          ; E4C6 70 E0                    p.
-        jsr     bitpos                          ; E4C8 20 CF E4                  ..
-        ora     bitabl,x                        ; E4CB 15 E2                    ..
-        bne     bitsav                          ; E4CD D0 EE                    ..
-bitpos: stx     bitmsk                          ; E4CF 8E 88 03                 ...
-        txa                                     ; E4D2 8A                       .
-        and     #$07                            ; E4D3 29 07                    ).
-        tax                                     ; E4D5 AA                       .
-        lda     bits,x                          ; E4D6 BD EF EC                 ...
-        pha                                     ; E4D9 48                       H
-        lda     bitmsk                          ; E4DA AD 88 03                 ...
-        lsr                                     ; E4DD 4A                       J
-        lsr                                     ; E4DE 4A                       J
-        lsr                                     ; E4DF 4A                       J
-        tax                                     ; E4E0 AA                       .
-        pla                                     ; E4E1 68                       h
-        rts                                     ; E4E2 60                       `
+setbit: bit scrdis
+        bvs getbt1				; branch if scrolling is disabled
+        jsr bitpos				; sub: Find bit table position for line X
+        ora bitabl,x			; set bit in table
+        bne bitsav				; branch always to save byte to table
+; Find bit table position for line X
+bitpos: stx bitmsk				; remember line
+        txa
+        and #$07				; isolate bit#0-2
+        tax
+        lda bits,x				; load bit value from table
+        pha						; remember it
+        lda bitmsk
+        lsr						; divide line by 8 for byte position in bit table
+        lsr
+        lsr
+        tax						; move byte pos to X
+        pla						; return bit value in A
+        rts
 
 ; -------------------------------------------------------------------------------------------------
         bcc     fndend                          ; E4E3 90 12                    ..
@@ -1153,7 +1158,7 @@ delout: lda     sedt1                           ; E574 A5 D9                    
 delop1: jsr     nextchr                         ; E57F 20 21 E5                  !.
         jsr     get1ch                          ; E582 20 3F E2                  ?.
         jsr     bakchr                          ; E585 20 34 E5                  4.
-        jsr     LE20D                           ; E588 20 0D E2                  ..
+        jsr     dsptco                           ; E588 20 0D E2                  ..
         jsr     nextchr                         ; E58B 20 21 E5                  !.
         jmp     deloop                          ; E58E 4C 65 E5                 Le.
 
@@ -1170,7 +1175,7 @@ ins10:  bcc     ins50                           ; E59D 90 21                    
 ins30:  jsr     bakchr                          ; E5A4 20 34 E5                  4.
         jsr     get1ch                          ; E5A7 20 3F E2                  ?.
         jsr     nextchr                         ; E5AA 20 21 E5                  !.
-        jsr     LE20D                           ; E5AD 20 0D E2                  ..
+        jsr     dsptco                           ; E5AD 20 0D E2                  ..
         jsr     bakchr                          ; E5B0 20 34 E5                  4.
         ldx     tblx                            ; E5B3 A6 CA                    ..
         cpx     sedt2                           ; E5B5 E4 DA                    ..
@@ -1550,9 +1555,9 @@ LE7EE:  cpx     #$08                            ; E7EE E0 08                    
         beq     LE7F5                           ; E7F0 F0 03                    ..
         jsr     jbsout                          ; E7F2 20 53 E8                  S.
 LE7F5:  php                                     ; E7F5 08                       .
-        jsr     pagkey                          ; E7F6 20 67 E2                  g.
+        jsr pagkey				; sub: Switch to indirect bank with key buffer
         lda     (keypnt),y                      ; E7F9 B1 C2                    ..
-        jsr     pagres                          ; E7FB 20 7C E2                  |.
+        jsr pagres    			; sub: Restore indirect bank
         plp                                     ; E7FE 28                       (
         cmp     #$0D                            ; E7FF C9 0D                    ..
         beq     LE83C                           ; E801 F0 39                    .9
@@ -1645,7 +1650,7 @@ addkey: pha                                     ; E86C 48                       
 
 ; -------------------------------------------------------------------------------------------------
 ; E8A2
-keysho: jsr     pagkey                          ; E8A2 20 67 E2                  g.
+keysho: jsr pagkey				; sub: Switch to indirect bank with key buffer
 kymove: lda     sedeal                          ; E8A5 A5 C6                    ..
         clc                                     ; E8A7 18                       .
         sbc     sedsal                          ; E8A8 E5 C4                    ..
@@ -1691,12 +1696,12 @@ kyinlp: dey                                     ; E8F3 88                       
         lda     $03,x                           ; E8F6 B5 03                    ..
         sta     i6509                           ; E8F8 85 01                    ..
         lda     (sedeal),y                      ; E8FA B1 C6                    ..
-        jsr     pagres                          ; E8FC 20 7C E2                  |.
-        jsr     pagkey                          ; E8FF 20 67 E2                  g.
+        jsr pagres    			; sub: Restore indirect bank
+        jsr pagkey				; sub: Switch to indirect bank with key buffer
         sta     (sedsal),y                      ; E902 91 C4                    ..
         jmp     kyinlp                          ; E904 4C F3 E8                 L..
 
-kyinok: jsr     pagres                          ; E907 20 7C E2                  |.
+kyinok: jsr pagres    			; sub: Restore indirect bank
         clc                                     ; E90A 18                       .
         rts                                     ; E90B 60                       `
 
