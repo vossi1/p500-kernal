@@ -6,22 +6,26 @@
 ; v1.3 all patches selectable
 ; v1.4 new F-keys for petsd+
 ; v1.5 superfast video if always in indirect bank 15
-;***************************************	***************************************
-;*                                     *	*                                     *
-;* KK  K EEEEE RRRR  NN  N  AAA  LL    *	* EEEEE DDD   IIIII TTTTT  OOO  RRRR  *
-;* KK KK EE    RR  R NNN N AA  A LL    *	* E     D  D    I     T   O   O R   R *
-;* KKK   EE    RR  R NNN N AA  A LL    *	* E     D   D   I     T   O   O R   R *
-;* KKK   EEEE  RRRR  NNNNN AAAAA LL    *	* EEE   D   D   I     T   O   O RRRR  *
-;* KK K  EE    RR  R NN NN AA  A LL    *	* E     D   D   I     T   O   O R R   *
-;* KK KK EE    RR  R NN NN AA  A LL    *	* E     D  D    I     T   O   O R  R  *
-;* KK KK EEEEE RR  R NN NN AA  A LLLLL *	* EEEE  DDD   IIIII   T    OOO  R   R *
-;*                                     *	*                                     *
-;***************************************	***************************************
-;**************************************************************************************
-;* CBM KERNAL                                                                         *
-;* MEMORY AND I/O DEPENDENT ROUTINES DRIVING THE HARDWARE OF THE FOLLOWING CBM MODEL: *
-;*   P-SERIES (5XX)         COPYRIGHT (C) 1983 BY COMMODORE BUSINESS MACHINES (CBM)   *
-;**************************************************************************************
+;***************************************
+;*                                     *
+;* KK  K EEEEE RRRR  NN  N  AAA  LL    *
+;* KK KK EE    RR  R NNN N AA  A LL    *
+;* KKK   EE    RR  R NNN N AA  A LL    *
+;* KKK   EEEE  RRRR  NNNNN AAAAA LL    *
+;* KK K  EE    RR  R NN NN AA  A LL    *
+;* KK KK EE    RR  R NN NN AA  A LL    *
+;* KK KK EEEEE RR  R NN NN AA  A LLLLL *
+;*                                     *
+;***************************************
+;***************************************
+;* CBM KERNAL                          *
+;*   MEMORY AND I/O DEPENDENT ROUTINES *
+;* DRIVING THE HARDWARE OF THE         *
+;* FOLLOWING CBM MODEL :               *
+;*   P-SERIES (5XX)                    *
+;* COPYRIGHT (C) 1983 BY               *
+;* COMMODORE BUSINESS MACHINES (CBM)   *
+;***************************************
 !cpu 6502
 !ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
@@ -35,11 +39,45 @@ STANDARD_VIDEO	= 1		; Standard doublechecked video writes (original kernal unfin
 ; ########################################### BUGS ################################################
 ;
 ; ########################################### INFO ################################################
+; 6509  used to extend memory on bc2 & p2 systems
+;   location - used to direct
+;   $0000 -  execution register (4 bits)
+;   $0001 -  indirect  register (4 bits)
 ;
+;   these registers provide 4 extra high-order address control lines.  on 6509 reset all lines are high.
+;
+; current memory map:
+;   segment 15- $ffff-$e000  rom (kernal)
+;               $dfff-$df00  i/o  6525 tpi2
+;               $deff-$de00  i/o  6525 tpi1
+;               $ddff-$dd00  i/o  6551 acia
+;               $dcff-$dc00  i/o  6526 cia
+;               $dbff-$db00  i/o  unused (z80,8088,68008)
+;               $daff-$da00  i/o  6581 sid
+;               $d9ff-$d900  i/o  unused (disks)
+;               $d8ff-$d800  i/o  6566 vic
+;               $d7ff-$d400  color nybles
+;               $d3ff-$d000  video matrix
+;               $cfff-$c000  character dot rom (p2 only)
+;               $bfff-$8000  roms external (language)
+;               $7fff-$4000  roms external (extensions)
+;               $3fff-$2000  rom  external
+;               $1fff-$1000  rom  internal
+;               $0fff-$0400  unused
+;               $03ff-$0002  ram (kernal/basic system)
+;   segment 14- segment 4 open (future expansion)
+;   segment 3 - $ffff-$0002  ram expansion
+;   segment 2 - $ffff-$0002  ram p2 optinal
+;   segment 1 - $ffff-$0002  ram p2 standard
+;   segment 0 - $ffff-$0002  ram p2 standard
+;
+; the 6509 registers appear in locations $0000 and $0001 in all segments of memory.
 ; ***************************************** CONSTANTS *********************************************
 FILL		= $AA		; Fills free memory areas with $AA
-IROM		= $F		; bank
+IROM		= $F		; System bank
 ID55HZ		= 14		; 55hz value required by ioinit
+WARM		= $A5		; Warm start flag
+WINIT		= $5A     	; Initialization complete flag
 TEXTCOLOR	= $06		; Default text color:   $06 = blue
 BACKGROUNDCOLOR	= $01		; background color      $01 = white
 EXTERIORCOLOR	= $03		; exterior color        $03 = cyan
@@ -177,98 +215,96 @@ stackp		= $01FF		; System Stack pointer transx code
 buf		= $0200		; Basic input buffer
 ; -------------------------------------------------------------------------------------------------
 ; System RAM vectors
-cinv            = $0300		; IRQ vector
-cbinv           = $0302		; BRK vector
-nminv           = $0304		; NMI vector
-iopen           = $0306		; Open file vector
-iclose          = $0308		; Close file vector
-ichkin          = $030A		; Open channel in vector
-ickout          = $030C		; Open channel out vector
-iclrch          = $030E		; Close channel vector
-ibasin          = $0310		; Input from channel vector 
-ibsout          = $0312		; Output to channel vector
-istop           = $0314		; Check stop key vector
-igetin          = $0316		; Get from queue vector
-iclall          = $0318		; Close all files vector
-iload           = $031A		; Load from file vector
-isave           = $031C		; Save to file vector
-usrcmd          = $031E		; Monitor extension vector
-escvec          = $0320		; User ESC key vector
-ctlvec          = $0322		; unused control key vector
-isecnd          = $0324		; IEEE listen secondary address
-itksa           = $0326		; IEEE talk secondary address
-iacptr          = $0328		; IEEE character in routine
-iciout          = $032A		; IEEE character out routine
-iuntlk          = $032C		; IEEE bus untalk
-iunlsn          = $032E		; IEEE bus unlisten
-ilistn          = $0330		; IEEE listen device primary address
-italk           = $0332		; IEEE talk device primary address
+cinv		= $0300		; IRQ vector
+cbinv		= $0302		; BRK vector
+nminv		= $0304		; NMI vector
+iopen		= $0306		; Open file vector
+iclose		= $0308		; Close file vector
+ichkin		= $030A		; Open channel in vector
+ickout		= $030C		; Open channel out vector
+iclrch		= $030E		; Close channel vector
+ibasin		= $0310		; Input from channel vector 
+ibsout		= $0312		; Output to channel vector
+istop		= $0314		; Check stop key vector
+igetin		= $0316		; Get from queue vector
+iclall		= $0318		; Close all files vector
+iload		= $031A		; Load from file vector
+isave		= $031C		; Save to file vector
+usrcmd		= $031E		; Monitor extension vector
+escvec		= $0320		; User ESC key vector
+ctlvec		= $0322		; unused control key vector
+isecnd		= $0324		; IEEE listen secondary address
+itksa		= $0326		; IEEE talk secondary address
+iacptr		= $0328		; IEEE character in routine
+iciout		= $032A		; IEEE character out routine
+iuntlk		= $032C		; IEEE bus untalk
+iunlsn		= $032E		; IEEE bus unlisten
+ilistn		= $0330		; IEEE listen device primary address
+italk		= $0332		; IEEE talk device primary address
 ; Kernal absolute variables
-lat             = $0334		; Logical file numbers / table
-fat             = $033E		; Device numbers / table
-sat             = $0348		; Secondary addresses / table
+lat		= $0334		; Logical file numbers / table
+fat		= $033E		; Device numbers / table
+sat		= $0348		; Secondary addresses / table
 ;
-lowadr          = $0352		; Start of system memory: low, high, bank
-hiadr           = $0355		; Top of system memory: low, high, bank
-memstr          = $0358		; Start of user memory: low, high, bank
-memsiz          = $035B		; Top of user memory: low, high, bank
-timout          = $035E		; IEEE timeout enable
-verck           = $035F		; Load/verify flag
-ldtnd           = $0360		; Device table index
-msgflg          = $0361		; Message flag
-bufpt           = $0362		; Cassette buffer index
+lowadr		= $0352		; Start of system memory: low, high, bank
+hiadr		= $0355		; Top of system memory: low, high, bank
+memstr		= $0358		; Start of user memory: low, high, bank
+memsiz		= $035B		; Top of user memory: low, high, bank
+timout		= $035E		; IEEE timeout enable
+verck		= $035F		; Load/verify flag
+ldtnd		= $0360		; Device table index
+msgflg		= $0361		; Message flag
+bufpt		= $0362		; Cassette buffer index
 ; Kernal temporary (local) variables
-t1              = $0363
-t2              = $0364 
-xsav            = $0365 
-savx            = $0366 
-svxt            = $0367 
-temp            = $0368 
-alarm           = $0369		; IRQ variable holds 6526 IRQ's
+t1		= $0363
+t2		= $0364 
+xsav		= $0365 
+savx		= $0366 
+svxt		= $0367 
+temp		= $0368 
+alarm		= $0369		; IRQ variable holds 6526 IRQ's
 ; Kernal cassette variables
-itape           = $036A		; Indirect for cassette code
-cassvo          = $036C		; Cassette read variable
-aservo          = $036D		; Flag1 indicates t1 timeout cassette read
-caston          = $036E		; How to turn on timers
-relsal          = $036F		; moveable start load address
-relsah          = $0370		; 
-relsas          = $0371		; 
-oldinv          = $0372		; Restore user IRQ and i6509 after cassettes
-cas1            = $0375		; Cassette switch flag
+itape		= $036A		; Indirect for cassette code
+cassvo		= $036C		; Cassette read variable
+aservo		= $036D		; Flag1***indicates t1 timeout cassette read
+caston		= $036E		; How to turn on timers
+relsal		= $036F		; moveable start load address
+relsah		= $0370		; 
+relsas		= $0371		; 
+oldinv		= $0372		; Restore user IRQ and i6509 after cassettes
+cas1		= $0375		; Cassette switch flag
 ; RS-232 information storage
-m51ctr          = $0376		; 6551 control image
-m51cdr          = $0377		; 6551  command image
-rsstat          = $037A		; perm. RS-232 status
-dcdsr           = $037B		; last DCD/DSR value
-ridbs           = $037C		; Input start index
-ridbe           = $037D		; Input end index
+m51ctr		= $0376		; 6551 control image
+m51cdr		= $0377		; 6551 command image
+rsstat		= $037A		; perm. RS-232 status
+dcdsr		= $037B		; last DCD/DSR value
+ridbs		= $037C		; Input start index
+ridbe		= $037D		; Input end index
 ; Screen editor absolute
 ; $037E - $037F Block some area for editor
-pkyend          = $0380		; Program key buffer end address
-keyseg          = $0382		; Segment / bank of function key texts
-rvs             = $0383		; Reverse mode flag
-lintmp          = $0384		; Line # between in and out 
-lstchr          = $0385		; Last char printed
-insflg          = $0386		; Insert mode flag
-scrdis          = $0387		; Scroll disable flag
-bitmsk          = $0388		; Temorary bitmask
-keyidx          = $0389		; Index to programmables
-logscr          = $038A		; Logical/physical scroll flag
-bellmd          = $038B		; Bell on/off flag
-pagsav          = $038C		; Temp RAM page
-keysiz          = $038D		; Sizes of function key texts
-tab             = $03A1		; Tabstop flags
-keyd            = $03AB		; Keyboard buffer
-funvec          = $03B5		; Vector: funktion key handler
-iwrtvrm         = $03B7		; Vector: video ram write routine
-iwrtcrm         = $03B9		; Vector: color ram write routine
-iunkwn1         = $03BB 
-iunkwn2         = $03BD
+pkyend		= $0380		; Program key buffer end address
+keyseg		= $0382		; Segment / bank of function key texts
+rvs		= $0383		; Reverse mode flag
+lintmp		= $0384		; Line # between in and out 
+lstchr		= $0385		; Last char printed
+insflg		= $0386		; Insert mode flag
+scrdis		= $0387		; Scroll disable flag
+bitmsk		= $0388		; Temorary bitmask
+keyidx		= $0389		; Index to programmables
+logscr		= $038A		; Logical/physical scroll flag
+bellmd		= $038B		; Bell on/off flag
+pagsav		= $038C		; Temp RAM page
+keysiz		= $038D		; Sizes of function key texts
+tab		= $03A1		; Tabstop flags
+keyd		= $03AB		; Keyboard buffer
+funvec		= $03B5		; Vector: funktion key handler
+iwrtvrm		= $03B7		; Vector: video ram write routine
+iwrtcrm		= $03B9		; Vector: color ram write routine
+iunkwn1		= $03BB 
+iunkwn2		= $03BD
 ; $03C0 - $3F7 Free absolute space
 ; System warm start variables and vectors
-evect           = $03F8		; Warm start vector and flags 5 bytes
-; warm          = $03FD = $A5     Warm start flag
-; winit         = $03DE = $5A     Initialization complete flag
+evect		= $03F8		; Warm start vector and flags 5 bytes
 ; -------------------------------------------------------------------------------------------------
 ; Free bank 15 RAM 1024 bytes
 ramloc          = $0400		; First free ram location
@@ -283,84 +319,34 @@ basic           = $8000		; BASIC ROM
 charrom         = $C000		; Character ROM
 vidram          = $D000		; Video RAM
 clrram          = $D400		; Color RAM nibbles
+;
 ; VIC Video interface device
 vic             = $D800		; VIC
 vic_addr        = $D818		; VIC memory pointers reg
+;
 ; SID Sound interface device
-sid	= $da00
-;
-; base addresses osc1, osc2, osc3
-osc1	= $00
+sid	= $DA00
+osc1	= $00		; base addresses osc1, osc2, osc3
 osc2	= $07
-osc3	= $0e
-;
-; osc registers
-freqlo	= $00
+osc3	= $0E
+freqlo	= $00		; osc registers
 freqhi	= $01
 pulsef	= $02
 pulsec	= $03
 oscctl	= $04
 atkdcy	= $05
 susrel	= $06
-;
-; filter control
-fclow	= $15
+fclow	= $15		; filter control
 fchi	= $16
 resnce	= $17
 volume	= $18
-;
-; pots, random number, and env3 out
-potx	= $19
-poty	= $1a
-random	= $1b
-env3	= $1c
-
-
-sid_s1freq      = $DA00         ; Oscillator 1
-sid_s1pw        = $DA02
-sid_s1ctl       = $DA04
-sid_s1ad        = $DA05
-sid_s1sr        = $DA06
-sid_s2freq      = $DA07         ; Oscillator 2
-sid_s2pw        = $DA09
-sid_s2ctl       = $DA0B
-sid_s2ad        = $DA0C
-sid_s2sr        = $DA0D
-sid_s3freq      = $DA0E         ; Oscillator 3
-sid_s3pw        = $DA10
-sid_s3ctl       = $DA12
-sid_s3ad        = $DA13
-sid_s3sr        = $DA14                 
-sid_filter      = $DA15         ; filter control
-sid_fltctl      = $DA17
-sid_volume      = $DA18         ; Volume
-sid_potx        = $DA19         ; Pot X
-sid_poty        = $DA1A         ; Pot Y
-sid_random      = $DA1B         ; Random
-sid_env3        = $DA1C         ; Envelope osc 3
+potx	= $19		; pots, random number and env3 out
+poty	= $1A
+random	= $1B
+env3	= $1C
 ; CIA1 for inter-process communication
-ipcia	= $db00
-
-sem88	= $04           ;prb bit2
-sem65	= $08           ;prb bit3
-
-
-cia1_pra        = $DB00
-cia1_prb        = $DB01
-cia1_ddra       = $DB02
-cia1_ddrb       = $DB03
-cia1_talo       = $DB04
-cia1_tahi       = $DB05
-cia1_tblo       = $DB06
-cia1_tbhi       = $DB07
-cia1_tod10      = $DB08
-cia1_todsec     = $DB09
-cia1_todmin     = $DB0A
-cia1_todhr      = $DB0B
-cia1_sdr        = $DB0C
-cia1_icr        = $DB0D
-cia1_cra        = $DB0E
-cia1_crb        = $DB0F
+ipcia	= $DB00
+;
 ; CIA2 Complex interface adapter
 cia	= $dc00
 pra	= $0            ;data reg a
@@ -462,10 +448,32 @@ tpi2_air        = $DF07         ; Active interrupt reg
 ; -------------------------------------------------------------------------------------------------
 !initmem FILL                   ; All unused memory filled with $AA
 *= $E000
-; -------------------------------------------------------------------------------------------------
-; E000 Jump vector table
-jmoncld:jmp moncold             ; Monitor cold start
+jmoncld:jmp monoff		; Monitor cold start
 	nop
+; -------------------------------------------------------------------------------------------------
+;***************************************
+;*                                     *
+;* EEEEE DDD   IIIII TTTTT  OOO  RRRR  *
+;* E     D  D    I     T   O   O R   R *
+;* E     D   D   I     T   O   O R   R *
+;* EEE   D   D   I     T   O   O RRRR  *
+;* E     D   D   I     T   O   O R R   *
+;* E     D  D    I     T   O   O R  R  *
+;* EEEE  DDD   IIIII   T    OOO  R   R *
+;*                                     *
+;***************************************
+;
+;***************************************
+;* CBM EDITOR FOR B/BX-SERIES SYSTEMS  *
+;*   KEYBOARD AND SCREEN EDIT ROUTINES *
+;* DRIVING THE HARDWARE OF THE         *
+;* FOLLOWING CBM MODELS:               *
+;*   B/BX-SERIES OR B128/256           *
+;* COPYRIGHT (C) 1983 BY               *
+;* COMMODORE BUSINESS MACHINES (CBM)   *
+;***************************************
+*= $E004
+; E004 Jump vector table
 jcint:  jmp cint                ; Init Screen editor, VIC, F-keys
 jrdkey: jmp rdkey               ; Read a key from keyboard to A
 jscrget:jmp scrget              ; Read character from screen to A
@@ -1467,23 +1475,23 @@ jwrtcrm:jmp     (iwrtcrm)		; -> $03B9 -> $E650
 bell:   lda     bellmd                          ; E675 AD 8B 03                 ...
 	bne     LE6A2                           ; E678 D0 28                    .(
 	lda     #$0F                            ; E67A A9 0F                    ..
-	sta     sid_volume                      ; E67C 8D 18 DA                 ...
+	sta     sid+volume                      ; E67C 8D 18 DA                 ...
 	lda     #$00                            ; E67F A9 00                    ..
-	sta     sid_s1ad                        ; E681 8D 05 DA                 ...
+	sta     sid+osc1+atkdcy                        ; E681 8D 05 DA                 ...
 	lda     #$F8                            ; E684 A9 F8                    ..
-	sta     sid_s1sr                        ; E686 8D 06 DA                 ...
+	sta     sid+osc1+susrel                        ; E686 8D 06 DA                 ...
 	lda     #$40                            ; E689 A9 40                    .@
-	sta     sid_s1freq+1                    ; E68B 8D 01 DA                 ...
+	sta     sid+osc1+freqhi                    ; E68B 8D 01 DA                 ...
 	lda     #$80                            ; E68E A9 80                    ..
-	sta     sid_s3freq+1                    ; E690 8D 0F DA                 ...
+	sta     sid+osc3+freqhi                    ; E690 8D 0F DA                 ...
 	ldx     #$15                            ; E693 A2 15                    ..
-	stx     sid_s1ctl                       ; E695 8E 04 DA                 ...
+	stx     sid+osc1+oscctl                       ; E695 8E 04 DA                 ...
 	ldy     #$00                            ; E698 A0 00                    ..
 LE69A:  iny                                     ; E69A C8                       .
 	nop                                     ; E69B EA                       .
 	bne     LE69A                           ; E69C D0 FC                    ..
 	dex                                     ; E69E CA                       .
-	stx     sid_s1ctl                       ; E69F 8E 04 DA                 ...
+	stx     sid+osc1+oscctl                       ; E69F 8E 04 DA                 ...
 LE6A2:  rts                                     ; E6A2 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -2279,15 +2287,36 @@ colortb:!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ; -------------------------------------------------------------------------------------------------
 ; ED22 Unused space
 	!byte $00
-*= $EE00
 ; -------------------------------------------------------------------------------------------------
+;************************************************
+;* kernal monitor                               *
+;*                                              *
+;* entry via call (jmp) or breakpoint (brk)     *
+;* ---functions---                              *
+;* <:>      alter memory                        *
+;* <;>      alter registers                     *
+;* <r>      display registers                   *
+;* <m>      display memory                      *
+;* <g>      start execution of code             *
+;* <l>      load memory                         *
+;* <s>      save memory                         *
+;* <v>      view segment                        *
+;* <@>      disk command                        *
+;* <x>      warm start basic                    *
+;* <u>      set default disk unit               *
+;* <other>  load and execute from disk          *
+;*                                              *
+;* for syntax & semantics see cbm kernal manual *
+;* copyright (c) 1981 by cbm                    *
+;************************************************
+*= $EE00
 ; EE00 Monitor entry after boot (no basic)
-monitor:jsr     ioinit                          ; EE00 20 FE F9                  ..
+monon:	jsr     ioinit                          ; EE00 20 FE F9                  ..
 	jsr     restor                          ; EE03 20 B1 FB                  ..
 	jsr     jcint                           ; EE06 20 04 E0                  ..
 ; EE09 Monitor cold start
-moncold:jsr     kclrch                          ; EE09 20 CC FF                  ..
-	lda     #$5A                            ; EE0C A9 5A                    .Z
+monoff	:jsr     kclrch                          ; EE09 20 CC FF                  ..
+	lda     #WINIT		; waste two bytes so timc=60950
 	ldx     #$00                            ; EE0E A2 00                    ..
 	ldy     #$EE                            ; EE10 A0 EE                    ..
 	jsr     vreset                          ; EE12 20 D9 FB                  ..
@@ -3064,8 +3093,29 @@ timeron:lda     #$80                            ; F376 A9 80                    
 ; -------------------------------------------------------------------------------------------------
 ; F385
 	jmp     error9                          ; F385 4C 58 F9                 LX.
-
 ; -------------------------------------------------------------------------------------------------
+; opn232 - open an rs-232 channel
+;   if sa=1 then output channel
+;   if sa=2 then input  channel
+;   if sa=3 then bidirectional channel
+;   if sa>128 then ascii conversion enabled
+;
+;   filename consists of 0-4 bytes
+;  byte #1- control register 6551
+;  byte #2- command register 6551
+;  byte #3- c/r lf delay...60ths of sec   (unimplemented)
+;  byte #4- auto c/r insert afer xx chars (unimplemented)
+;
+;    actions:
+;  1. clear  rs232 status:  rsstat
+;  2. set 6551 contrl (ctr) register
+;  3. set 6551 command (cdr) register
+;       cdr bits (7-4) = filename byte 2 bits (7-4)
+;                (3-2) = 00  (xmitter off)
+;                (1)   = 1   (receiver off)
+;                (0)   = 0   (dtr off)
+;  4. do buffer allocation, if needed
+;---------------------------------------------
 ; F388 Open the RS232 port
 open232:jsr     rdst232                         ; F388 20 35 F4                  5.
 	ldy     #$00                            ; F38B A0 00                    ..
@@ -3136,6 +3186,27 @@ xon232: lda     acia_cmd                        ; F3F8 AD 02 DD                 
 	rts                                     ; F402 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+; alocat - allocate space
+;  entry:
+; *  .a- if .a=$ff then don't care what segment
+; *  .a- if .a=$80 then we want bottom of memory
+; *  .a- if .a=$40 then we want top of memory
+; *  .a- if .a=$0x then we need segment x
+;    .x- low # of bytes needed
+;    .y- high # of bytes needed
+;
+;  exit :
+;    c-clr  no problem allocating space
+;     .a,.x,.y is start address of allocated space
+;    c-set  problem with allocation
+;     if .a =$ff then allocation refused (cannot cross segment boundrys)
+; *   if .a =$8x then bottom of memory needs to be changed
+;     if .a =$4x then top of memory needs to be changed
+; *   if .a =$c0 then bottom>top  !! fatal error !!
+;     return to language
+;
+; *=> not implemented yet  10/30/81 rsr (only top allocation)
+;-----------------------------------------------------------------------
 ; F403 Allocate 256 bytes as RS232 buffer
 aloc256:ldx     #$00
 	ldy     #$01            ; one page = 256 bytes
@@ -3166,6 +3237,13 @@ topxit: stx     hiadr           ; store new end of system memory ($)
 	clc                     ; C=0 allocation successfull
 	rts                     ; return with X,Y,A = start of buffer -1 (new end address)
 ; -------------------------------------------------------------------------------------------------
+; rst232 - reset rs232 and dcd/dsr status
+;          note, the dcd and dsr bits of rsstat reflect whether a
+;          dsr or dcd error occured since the last time the user
+;          examined rsstat.
+;          dcdsr has the dcd/dsr states prior to their last state
+;          changes.
+;-----------------------------------------------------------------
 ; F435 Read the RS232 status
 rdst232:php                                     ; F435 08                       .
 	sei                                     ; F436 78                       x
@@ -3177,6 +3255,20 @@ rdst232:php                                     ; F435 08                       
 	rts                                     ; F443 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;*****************************************
+;* getin -- get character from channel   *
+;*      channel is determined by dfltn.  *
+;* if device is 0, keyboard queue is     *
+;* examined and a character removed if   *
+;* available.  devices 1,3-31 advance to *
+;* basin.                                *
+;*                                       *
+;* exit:  .a = character                 *
+;*        cy = 1, stop key error for cas-*
+;*                cassetes and rs232     *
+;*           = 0, otherwise.             *
+;*        z  = 1, if kbd and queue empty.*
+;*****************************************
 ; F444 GETIN: Input 1 byte from the current input device
 getin:  lda     dfltn                           ; F444 A5 A1                    ..
 	bne     getinc2                         ; F446 D0 0C                    ..
@@ -3229,6 +3321,28 @@ LF4A1:  clc                                     ; F4A1 18                       
 	rts                                     ; F4A2 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;***************************************
+;* basin-- input character from channel*
+;*     input differs from get on device*
+;* #0 function which is keyboard. the  *
+;* screen editor makes ready an entire *
+;* line which is passed char by char   *
+;* up to the carriage return.  note,   *
+;* rs232 uses getin to get each char.  *
+;* other devices are:                  *
+;*      0 -- keyboard                  *
+;*      1 -- cassette #1               *
+;*      2 -- rs232                     *
+;*      3 -- screen                    *
+;*   4-31 -- ieee   bus                *
+;*                                     *
+;* exit: cy=1, stop key error for cas- *
+;*             settes and rs232.       *
+;*       cy=0, otherwise.              *
+;*                                     *
+;*       all other errors must be de-  *
+;*       tected by checking status !   *
+;***************************************
 ; F4A3 BASIN: Input 1 byte from the current input device
 basin:  lda     dfltn                           ; F4A3 A5 A1                    ..
 	bne     basinc3                         ; F4A5 D0 0B                    ..
@@ -3286,6 +3400,22 @@ basin2: jsr     kgetin                          ; F4D7 20 E4 FF                 
 	rts                                     ; F4F4 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;***************************************
+;* bsout -- out character to channel   *
+;*     determined by variable dflto:   *
+;*     0 -- invalid                    *
+;*     1 -- cassette #1                *
+;*     2 -- rs232                      *
+;*     3 -- screen                     *
+;*  4-31 -- ieee   bus                 *
+;*                                     *
+;* exit:  cy=1, stop key error for cas-*
+;*              settes and rs232.      *
+;*        cy=0, otherwise.             *
+;*                                     *
+;*       note, other errors must be de-*
+;*       tected by checking status !   *
+;***************************************
 ; F4F5 Output 1 byte on current output device
 bsout:  pha                                     ; F4F5 48                       H
 	lda     dflto                           ; F4F6 A5 A2                    ..
@@ -3345,6 +3475,21 @@ LF547:  pla                                     ; F547 68                       
 	rts                                     ; F54F 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;***************************************
+;* nchkin -- open channel for input    *
+;*                                     *
+;* the number of the logical file to be*
+;* opened for input is passed in .x.   *
+;* chkin searches the logical file     *
+;* to look up device and command info. *
+;* errors are reported if the device   *
+;* was not opened for input ,(e.g.     *
+;* cassette write file), or the logical*
+;* file has no reference in the tables.*
+;* device 0, (keyboard), and device 3  *
+;* (screen), require no table entries  *
+;* and are handled separate.           *
+;***************************************
 ; F550 Open an input channel (la in X)
 chkin:  jsr     lookup                          ; F550 20 45 F6                  E.
 	beq     LF558                           ; F553 F0 03                    ..
@@ -3401,6 +3546,21 @@ LF5A2:  txa                                     ; F5A2 8A                       
 	jmp     error5                          ; F5A7 4C 4C F9                 LL.
 
 ; -------------------------------------------------------------------------------------------------
+;***************************************
+;* chkout -- open channel for output   *
+;*                                     *
+;* the number of the logical file to be*
+;* opened for output is passed in .x.  *
+;* chkout searches the logical file    *
+;* to look up device and command info. *
+;* errors are reported if the device   *
+;* was not opened for input ,(e.g.     *
+;* keyboard), or the logical file has  *
+;* reference in the tables.            *
+;* device 0, (keyboard), and device 3  *
+;* (screen), require no table entries  *
+;* and are handled separate.           *
+;***************************************
 ; F5AA Open an output channel (la in X)
 ckout:  jsr     lookup                          ; F5AA 20 45 F6                  E.
 	beq     LF5B2                           ; F5AD F0 03                    ..
@@ -3447,6 +3607,27 @@ LF5EC:  txa                                     ; F5EC 8A                       
 	jmp     error5                          ; F5F1 4C 4C F9                 LL.
 
 ; -------------------------------------------------------------------------------------------------
+;*************************************
+;* nclose -- close logical file      *
+;*                                   *
+;* enter:                            *
+;*     cy =1 ,transmit close to dev- *
+;*            ice.                   *
+;*     cy =0 ,only remove from kernal*
+;*            tables.                *
+;*                                   *
+;*     the logical file number of the*
+;* file to be closed is passed in .a.*
+;* keyboard, screen, and files not   *
+;* open pass straight through. tape  *
+;* files open for write are closed by*
+;* dumping the last buffer and       *
+;* conditionally writing an end of   *
+;* tape block.serial files are closed*
+;* by sending a close file command if*
+;* a secondary address was specified *
+;* in its open command.              *
+;*************************************
 ; F5F4 Close a logical file
 close:  php                                     ; F5F4 08                       .
 	jsr     LF64A                           ; F5F5 20 4A F6                  J.
@@ -3542,6 +3723,20 @@ lkupla: tax                                     ; F67F AA                       
 	rts                                     ; F685 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;******************************************
+;* nclall -- close all logical files      *
+;*      deletes all table entries and     *
+;* restores default i/o channels          *
+;* and clears ieee port devices           *
+;******************************************
+;------------------------------------------
+; new ncall
+;  closes all files untill done or an
+;  error occurs.
+;  entry:
+;    c-clr => close all files
+;    c-set => .a = fa (device to be closed)
+;------------------------------------------
 ; F686 Close all logical files
 clrall: ror     xsav                            ; F686 6E 65 03                 ne.
 	sta     savx                            ; F689 8D 66 03                 .f.
@@ -3559,6 +3754,12 @@ LF69F:  lda     lat,x                           ; F69F BD 34 03                 
 	bcc     LF68C                           ; F6A6 90 E4                    ..
 LF6A8:  lda     #$00                            ; F6A8 A9 00                    ..
 	sta     ldtnd                           ; F6AA 8D 60 03                 .`.
+;********************************************
+;* nclrch -- clear channels                 *
+;*   unlisten or untalk ieee devices, but   *
+;* leave others alone.  default channels    *
+;* are restored.                            *
+;********************************************
 ; F6AD Unlisten/untalk on IEC
 clrch:  ldx     #$03                            ; F6AD A2 03                    ..
 	cpx     dflto                           ; F6AF E4 A2                    ..
@@ -3574,11 +3775,38 @@ LF6BD:  ldx     #$03                            ; F6BD A2 03                    
 	rts                                     ; F6C5 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;***********************************
+;*                                 *
+;* open function                   *
+;*                                 *
+;* enter: cy=1, transmit command to*
+;*              device.            *
+;*        cy=0, perform open opera-*
+;*              tion.              *
+;*                                 *
+;* la, fa, sa must be set up prior *
+;* to the call to this routine, as *
+;* well as the file name descript- *
+;* tor.                            *
+;*                                 *
+;***********************************
 ; F6C6 Open a logical file, output the filename
 open:   bcc     LF6CB                           ; F6C6 90 03                    ..
 	jmp     tranr                           ; F6C8 4C 41 F7                 LA.
 
 ; -------------------------------------------------------------------------------------------------
+;***********************************
+;*                                 *
+;* create an entry in the logical  *
+;* files tables consisting of      *
+;* logical file number--la, device *
+;* number--fa, and secondary cmd-- *
+;* sa.                             *
+;*                                 *
+;* a file name descriptor, fnadr & *
+;* fnlen, is passed to this routine*
+;*                                 *
+;***********************************
 ; F6CB
 LF6CB:  ldx     la                              ; F6CB A6 9E                    ..
 	jsr     lookup                          ; F6CD 20 45 F6                  E.
@@ -3653,6 +3881,13 @@ LF73F:  clc                                     ; F73F 18                       
 	rts                                     ; F740 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;*****************************************
+;*  transmit command to device           *
+;*                                       *
+;*   fnlen,fnadr must be set up already  *
+;*   to contain the command string.      *
+;*   fa must be set for the device.      *
+;*****************************************
 ; F741 Output sa 15 + name on IEC
 tranr:  lda     fa                              ; F741 A5 9F                    ..
 	jsr     klisten                         ; F743 20 B1 FF                  ..
@@ -3661,6 +3896,26 @@ tranr:  lda     fa                              ; F741 A5 9F                    
 	jmp     openib                          ; F74A 4C 1F F7                 L..
 
 ; -------------------------------------------------------------------------------------------------
+;**************************************
+;* load ram function     10/30/81     *
+;*                                    *
+;*  loads from cassette 1 or 2, or    *
+;*  ieee bus devices >=4 to 31 as     *
+;*  determined by contents of         *
+;*  variable fa.                      *
+;* entry:                             *
+;*   .a(bit 7)=0 performs load        *
+;*   .a(bit 7)=1 performs verify      *
+;*   .a(bits 0123)=start segment      *
+;*   .x=start address low             *
+;*   .y=start address high            *
+;*   if .x=$ff & .y=$ff => fixed load *
+;* exit:                              *
+;*   .a(bits 0123)=end segment        *
+;*   .x=end address low               *
+;*   .y=end address high              *
+;*                                    *
+;**************************************
 ; F74D Load from logical file
 load:   stx     relsal                          ; F74D 8E 6F 03                 .o.
 	sty     relsah                          ; F750 8C 70 03                 .p.
@@ -3810,6 +4065,16 @@ loading:ldy     #$1B                            ; F847 A0 1B                    
 LF850:  jmp     spmsg                           ; F850 4C 23 F2                 L#.
 
 ; -------------------------------------------------------------------------------------------------
+;***************************************
+;* nsave              10/30/81         *
+;*                                     *
+;* saves to cassette 1 or 2, or        *
+;* ieee devices 4>=n>=31 as selected   *
+;* by variable fa.                     *
+;*                                     *
+;* .x => zpage address of start vector *
+;* .y => zpage address of end vector   *
+;***************************************
 ; F853 Save to logical file
 save:   lda     e6509,x                         ; F853 B5 00                    ..
 	sta     stal                            ; F855 85 99                    ..
@@ -3894,8 +4159,15 @@ saving: lda     msgflg                          ; F8E0 AD 61 03                 
 	ldy     #$23                            ; F8E5 A0 23                    .#
 	jsr     spmsg                           ; F8E7 20 23 F2                  #.
 	jmp     outfn                           ; F8EA 4C 35 F8                 L5.
-
 ; -------------------------------------------------------------------------------------------------
+; time and alarm routines for 6526
+;      rsr 11/12/81
+;
+; rdtim - read the time
+;  .y = (bit7=pm,bit6/5=t8/t4,bits4-0 hrs)
+;  .x = (bit7=t2,bits6-0 minutes)
+;  .a = (bit7=t1,bits6-0 seconds)
+;----------------------------------------
 ; F8ED Read the time from the TOD clock
 rdtim:  lda     cia2_tod10                      ; F8ED AD 08 DC                 ...
 	pha                                     ; F8F0 48                       H
@@ -3923,6 +4195,12 @@ rdtim:  lda     cia2_tod10                      ; F8ED AD 08 DC                 
 	rts                                     ; F914 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;----------------------------------------
+; settim - set tod and alarm
+;  c-set => set alarm
+;  c-clr => set tod
+;  registers same as rdtim
+;----------------------------------------
 ; F915 Set the time
 settim: pha                                     ; F915 48                       H
 	pha                                     ; F916 48                       H
@@ -3951,6 +4229,13 @@ settim: pha                                     ; F915 48                       
 	rts                                     ; F93F 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;************************************
+;* error handler                    *
+;*  restores i/o channels to default*
+;*  prints kernal error message if  *
+;*  bit 6 of msgflg set.  returns   *
+;*  with error # in .a and carry.   *
+;************************************
 ; F940 Output "i/o error: 1" (too many files)
 error1: lda     #$01                            ; F940 A9 01                    ..
 !byte   $2C                                     ; F942 2C                       ,
@@ -3993,6 +4278,14 @@ LF96F:  pla                                     ; F96F 68                       
 	rts                                     ; F971 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;***************************************
+;* stop -- check stop key flag and     *
+;* return z flag set if flag true.     *
+;* also closes active channels and     *
+;* flushes keyboard queue.             *
+;* also returns key downs from last    *
+;* keyboard row in .a.                 *
+;***************************************
 ; F972 Check the stop key
 stop:   lda     stkey                           ; F972 A5 A9                    ..
 	and     #$01                            ; F974 29 01                    ).
@@ -4004,6 +4297,11 @@ stop:   lda     stkey                           ; F972 A5 A9                    
 LF97F:  rts                                     ; F97F 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+; udtim - update the stop key location
+;   expects keyboard outputs set to
+;   default value. bit 0 of stkey =0
+;   for stop key down.
+;---------------------------------------
 ; F980 
 udtim:  lda     tpi2_pc                         ; F980 AD 02 DF                 ...
 	lsr                                     ; F983 4A                       J
@@ -4019,13 +4317,24 @@ LF993:  lda     #$FF                            ; F993 A9 FF                    
 LF998:  rol                                     ; F998 2A                       *
 	sta     stkey                           ; F999 85 A9                    ..
 	rts                                     ; F99B 60                       `
-
 ; -------------------------------------------------------------------------------------------------
+; start - system reset routine
+;  kernal checks on 4k boundries from $1000-$8000
+;    first occurance has priority.
+;    if no occurance then $e000 is used for vector
+;    $e000 => monitor start
+;  kernal expects:
+;    $x000 - jmp init  (cold start)
+;    $x003 - jmp winit (warm start)
+;    $x006 - 'c'(+$80)=> kernal cold start first
+;    $x007 - 'b'+$80
+;    $x008 - 'm'+$80
+;    $x009 - 'x'  x=4k bank (1-8)
+;------------------------------------------------
 ; F99C Test bytes for ROMs
 patall: !byte $C2,$CD
-; -------------------------------------------------------------------------------------------------
 ; F99E System reset routine
-cold:   ldx #$FE
+start:	ldx #$FE
 	sei                     ; disable interrupts
 	txs                     ; init stack
 	cld                     ; clear decimal flag
@@ -4034,11 +4343,7 @@ cold:   ldx #$FE
 	eor evect+3             ; compare warm start flags if both are $A5
 	beq swarm               ; if yes, branches to warm start
 ; F9AD System cold start
-; Searches every $1000 +6 for the string CBM# or cBM# - # has to be 1,2... = the highest nibble of
-; the address, if string found it stores the ROM position $1000... to the pointer evect. If 'c' it
-; jumps to warm start directly. If 'C' it calls all inits subs first and jumps to the found ROM.
-; If no cartridge, it founds the BASIC at $8000, if no BASIC there it founds the monitor at $E000.
-	lda #$06                ; set pointer to $0006 = position ROM ident bytes
+scold:	lda #$06                ; set pointer to $0006 = position ROM ident bytes
 	sta eal
 	lda #$00
 	sta eah
@@ -4074,11 +4379,16 @@ sloop3: ldy eah
 	jsr ramtas              ; sub: ram-test $FA94
 	jsr restor              ; sub: init standard-vectors $FBB1 (copies $0300 Vector Table)
 	jsr jcint               ; sub: initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
-	lda #$A5
+	lda #WARM		; Kernal initilize done flag
 	sta evect+2             ; save first warm start flag $A5
 ; F9FB Warm start entry
 swarm:  jmp (evect)             ; jump to basic warm start $BBA0
 ; -------------------------------------------------------------------------------------------------
+;-----------------------------------------
+; ioinit - initilize i/o system
+;   6509/6525/6525/6526
+;   must be entered with irq's disabled
+;------------------------------------------
 ; F9FE I/O register init (TPI1, TPI2, CIA, TOD)
 ioinit: lda #$F3
 	sta tpi1_ctrl           ; TPI1 interrupt mode = on, parity / VIC bank 15 selected for both
@@ -4128,22 +4438,29 @@ io110:  inx
 	!byte $2C               ; and skip next instruction
 io120:  lda #$08
 	sta cia2_cra            ; CIA2 CRA set TOD=50/60Hz / run mode=continuous
-	lda cia1_icr            ; CIA1 clear interrupt reg
+	lda ipcia+icr            ; CIA1 clear interrupt reg
 	lda #$90    
-	sta cia1_icr            ; CIA1 set flag interrupt source
+	sta ipcia+icr            ; CIA1 set flag interrupt source
 	lda #$40    
-	sta cia1_prb            ; CIA1 set bit #6
+	sta ipcia+prb            ; CIA1 set bit #6
 	lda #$00    
-	sta cia1_ddra           ; CIA1 DDRA input
-	sta cia1_crb            ; CIA1 CRB stop timer B
-	sta cia1_cra            ; CIA1 CRA stop timer A
+	sta ipcia+ddra           ; CIA1 DDRA input
+	sta ipcia+crb            ; CIA1 CRB stop timer B
+	sta ipcia+cra            ; CIA1 CRA stop timer A
 	lda #$48     
-	sta cia1_ddrb           ; CIA1 DDRB output: bit # 3,6 / all other input
+	sta ipcia+ddrb           ; CIA1 DDRB output: bit # 3,6 / all other input
 	lda #$01    
 	ora tpi1_pb             ; TPI1 PB set bit #0 IEEE ifc=1
 	sta tpi1_pb 
 	rts         
 ; -------------------------------------------------------------------------------------------------
+; ramtas - initilize lower ram with $00
+;  and test all system dynamic ram
+;  set ram limits (64k bank min size)
+;  allocate initial buffer space
+;  turn off rs232 and cassette buffers
+;  reset xtape vectors to non-cassette
+;-----------------------------------------
 ; FA94 RAM-test / vector init
 ramtas: lda #$00                ; init value A = $00, counter X = $00
 	tax
@@ -4355,8 +4672,23 @@ vreset: stx     evect                           ; FBD9 8E F8 03                 
 	rts                                     ; FBE4 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;**********************************************
+;* nirq - handler for:       10/30/81 rsr     *
+;* 6525 irq's:::::::::::::::::::::::::::::::::*
+;* 6551 irq's                                 *
+;*   (receiver,transmitter,dcd & dsr changes) *
+;* 6526 irq's                                 *
+;*   (alarm, timera, timerb)                  *
+;* 6526 irq's                                 *
+;*   (2nd processor)                          *
+;* ieee srq                                   *
+;* keyboard scan (50/60hz irq)                *
+;*                                            *
+;* also at present does not handle any of the *
+;* 6566 (vic) interrupts.                     *
+;**********************************************
 ; FBE5 IRQ routine
-irq:    pha                                     ; FBE5 48                       H
+nirq:	pha                                     ; FBE5 48                       H
 	txa                                     ; FBE6 8A                       .
 	pha                                     ; FBE7 48                       H
 	tya                                     ; FBE8 98                       .
@@ -4435,7 +4767,7 @@ LFC66:  jmp     LFCAD                           ; FC66 4C AD FC                 
 ; FC69 Check for coprozessor IRQ
 kirq8:  cmp     #$08                            ; FC69 C9 08                    ..
 	bne     kirq9                           ; FC6B D0 0A                    ..
-	lda     cia1_icr                        ; FC6D AD 0D DB                 ...
+	lda     ipcia+icr                        ; FC6D AD 0D DB                 ...
 	cli                                     ; FC70 58                       X
 	jsr     ipserv                          ; FC71 20 56 FD                  V.
 	jmp     LFCAD                           ; FC74 4C AD FC                 L..
@@ -4484,59 +4816,68 @@ prend:  pla                                     ; FCB3 68                       
 panic:  rti                                     ; FCB8 40                       @
 
 ; -------------------------------------------------------------------------------------------------
+; send a request
+;   enter:   ipb buffer is initialized to hold the
+;            command
+;            input parameter bytes
+;
+;   exit:    ipb buffer holds
+;            output parameter bytes
+;            all other bytes in ipb unchanged
+;---------------------------------------------------------------
 ; FCB9 Coprocessor request
 ipcrq:  lda     ipb                             ; FCB9 AD 00 08                 ...
 	and     #$7F                            ; FCBC 29 7F                    ).
 	tay                                     ; FCBE A8                       .
 	jsr     getpar                          ; FCBF 20 2F FE                  /.
 	lda     #$04                            ; FCC2 A9 04                    ..
-	and     cia1_prb                        ; FCC4 2D 01 DB                 -..
+	and     ipcia+prb                        ; FCC4 2D 01 DB                 -..
 	bne     ipcrq                           ; FCC7 D0 F0                    ..
 	lda     #$08                            ; FCC9 A9 08                    ..
-	ora     cia1_prb                        ; FCCB 0D 01 DB                 ...
-	sta     cia1_prb                        ; FCCE 8D 01 DB                 ...
+	ora     ipcia+prb                        ; FCCB 0D 01 DB                 ...
+	sta     ipcia+prb                        ; FCCE 8D 01 DB                 ...
 	nop                                     ; FCD1 EA                       .
-	lda     cia1_prb                        ; FCD2 AD 01 DB                 ...
+	lda     ipcia+prb                        ; FCD2 AD 01 DB                 ...
 	tax                                     ; FCD5 AA                       .
 	and     #$04                            ; FCD6 29 04                    ).
 	beq     LFCE6                           ; FCD8 F0 0C                    ..
 	txa                                     ; FCDA 8A                       .
 	eor     #$08                            ; FCDB 49 08                    I.
-	sta     cia1_prb                        ; FCDD 8D 01 DB                 ...
+	sta     ipcia+prb                        ; FCDD 8D 01 DB                 ...
 	txa                                     ; FCE0 8A                       .
 	nop                                     ; FCE1 EA                       .
 	nop                                     ; FCE2 EA                       .
 	nop                                     ; FCE3 EA                       .
 	bne     ipcrq                           ; FCE4 D0 D3                    ..
 LFCE6:  lda     #$FF                            ; FCE6 A9 FF                    ..
-	sta     cia1_ddra                       ; FCE8 8D 02 DB                 ...
+	sta     ipcia+ddra                       ; FCE8 8D 02 DB                 ...
 	lda     ipb                             ; FCEB AD 00 08                 ...
-	sta     cia1_pra                        ; FCEE 8D 00 DB                 ...
+	sta     ipcia+pra                        ; FCEE 8D 00 DB                 ...
 	jsr     frebus                          ; FCF1 20 16 FE                  ..
-	lda     cia1_prb                        ; FCF4 AD 01 DB                 ...
+	lda     ipcia+prb                        ; FCF4 AD 01 DB                 ...
 	and     #$BF                            ; FCF7 29 BF                    ).
-	sta     cia1_prb                        ; FCF9 8D 01 DB                 ...
+	sta     ipcia+prb                        ; FCF9 8D 01 DB                 ...
 	ora     #$40                            ; FCFC 09 40                    .@
 	cli                                     ; FCFE 58                       X
 	nop                                     ; FCFF EA                       .
 	nop                                     ; FD00 EA                       .
 	nop                                     ; FD01 EA                       .
-	sta     cia1_prb                        ; FD02 8D 01 DB                 ...
+	sta     ipcia+prb                        ; FD02 8D 01 DB                 ...
 	jsr     waithi                          ; FD05 20 FC FD                  ..
 	lda     #$00                            ; FD08 A9 00                    ..
-	sta     cia1_ddra                       ; FD0A 8D 02 DB                 ...
+	sta     ipcia+ddra                       ; FD0A 8D 02 DB                 ...
 	jsr     acklo                           ; FD0D 20 04 FE                  ..
 	jsr     waitlo                          ; FD10 20 F4 FD                  ..
 	ldy     #$00                            ; FD13 A0 00                    ..
 	beq     LFD34                           ; FD15 F0 1D                    ..
 LFD17:  lda     #$FF                            ; FD17 A9 FF                    ..
-	sta     cia1_ddra                       ; FD19 8D 02 DB                 ...
+	sta     ipcia+ddra                       ; FD19 8D 02 DB                 ...
 	lda     ipb+5,y                         ; FD1C B9 05 08                 ...
-	sta     cia1_pra                        ; FD1F 8D 00 DB                 ...
+	sta     ipcia+pra                        ; FD1F 8D 00 DB                 ...
 	jsr     ackhi                           ; FD22 20 0D FE                  ..
 	jsr     waithi                          ; FD25 20 FC FD                  ..
 	lda     #$00                            ; FD28 A9 00                    ..
-	sta     cia1_ddra                       ; FD2A 8D 02 DB                 ...
+	sta     ipcia+ddra                       ; FD2A 8D 02 DB                 ...
 	jsr     acklo                           ; FD2D 20 04 FE                  ..
 	jsr     waitlo                          ; FD30 20 F4 FD                  ..
 	iny                                     ; FD33 C8                       .
@@ -4546,7 +4887,7 @@ LFD34:  cpy     ipb+3                           ; FD34 CC 03 08                 
 	beq     LFD50                           ; FD3B F0 13                    ..
 LFD3D:  jsr     ackhi                           ; FD3D 20 0D FE                  ..
 	jsr     waithi                          ; FD40 20 FC FD                  ..
-	lda     cia1_pra                        ; FD43 AD 00 DB                 ...
+	lda     ipcia+pra                        ; FD43 AD 00 DB                 ...
 	sta     ipb+5,y                         ; FD46 99 05 08                 ...
 	jsr     acklo                           ; FD49 20 04 FE                  ..
 	jsr     waitlo                          ; FD4C 20 F4 FD                  ..
@@ -4556,10 +4897,12 @@ LFD50:  cpy     ipb+4                           ; FD50 CC 04 08                 
 	rts                                     ; FD55 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+; service an 8088 request
+;-------------------------------------------------------------------
 ; FD56 Coprocessor irq handler
 ipserv: lda     #$00                            ; FD56 A9 00                    ..
-	sta     cia1_ddra                       ; FD58 8D 02 DB                 ...
-	lda     cia1_pra                        ; FD5B AD 00 DB                 ...
+	sta     ipcia+ddra                       ; FD58 8D 02 DB                 ...
+	lda     ipcia+pra                        ; FD5B AD 00 DB                 ...
 	sta     ipb                             ; FD5E 8D 00 08                 ...
 	and     #$7F                            ; FD61 29 7F                    ).
 	tay                                     ; FD63 A8                       .
@@ -4579,7 +4922,7 @@ LFD7F:  cpy     ipb+3                           ; FD7F CC 03 08                 
 	beq     LFD99                           ; FD82 F0 15                    ..
 	jsr     acklo                           ; FD84 20 04 FE                  ..
 	jsr     waithi                          ; FD87 20 FC FD                  ..
-	lda     cia1_pra                        ; FD8A AD 00 DB                 ...
+	lda     ipcia+pra                        ; FD8A AD 00 DB                 ...
 	sta     ipb+5,y                         ; FD8D 99 05 08                 ...
 	jsr     ackhi                           ; FD90 20 0D FE                  ..
 	jsr     waitlo                          ; FD93 20 F4 FD                  ..
@@ -4600,13 +4943,13 @@ LFD99:  bit     ipb                             ; FD99 2C 00 08                 
 	beq     LFDCB                           ; FDAC F0 1D                    ..
 LFDAE:  jsr     waithi                          ; FDAE 20 FC FD                  ..
 	lda     #$FF                            ; FDB1 A9 FF                    ..
-	sta     cia1_ddra                       ; FDB3 8D 02 DB                 ...
+	sta     ipcia+ddra                       ; FDB3 8D 02 DB                 ...
 	lda     ipb+5,y                         ; FDB6 B9 05 08                 ...
-	sta     cia1_pra                        ; FDB9 8D 00 DB                 ...
+	sta     ipcia+pra                        ; FDB9 8D 00 DB                 ...
 	jsr     ackhi                           ; FDBC 20 0D FE                  ..
 	jsr     waitlo                          ; FDBF 20 F4 FD                  ..
 	lda     #$00                            ; FDC2 A9 00                    ..
-	sta     cia1_ddra                       ; FDC4 8D 02 DB                 ...
+	sta     ipcia+ddra                       ; FDC4 8D 02 DB                 ...
 	jsr     acklo                           ; FDC7 20 04 FE                  ..
 	iny                                     ; FDCA C8                       .
 LFDCB:  cpy     ipb+4                           ; FDCB CC 04 08                 ...
@@ -4635,30 +4978,30 @@ LFDD1:  lda     #$FD                            ; FDD1 A9 FD                    
 
 ; -------------------------------------------------------------------------------------------------
 ; FDF4 
-waitlo: lda     cia1_prb                        ; FDF4 AD 01 DB                 ...
+waitlo: lda     ipcia+prb                        ; FDF4 AD 01 DB                 ...
 	and     #$04                            ; FDF7 29 04                    ).
 	bne     waitlo                          ; FDF9 D0 F9                    ..
 	rts                                     ; FDFB 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; FDFC 
-waithi: lda     cia1_prb                        ; FDFC AD 01 DB                 ...
+waithi: lda     ipcia+prb                        ; FDFC AD 01 DB                 ...
 	and     #$04                            ; FDFF 29 04                    ).
 	beq     waithi                          ; FE01 F0 F9                    ..
 	rts                                     ; FE03 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; FE04 
-acklo:  lda     cia1_prb                        ; FE04 AD 01 DB                 ...
+acklo:  lda     ipcia+prb                        ; FE04 AD 01 DB                 ...
 	and     #$F7                            ; FE07 29 F7                    ).
-	sta     cia1_prb                        ; FE09 8D 01 DB                 ...
+	sta     ipcia+prb                        ; FE09 8D 01 DB                 ...
 	rts                                     ; FE0C 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; FE0D 
 ackhi:  lda     #$08                            ; FE0D A9 08                    ..
-	ora     cia1_prb                        ; FE0F 0D 01 DB                 ...
-	sta     cia1_prb                        ; FE12 8D 01 DB                 ...
+	ora     ipcia+prb                        ; FE0F 0D 01 DB                 ...
+	sta     ipcia+prb                        ; FE12 8D 01 DB                 ...
 	rts                                     ; FE15 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -4670,7 +5013,7 @@ frebus: lda     tpi1_pb                         ; FE16 AD 01 DE                 
 
 ; -------------------------------------------------------------------------------------------------
 ; FE1F Wait until we own the bus
-getbus: lda     cia1_prb                        ; FE1F AD 01 DB                 ...
+getbus: lda     ipcia+prb                        ; FE1F AD 01 DB                 ...
 	and     #$02                            ; FE22 29 02                    ).
 	beq     getbus                          ; FE24 F0 F9                    ..
 	lda     tpi1_pb                         ; FE26 AD 01 DE                 ...
@@ -4700,7 +5043,7 @@ ipcgo:  ldx     #$FF                            ; FE41 A2 FF                    
 	and     #$EF                            ; FE48 29 EF                    ).
 	sta     tpi1_pb                         ; FE4A 8D 01 DE                 ...
 	nop                                     ; FE4D EA                       .
-	lda     cia1_prb                        ; FE4E AD 01 DB                 ...
+	lda     ipcia+prb                        ; FE4E AD 01 DB                 ...
 	ror                                     ; FE51 6A                       j
 	bcs     ipcgx                           ; FE52 B0 01                    ..
 	rts                                     ; FE54 60                       `
@@ -4709,13 +5052,13 @@ ipcgo:  ldx     #$FF                            ; FE41 A2 FF                    
 ; FE55 Prepare for coprocessor takeover
 ipcgx:  lda     #$00                            ; FE55 A9 00                    ..
 	sei                                     ; FE57 78                       x
-	sta     cia1_prb                        ; FE58 8D 01 DB                 ...
+	sta     ipcia+prb                        ; FE58 8D 01 DB                 ...
 	lda     #$40                            ; FE5B A9 40                    .@
 	nop                                     ; FE5D EA                       .
 	nop                                     ; FE5E EA                       .
 	nop                                     ; FE5F EA                       .
 	nop                                     ; FE60 EA                       .
-	sta     cia1_prb                        ; FE61 8D 01 DB                 ...
+	sta     ipcia+prb                        ; FE61 8D 01 DB                 ...
 	cli                                     ; FE64 58                       X
 ; FE65 Wait while the coprocessor has the bus
 iploop: jmp     iploop                          ; FE65 4C 65 FE                 Le.
@@ -4766,6 +5109,35 @@ incsal: inc     sal                             ; FE8D E6 93                    
 LFE9F:  rts                                     ; FE9F 60                       `
 
 ; -------------------------------------------------------------------------------------------------
+;-------------------------------------
+; tapery - get from the tape buffer
+;   lda (tape1)y ;replacement
+;-------------------------------------
+;tapiry iny
+;tapery ldx i6509
+; lda tape1+2
+; sta i6509
+; lda (tape1)y
+; stx i6509
+; rts
+;-------------------------------------
+; tapewy - put char in the tape buffer
+;   sta (tape1)y ;replacement
+;-------------------------------------
+;tapzwy ldy #$ff ;first byte in buffer
+;tapiwy iny ;auto inc into buffer
+;tapewy ldx i6509
+; pha
+; lda tape1+2
+; sta i6509
+; pla
+; sta (tape1)y
+; stx i6509
+; rts
+;-------------------------------------
+; fnadry - get from file name buffer
+;   lda (fnadr)y ;replacement
+;-------------------------------------
 ; FEA0 Load a byte from the file name
 fnadry: ldx     i6509                           ; FEA0 A6 01                    ..
 	lda     fnadr+2                         ; FEA2 A5 92                    ..
@@ -4939,6 +5311,6 @@ kgbye:  sta e6509
 	!byte $80
 ; -------------------------------------------------------------------------------------------------
 ; FFFA Hardware vector table
-hanmi:  !word nmi               ; NMI vector FB3D
-hares:  !word cold              ; Reset vector F99E
-hairq:  !word irq               ; IRQ vector FBE5
+hanmi:  !word nmi		; NMI vector FB3D
+hares:  !word start		; Reset vector F99E
+hairq:  !word nirq		; IRQ vector FBE5
