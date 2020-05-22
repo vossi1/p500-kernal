@@ -37,157 +37,186 @@ STANDARD_VIDEO	= 1		; Standard doublechecked video writes (original kernal unfin
 ; ########################################### INFO ################################################
 ;
 ; ***************************************** CONSTANTS *********************************************
-FILL		= $AA           ; Fills free memory areas with $AA
-IROM		= $0F           ; System bank
-ID55HZ		= 14            ; 55hz value required by ioinit
-TEXTCOLOR	= $06           ; Default text color:   $06 = blue
-BACKGROUNDCOLOR	= $01           ; background color      $01 = white
-EXTERIORCOLOR	= $03           ; exterior color        $03 = cyan
+FILL		= $AA		; Fills free memory areas with $AA
+IROM		= $F		; bank
+ID55HZ		= 14		; 55hz value required by ioinit
+TEXTCOLOR	= $06		; Default text color:   $06 = blue
+BACKGROUNDCOLOR	= $01		; background color      $01 = white
+EXTERIORCOLOR	= $03		; exterior color        $03 = cyan
 ; ***************************************** ZERO PAGE *********************************************
-e6509		= $00           ; 6509 execution bank reg
-i6509		= $01           ; 6509 indirect bank reg
+e6509		= $00		; 6509 execution bank reg
+i6509		= $01		; 6509 indirect bank reg
 ;
 ; $02-$8f BASIC zeropage 
 ;
-; $90 Kernal page zero address variables
+; Kernal page zero variables
 ; Kernal indirect address variables
-fnadr           = $90           ; Address of file name string
-sal             = $93           ; low   Current load/store address
-sah             = $94           ; high
-sas             = $95           ; segment / bank
-eal             = $96           ; low   End of load/save
-eah             = $97           ; high
-eas             = $98           ; segment / bank
-stal            = $99           ; low   Start of load/save
-stah            = $9A           ; high
-stas            = $9B           ; segment / bank
+fnadr		= $90		; Address of file name string
+sal		= $93		; Current load/store address
+sah		= $94		;   low, high, bank
+sas		= $95
+eal		= $96		; End of load/save
+eah		= $97
+eas		= $98
+stal		= $99		; Start of load/save
+stah		= $9A
+stas		= $9B
 ; Frequently used kernal variables
-status          = $9C           ; I/O operation status
-fnlen           = $9D           ; File name length
-la              = $9E           ; Current logical index / file #
-fa              = $9F           ; Current first address
-sa              = $A0           ; Current secondary address
-dfltn           = $A1           ; Default input device
-dflto           = $A2           ; Default output device
+status		= $9C		; I/O operation status
+fnlen		= $9D		; File name length
+la		= $9E		; Current logical index
+fa		= $9F		; Current first address
+sa		= $A0		; Current secondary address
+dfltn		= $A1		; Default input device
+dflto		= $A2		; Default output device
 ; Tape buffer pointer
-tape1           = $A3           ; Address of tape buffer
+tape1		= $A3		; Address of tape buffer
 ; RS-232 input buffer
-ribuf           = $A6           ; Input buffer
+ribuf		= $A6		; Input buffer
 ; Variables for kernal speed
-stkey           = $A9           ; Stop key flag
-c3po            = $AA           ; IEEE buffer flag
-	; ctemp = $AA             used to reduce cassette read times 
-bsour           = $AB           ; IEEE character buffer 
-	; snsw1 = $AB             used to reduce cassette read times 
-; cassette temps - overlays IPC buffer
-ipoint          = $AC           ; RAM indirect pointer
+stkey		= $A9		; Stop key flag
+ctemp		= $A9		; used to reduce cassette read times 
+c3po		= $AA		; IEEE buffer flag
+snsw1		= $AA		; used to reduce cassette read times 
+bsour		= $AB		; IEEE character buffer 
+; Cassette temps - overlays IPC buffer
+ipoint		= $AC		; next 2 bytes used for transx code
+syno		= $AC
+dpsw		= $AD
 ; next 18 bytes also used for monitor
-pch             = $AE           ; Monitor: PC low
-pcl             = $AF           ; Monitor: PC high
-sp              = $B4           ; Monitor: stack pointer
-xi6509          = $B5           ; Monitor: indirect bank
-invh            = $B7           ; Monitor: user irq low
-invl            = $B8           ; Monitor: user irq high
-tmp1            = $B9           ; Monitor: temp pointer 1
-tmp2            = $BB           ; Monitor: temp pointer 2
-tmpc            = $BD           ; Monitor: last command
-t6509           = $BE           ; Monitor: current indirect bank
-ddisk           = $BF           ; Monitor: disk device number
+ptr1		= $AE		; index to pass1 errors
+ptr2		= $AF		; index to pass2 errors
+pcntr		= $B0
+firt		= $B1
+cntdn		= $B2
+shcnl		= $B3
+rer		= $B4
+rez		= $B5
+rdflg		= $B6
+flagt1		= $B7		; temp during bit read time
+shcnh		= $B7
+cmp0		= $B8
+diff		= $B9
+prp		= $BA
+ochar		= $BB
+prty		= $BC
+fsblk		= $BD
+mych		= $BE
+cdata		= $BF		; how to turn cassette timers on
+; Monitor virtual registers - Place in these locations temporarly...
+pch		= $AE		; counter
+pcl		= $AF
+flgs		= $B0		; Processor status
+acc		= $B1		; Accumulator
+xr		= $B2		; X register
+yr		= $B3		; Y register
+sp		= $B4		; Stack pointer
+xi6509		= $B5		; Old indirection segment
+re6509		= $B6		; Return execution segment
+invh		= $B7		; User interrupt vector
+invl		= $B8
+; Monitor indirect variables
+tmp0		= $B9		; Temp pointer
+tmp2		= $BB		; Temp pointer
+; Other monitor variables
+tmpc		= $BD		; Place to save last cmd
+t6509		= $BE		; Temporary i6509
+ddisk		= $BF		; Default disk unit # for monitor
 ; Screen editor page zero variables
 ; Editor indirect variables
-pkybuf          = $C0           ; Start address of pgm key
-keypnt          = $C2           ; Current pgm key buffer
-sedsal          = $C4           ; Scroll pointer
-sedeal          = $C6           ; Scroll pointer
-pnt             = $C8           ; Current character pointer
+pkybuf		= $C0		; Start adr of pgm key
+keypnt		= $C2		; Current pgm key buf
+sedsal		= $C4		; Scroll ptr
+sedeal		= $C6		; Scroll ptr
+pnt		= $C8		; Current character pointer
 ; Editor variables for speed & size
-tblx            = $CA           ; Cursor line
-pntr            = $CB           ; Cursor column
-grmode          = $CC           ; Graphic/text mode flag
-lstx            = $CD           ; Last character index
-lstp            = $CE           ; Screen editor start position
-lsxp            = $CF
-crsw            = $D0
-ndx             = $D1           ; Index to keyd queue
-qtsw            = $D2           ; Quote mode flag
-insrt           = $D3           ; Insert mode flag
-config          = $D4           ; Char before blink
-indx            = $D5           ; last byte position on line
-kyndx           = $D6           ; count of program key string
-rptcnt          = $D7           ; Deelay between chars
-delay           = $D8           ; Delay to next repeat
-sedt1           = $D9           ; Frequently used temp variables
-sedt2           = $DA
+tblx		= $CA		; Cursor line
+pntr		= $CB		; Cursor column
+grmode		= $CC		; Graphic/text mode flag
+lstx		= $CD		; Last character index
+lstp		= $CE		; Screen editor start position
+lsxp		= $CF
+crsw		= $D0
+ndx		= $D1		; Index to keyd queue
+qtsw		= $D2		; Quote mode flag
+insrt		= $D3		; Insert mode flag
+config		= $D4		; Char before blink (petii)
+indx		= $D5		; last byte position on line (##234-02##244-02)
+kyndx		= $D6		; count of program key string
+rptcnt		= $D7		; Deelay tween chars
+delay		= $D8		; Delay to next repeat
+sedt1		= $D9		; Frequently used temp variables
+sedt2		= $DA
 ; Frequently used editor variables
-data            = $DB           ; Current print data
-sctop           = $DC           ; Top screen 0-24 of current window
-scbot           = $DD           ; Bottom 0-24 of current window
-sclf            = $DE           ; Left margin of current window
-scrt            = $DF           ; Right margin of current window
-modkey          = $E0           ; Keyscanner shift/control flags ($ff-nokey)
-norkey          = $E1           ; Keyscanner normal key number ($ff-nokey)
+data		= $DB		; Current print data
+sctop		= $DC		; Top screen 0-24 of current window
+scbot		= $DD		; Bottom 0-24
+sclf		= $DE		; Left margin
+scrt		= $DF		; Right margin
+modkey		= $E0		; Keyscanner shift/control flags ($ff-nokey)
+norkey		= $E1		; Keyscanner normal key number ($ff-nokey)
 ; Screen editor usage
-bitabl          = $E2           ; Wrap bitmap
-blnon           = $E6           ; Blinking cursor on
-blncnt          = $E7           ; Blink counter
-user            = $E8           ; Pointer to color RAM
-tcolor          = $EA           ; Temporary color
-blnsw           = $EB           ; Blink switch
-color           = $EC           ; Character color
-gdcol           = $ED           ; Color behind cursor
-saver           = $EE           ; Temp store for output char
-scrseg          = $EF           ; Segment /bank of video RAM
-; $F0 - $FF Free zero page space 16 bytes
+bitabl		= $E2		; Wrap bitmap
+blnon		= $E6		; Blinking cursor on
+blncnt		= $E7		; Blink counter
+user		= $E8		; Pointer to color RAM
+tcolor		= $EA		; Temporary color
+blnsw		= $EB		; Blink switch
+color		= $EC		; Character color
+gdcol		= $ED		; Color behind cursor
+saver		= $EE		; Temp store for output char
+scrseg		= $EF		; Segment /bank of video RAM
+; $F0 - $FF Free zero page space, 16 bytes
 ; -------------------------------------------------------------------------------------------------
 ; System stack area
-stack           = $0100         ; Stack
-		; Cassette bad address table
-stackp          = $01FF         ; System Stack pointer transx code
+stack		= $0100		; Stack
+bad		= $0100		; Cassette bad address table
+stackp		= $01FF		; System Stack pointer transx code
 ; -------------------------------------------------------------------------------------------------
 ; $200 - $256 Basic's ROM page work area
-basbuf          = $0200         ; basic input buffer
+buf		= $0200		; Basic input buffer
 ; -------------------------------------------------------------------------------------------------
 ; System RAM vectors
-cinv            = $0300         ; IRQ vector
-cbinv           = $0302         ; BRK vector
-nminv           = $0304         ; NMI vector
-iopen           = $0306         ; Open file vector
-iclose          = $0308         ; Close file vector
-ichkin          = $030A         ; Open channel in vector
-ickout          = $030C         ; Open channel out vector
-iclrch          = $030E         ; Close channel vector
-ibasin          = $0310         ; Input from channel vector 
-ibsout          = $0312         ; Output to channel vector
-istop           = $0314         ; Check stop key vector
-igetin          = $0316         ; Get from queue vector
-iclall          = $0318         ; Close all files vector
-iload           = $031A         ; Load from file vector
-isave           = $031C         ; Save to file vector
-usrcmd          = $031E         ; Monitor extension vector
-escvec          = $0320         ; User ESC key vector
-ctlvec          = $0322         ; unused control key vector
-isecnd          = $0324         ; IEEE listen secondary address
-itksa           = $0326         ; IEEE talk secondary address
-iacptr          = $0328         ; IEEE character in routine
-iciout          = $032A         ; IEEE character out routine
-iuntlk          = $032C         ; IEEE bus untalk
-iunlsn          = $032E         ; IEEE bus unlisten
-ilistn          = $0330         ; IEEE listen device primary address
-italk           = $0332         ; IEEE talk device primary address
+cinv            = $0300		; IRQ vector
+cbinv           = $0302		; BRK vector
+nminv           = $0304		; NMI vector
+iopen           = $0306		; Open file vector
+iclose          = $0308		; Close file vector
+ichkin          = $030A		; Open channel in vector
+ickout          = $030C		; Open channel out vector
+iclrch          = $030E		; Close channel vector
+ibasin          = $0310		; Input from channel vector 
+ibsout          = $0312		; Output to channel vector
+istop           = $0314		; Check stop key vector
+igetin          = $0316		; Get from queue vector
+iclall          = $0318		; Close all files vector
+iload           = $031A		; Load from file vector
+isave           = $031C		; Save to file vector
+usrcmd          = $031E		; Monitor extension vector
+escvec          = $0320		; User ESC key vector
+ctlvec          = $0322		; unused control key vector
+isecnd          = $0324		; IEEE listen secondary address
+itksa           = $0326		; IEEE talk secondary address
+iacptr          = $0328		; IEEE character in routine
+iciout          = $032A		; IEEE character out routine
+iuntlk          = $032C		; IEEE bus untalk
+iunlsn          = $032E		; IEEE bus unlisten
+ilistn          = $0330		; IEEE listen device primary address
+italk           = $0332		; IEEE talk device primary address
 ; Kernal absolute variables
-lat             = $0334         ; Logical file numbers / table
-fat             = $033E         ; Device numbers / table
-sat             = $0348         ; Secondary addresses / table
+lat             = $0334		; Logical file numbers / table
+fat             = $033E		; Device numbers / table
+sat             = $0348		; Secondary addresses / table
 ;
-lowadr          = $0352         ; Start of system memory: low, high, bank
-hiadr           = $0355         ; Top of system memory: low, high, bank
-memstr          = $0358         ; Start of user memory: low, high, bank
-memsiz          = $035B         ; Top of user memory: low, high, bank
-timout          = $035E         ; IEEE timeout enable
-verck           = $035F         ; Load/verify flag
-ldtnd           = $0360         ; Device table index
-msgflg          = $0361         ; Message flag
-bufpt           = $0362         ; Cassette buffer index
+lowadr          = $0352		; Start of system memory: low, high, bank
+hiadr           = $0355		; Top of system memory: low, high, bank
+memstr          = $0358		; Start of user memory: low, high, bank
+memsiz          = $035B		; Top of user memory: low, high, bank
+timout          = $035E		; IEEE timeout enable
+verck           = $035F		; Load/verify flag
+ldtnd           = $0360		; Device table index
+msgflg          = $0361		; Message flag
+bufpt           = $0362		; Cassette buffer index
 ; Kernal temporary (local) variables
 t1              = $0363
 t2              = $0364 
@@ -195,68 +224,68 @@ xsav            = $0365
 savx            = $0366 
 svxt            = $0367 
 temp            = $0368 
-alarm           = $0369         ; IRQ variable holds 6526 IRQ's
+alarm           = $0369		; IRQ variable holds 6526 IRQ's
 ; Kernal cassette variables
-itape           = $036A         ; Indirect for cassette code
-cassvo          = $036C         ; Cassette read variable
-aservo          = $036D         ; Flag1 indicates t1 timeout cassette read
-caston          = $036E         ; How to turn on timers
-relsal          = $036F         ; moveable start load address
-relsah          = $0370         ; 
-relsas          = $0371         ; 
-oldinv          = $0372         ; Restore user IRQ and i6509 after cassettes
-cas1            = $0375         ; Cassette switch flag
+itape           = $036A		; Indirect for cassette code
+cassvo          = $036C		; Cassette read variable
+aservo          = $036D		; Flag1 indicates t1 timeout cassette read
+caston          = $036E		; How to turn on timers
+relsal          = $036F		; moveable start load address
+relsah          = $0370		; 
+relsas          = $0371		; 
+oldinv          = $0372		; Restore user IRQ and i6509 after cassettes
+cas1            = $0375		; Cassette switch flag
 ; RS-232 information storage
-m51ctr          = $0376         ; 6551 control image
-m51cdr          = $0377         ; 6551  command image
-rsstat          = $037A         ; perm. RS-232 status
-dcdsr           = $037B         ; last DCD/DSR value
-ridbs           = $037C         ; Input start index
-ridbe           = $037D         ; Input end index
+m51ctr          = $0376		; 6551 control image
+m51cdr          = $0377		; 6551  command image
+rsstat          = $037A		; perm. RS-232 status
+dcdsr           = $037B		; last DCD/DSR value
+ridbs           = $037C		; Input start index
+ridbe           = $037D		; Input end index
 ; Screen editor absolute
 ; $037E - $037F Block some area for editor
-pkyend          = $0380         ; Program key buffer end address
-keyseg          = $0382         ; Segment / bank of function key texts
-rvs             = $0383         ; Reverse mode flag
-lintmp          = $0384         ; Line # between in and out 
-lstchr          = $0385         ; Last char printed
-insflg          = $0386         ; Insert mode flag
-scrdis          = $0387         ; Scroll disable flag
-bitmsk          = $0388         ; Temorary bitmask
-keyidx          = $0389         ; Index to programmables
-logscr          = $038A         ; Logical/physical scroll flag
-bellmd          = $038B         ; Bell on/off flag
-pagsav          = $038C         ; Temp RAM page
-keysiz          = $038D         ; Sizes of function key texts
-tab             = $03A1         ; Tabstop flags
-keyd            = $03AB         ; Keyboard buffer
-funvec          = $03B5         ; Vector: funktion key handler
-iwrtvrm         = $03B7         ; Vector: video ram write routine
-iwrtcrm         = $03B9         ; Vector: color ram write routine
+pkyend          = $0380		; Program key buffer end address
+keyseg          = $0382		; Segment / bank of function key texts
+rvs             = $0383		; Reverse mode flag
+lintmp          = $0384		; Line # between in and out 
+lstchr          = $0385		; Last char printed
+insflg          = $0386		; Insert mode flag
+scrdis          = $0387		; Scroll disable flag
+bitmsk          = $0388		; Temorary bitmask
+keyidx          = $0389		; Index to programmables
+logscr          = $038A		; Logical/physical scroll flag
+bellmd          = $038B		; Bell on/off flag
+pagsav          = $038C		; Temp RAM page
+keysiz          = $038D		; Sizes of function key texts
+tab             = $03A1		; Tabstop flags
+keyd            = $03AB		; Keyboard buffer
+funvec          = $03B5		; Vector: funktion key handler
+iwrtvrm         = $03B7		; Vector: video ram write routine
+iwrtcrm         = $03B9		; Vector: color ram write routine
 iunkwn1         = $03BB 
 iunkwn2         = $03BD
 ; $03C0 - $3F7 Free absolute space
 ; System warm start variables and vectors
-evect           = $03F8         ; Warm start vector and flags 5 bytes
+evect           = $03F8		; Warm start vector and flags 5 bytes
 ; warm          = $03FD = $A5     Warm start flag
 ; winit         = $03DE = $5A     Initialization complete flag
 ; -------------------------------------------------------------------------------------------------
 ; Free bank 15 RAM 1024 bytes
-ramloc          = $0400         ; First free ram location
+ramloc          = $0400		; First free ram location
 ; -------------------------------------------------------------------------------------------------
 ; Kernal inter-process communication variables 
-ipb             = $0800         ; IPC buffer size
-ijtab           = $0810         ; IPC jump table
-ipptab          = $0910         ; IPC parameter spec table
+ipb             = $0800		; IPC buffer size
+ijtab           = $0810		; IPC jump table
+ipptab          = $0910		; IPC parameter spec table
 ; -------------------------------------------------------------------------------------------------
 ; ROM + I/O addresses
-basic           = $8000         ; BASIC ROM
-charrom         = $C000         ; Character ROM
-vidram          = $D000         ; Video RAM
-clrram          = $D400         ; Color RAM nibbles
+basic           = $8000		; BASIC ROM
+charrom         = $C000		; Character ROM
+vidram          = $D000		; Video RAM
+clrram          = $D400		; Color RAM nibbles
 ; VIC Video interface device
-vic             = $D800         ; VIC
-vic_addr        = $D818         ; VIC memory pointers reg
+vic             = $D800		; VIC
+vic_addr        = $D818		; VIC memory pointers reg
 ; SID Sound interface device
 sid	= $da00
 ;
@@ -2328,10 +2357,10 @@ s1:     cmp     cmds,x                          ; EE7F DD D1 EE                 
 	bne     s2                              ; EE82 D0 10                    ..
 	sta     savx                            ; EE84 8D 66 03                 .f.
 	lda     cmds+1,x                        ; EE87 BD D2 EE                 ...
-	sta     tmp1                            ; EE8A 85 B9                    ..
+	sta     tmp0                            ; EE8A 85 B9                    ..
 	lda     cmds+2,x                        ; EE8C BD D3 EE                 ...
-	sta     tmp1+1                          ; EE8F 85 BA                    ..
-	jmp     (tmp1)                          ; EE91 6C B9 00                 l..
+	sta     tmp0+1                          ; EE8F 85 BA                    ..
+	jmp     (tmp0)                          ; EE91 6C B9 00                 l..
 
 ; -------------------------------------------------------------------------------------------------
 ; EE94 Increment X to point to next command in table
@@ -2414,19 +2443,19 @@ mexit:  pla                                     ; EEF5 68                       
 	jmp     (evect)                         ; EEF8 6C F8 03                 l..
 
 ; -------------------------------------------------------------------------------------------------
-; EEFB Move tmp1/tmp1+1 to PC memory location
-putpc:  lda     tmp1                            ; EEFB A5 B9                    ..
+; EEFB Move tmp0/tmp0+1 to PC memory location
+putpc:  lda     tmp0                            ; EEFB A5 B9                    ..
 	sta     pcl                             ; EEFD 85 AF                    ..
-	lda     tmp1+1                          ; EEFF A5 BA                    ..
+	lda     tmp0+1                          ; EEFF A5 BA                    ..
 	sta     pch                             ; EF01 85 AE                    ..
 	rts                                     ; EF03 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; EF04 Set tmp1 to point to the saved regs in zero page
-setr:   lda     #$B0                            ; EF04 A9 B0                    ..
-	sta     tmp1                            ; EF06 85 B9                    ..
-	lda     #$00                            ; EF08 A9 00                    ..
-	sta     tmp1+1                          ; EF0A 85 BA                    ..
+; EF04 Set tmp0 to point to the saved regs in zero page
+setr:   lda     #<flgs                          ; EF04 A9 B0                    ..
+	sta     tmp0                            ; EF06 85 B9                    ..
+	lda     #>flgs                            ; EF08 A9 00                    ..
+	sta     tmp0+1                          ; EF0A 85 BA                    ..
 	lda     #$0F                            ; EF0C A9 0F                    ..
 	sta     i6509                           ; EF0E 85 01                    ..
 	lda     #$05                            ; EF10 A9 05                    ..
@@ -2475,11 +2504,11 @@ LEF67:  sta     tmpc                            ; EF67 85 BD                    
 	ldy     #$00                            ; EF69 A0 00                    ..
 	sty     fnlen                           ; EF6B 84 9D                    ..
 LEF6D:  jsr     space                           ; EF6D 20 1B EF                  ..
-	lda     (tmp1),y                        ; EF70 B1 B9                    ..
+	lda     (tmp0),y                        ; EF70 B1 B9                    ..
 	jsr     hex2                            ; EF72 20 FE F0                  ..
-	inc     tmp1                            ; EF75 E6 B9                    ..
+	inc     tmp0                            ; EF75 E6 B9                    ..
 	bne     LEF7F                           ; EF77 D0 06                    ..
-	inc     tmp1+1                          ; EF79 E6 BA                    ..
+	inc     tmp0+1                          ; EF79 E6 BA                    ..
 	bne     LEF7F                           ; EF7B D0 02                    ..
 	dec     fnlen                           ; EF7D C6 9D                    ..
 LEF7F:  dec     tmpc                            ; EF7F C6 BD                    ..
@@ -2494,16 +2523,16 @@ mdump:  jsr     rdfour                          ; EF84 20 26 F1                 
 	jsr     rdfour                          ; EF8C 20 26 F1                  &.
 	bcc     LEF99                           ; EF8F 90 08                    ..
 	lda     tmp2                            ; EF91 A5 BB                    ..
-	sta     tmp1                            ; EF93 85 B9                    ..
+	sta     tmp0                            ; EF93 85 B9                    ..
 	lda     tmp2+1                          ; EF95 A5 BC                    ..
-	sta     tmp1+1                          ; EF97 85 BA                    ..
+	sta     tmp0+1                          ; EF97 85 BA                    ..
 LEF99:  jsr     xchgtmp                         ; EF99 20 16 F1                  ..
 LEF9C:  jsr     kstop                           ; EF9C 20 E1 FF                  ..
 	beq     LEFC1                           ; EF9F F0 20                    . 
 	lda     #$3A                            ; EFA1 A9 3A                    .:
 	jsr     altrit                          ; EFA3 20 13 EF                  ..
-	ldx     tmp1+1                          ; EFA6 A6 BA                    ..
-	ldy     tmp1                            ; EFA8 A4 B9                    ..
+	ldx     tmp0+1                          ; EFA6 A6 BA                    ..
+	ldy     tmp0                            ; EFA8 A4 B9                    ..
 	jsr     hex4                            ; EFAA 20 F9 F0                  ..
 	lda     #$08                            ; EFAD A9 08                    ..
 	jsr     LEF67                           ; EFAF 20 67 EF                  g.
@@ -2511,9 +2540,9 @@ LEF9C:  jsr     kstop                           ; EF9C 20 E1 FF                 
 	bne     LEFC1                           ; EFB4 D0 0B                    ..
 	sec                                     ; EFB6 38                       8
 	lda     tmp2                            ; EFB7 A5 BB                    ..
-	sbc     tmp1                            ; EFB9 E5 B9                    ..
+	sbc     tmp0                            ; EFB9 E5 B9                    ..
 	lda     tmp2+1                          ; EFBB A5 BC                    ..
-	sbc     tmp1+1                          ; EFBD E5 BA                    ..
+	sbc     tmp0+1                          ; EFBD E5 BA                    ..
 	bcs     LEF9C                           ; EFBF B0 DB                    ..
 LEFC1:  rts                                     ; EFC1 60                       `
 
@@ -2526,9 +2555,9 @@ msetreg:jsr     rdfour                          ; EFC5 20 26 F1                 
 	jsr     putpc                           ; EFCA 20 FB EE                  ..
 	jsr     rdfour                          ; EFCD 20 26 F1                  &.
 	bcs     LEFC2                           ; EFD0 B0 F0                    ..
-	lda     tmp1                            ; EFD2 A5 B9                    ..
+	lda     tmp0                            ; EFD2 A5 B9                    ..
 	sta     invl                            ; EFD4 85 B8                    ..
-	lda     tmp1+1                          ; EFD6 A5 BA                    ..
+	lda     tmp0+1                          ; EFD6 A5 BA                    ..
 	sta     invh                            ; EFD8 85 B7                    ..
 	jsr     setr                            ; EFDA 20 04 EF                  ..
 	bne     LEFFE                           ; EFDD D0 1F                    ..
@@ -2558,10 +2587,10 @@ LEFFE:  sta     tmpc                            ; EFFE 85 BD                    
 -       jsr     rdtwo                           ; F000 20 33 F1                  3.
 	bcs     ++                              ; F003 B0 0E                    ..
 	ldy     #$00                            ; F005 A0 00                    ..
-	sta     (tmp1),y                        ; F007 91 B9                    ..
-	inc     tmp1                            ; F009 E6 B9                    ..
+	sta     (tmp0),y                        ; F007 91 B9                    ..
+	inc     tmp0                            ; F009 E6 B9                    ..
 	bne     +                               ; F00B D0 02                    ..
-	inc     tmp1+1                          ; F00D E6 BA                    ..
+	inc     tmp0+1                          ; F00D E6 BA                    ..
 +       dec     tmpc                            ; F00F C6 BD                    ..
 	bne     -                               ; F011 D0 ED                    ..
 ++      rts                                     ; F013 60                       `
@@ -2598,8 +2627,8 @@ mload:  ldy     #$01                            ; F043 A0 01                    
 	sty     fa                              ; F045 84 9F                    ..
 	dey                                     ; F047 88                       .
 	lda     #$FF                            ; F048 A9 FF                    ..
-	sta     tmp1                            ; F04A 85 B9                    ..
-	sta     tmp1+1                          ; F04C 85 BA                    ..
+	sta     tmp0                            ; F04A 85 B9                    ..
+	sta     tmp0+1                          ; F04C 85 BA                    ..
 	lda     i6509                           ; F04E A5 01                    ..
 	sta     t6509                           ; F050 85 BE                    ..
 	lda     #$0F                            ; F052 A9 0F                    ..
@@ -2625,8 +2654,8 @@ LF077:  lda     savx                            ; F077 AD 66 03                 
 	bne     LF061                           ; F07C D0 E3                    ..
 	lda     t6509                           ; F07E A5 BE                    ..
 	and     #$0F                            ; F080 29 0F                    ).
-	ldx     tmp1                            ; F082 A6 B9                    ..
-	ldy     tmp1+1                          ; F084 A4 BA                    ..
+	ldx     tmp0                            ; F082 A6 B9                    ..
+	ldy     tmp0+1                          ; F084 A4 BA                    ..
 	jmp     kload                           ; F086 4C D5 FF                 L..
 
 ; -------------------------------------------------------------------------------------------------
@@ -2650,9 +2679,9 @@ LF0A0:  bne     LF090                           ; F0A0 D0 EE                    
 	sta     stas                            ; F0AD 85 9B                    ..
 	jsr     rdfour                          ; F0AF 20 26 F1                  &.
 	bcs     LF0F6                           ; F0B2 B0 42                    .B
-	lda     tmp1                            ; F0B4 A5 B9                    ..
+	lda     tmp0                            ; F0B4 A5 B9                    ..
 	sta     stal                            ; F0B6 85 99                    ..
-	lda     tmp1+1                          ; F0B8 A5 BA                    ..
+	lda     tmp0+1                          ; F0B8 A5 BA                    ..
 	sta     stah                            ; F0BA 85 9A                    ..
 	jsr     rdone                           ; F0BC 20 62 F1                  b.
 	beq     LF077                           ; F0BF F0 B6                    ..
@@ -2665,9 +2694,9 @@ LF0A0:  bne     LF090                           ; F0A0 D0 EE                    
 	sta     eas                             ; F0CE 85 98                    ..
 	jsr     rdfour                          ; F0D0 20 26 F1                  &.
 	bcs     LF0F6                           ; F0D3 B0 21                    .!
-	lda     tmp1                            ; F0D5 A5 B9                    ..
+	lda     tmp0                            ; F0D5 A5 B9                    ..
 	sta     eal                             ; F0D7 85 96                    ..
-	lda     tmp1+1                          ; F0D9 A5 BA                    ..
+	lda     tmp0+1                          ; F0D9 A5 BA                    ..
 	sta     eah                             ; F0DB 85 97                    ..
 LF0DD:  jsr     kbasin                          ; F0DD 20 CF FF                  ..
 	cmp     #$20                            ; F0E0 C9 20                    . 
@@ -2707,25 +2736,25 @@ LF111:  adc     #$3A                            ; F111 69 3A                    
 	jmp     kbsout                          ; F113 4C D2 FF                 L..
 
 ; -------------------------------------------------------------------------------------------------
-; F116 Exchange tmp1 and invl
+; F116 Exchange tmp0 and invl
 xchgtmp:ldx     #$02                            ; F116 A2 02                    ..
 -       lda     invl,x                          ; F118 B5 B8                    ..
 	pha                                     ; F11A 48                       H
-	lda     tmp1+1,x                        ; F11B B5 BA                    ..
+	lda     tmp0+1,x                        ; F11B B5 BA                    ..
 	sta     invl,x                          ; F11D 95 B8                    ..
 	pla                                     ; F11F 68                       h
-	sta     tmp1+1,x                        ; F120 95 BA                    ..
+	sta     tmp0+1,x                        ; F120 95 BA                    ..
 	dex                                     ; F122 CA                       .
 	bne     -                               ; F123 D0 F3                    ..
 	rts                                     ; F125 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; F126 Read 4 chars from input into tmp1/tmp1+1
+; F126 Read 4 chars from input into tmp0/tmp0+1
 rdfour: jsr     rdtwo                           ; F126 20 33 F1                  3.
 	bcs     +                               ; F129 B0 07                    ..
-	sta     tmp1+1                          ; F12B 85 BA                    ..
+	sta     tmp0+1                          ; F12B 85 BA                    ..
 	jsr     rdtwo                           ; F12D 20 33 F1                  3.
-	sta     tmp1                            ; F130 85 B9                    ..
+	sta     tmp0                            ; F130 85 B9                    ..
 +       rts                                     ; F132 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -4119,7 +4148,7 @@ io120:  lda #$08
 ramtas: lda #$00                ; init value A = $00, counter X = $00
 	tax
 px1:    sta $0002,x             ; clear ZP above 6509 bank regs
-	sta basbuf,x            ; clear basic input buffer from $0200       
+	sta buf,x            ; clear basic input buffer from $0200       
 	sta evect-$100,x        ; clear kernal RAM till evct $03F8
 	inx
 	bne px1                 ; clear next byte
