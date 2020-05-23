@@ -6,472 +6,526 @@
 ; v1.3 all patches selectable
 ; v1.4 new F-keys for petsd+
 ; v1.5 superfast video if always in indirect bank 15
-;***************************************
-;*                                     *
-;* KK  K EEEEE RRRR  NN  N  AAA  LL    *
-;* KK KK EE    RR  R NNN N AA  A LL    *
-;* KKK   EE    RR  R NNN N AA  A LL    *
-;* KKK   EEEE  RRRR  NNNNN AAAAA LL    *
-;* KK K  EE    RR  R NN NN AA  A LL    *
-;* KK KK EE    RR  R NN NN AA  A LL    *
-;* KK KK EEEEE RR  R NN NN AA  A LLLLL *
-;*                                     *
-;***************************************
-;***************************************
-;* CBM KERNAL                          *
-;*   MEMORY AND I/O DEPENDENT ROUTINES *
-;* DRIVING THE HARDWARE OF THE         *
-;* FOLLOWING CBM MODEL :               *
-;*   P-SERIES (5XX)                    *
-;* COPYRIGHT (C) 1983 BY               *
-;* COMMODORE BUSINESS MACHINES (CBM)   *
-;***************************************
 !cpu 6502
 !ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
-; switches
-STANDARD_FKEYS	= 1		; Standard F-keys
-FULL_RAMTEST	= 1		; Standard full and slow RAM-test
-STANDARD_VIDEO	= 1		; Standard doublechecked video writes (original kernal unfinished)
-;BANK15_VIDEO	= 1		; Superfast Video if indirect bank is always bank 15
+; * switches
+STANDARD_FKEYS	= 1	; Standard F-keys
+FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+;BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
+; * constants
+FILL		= $AA	; Fills free memory areas with $AA
+TEXTCOL		= $06	; Default text color:   $06 = blue
+BGRCOL		= $01	; background color      $01 = white
+EXTCOL		= $03	; exterior color        $03 = cyan
 ; ########################################### TODO ################################################
 ; 
 ; ########################################### BUGS ################################################
 ;
 ; ########################################### INFO ################################################
-; 6509  used to extend memory on bc2 & p2 systems
-;   location - used to direct
-;   $0000 -  execution register (4 bits)
-;   $0001 -  indirect  register (4 bits)
 ;
-;   these registers provide 4 extra high-order address control lines.  on 6509 reset all lines are high.
-;
-; current memory map:
-;   segment 15- $ffff-$e000  rom (kernal)
-;               $dfff-$df00  i/o  6525 tpi2
-;               $deff-$de00  i/o  6525 tpi1
-;               $ddff-$dd00  i/o  6551 acia
-;               $dcff-$dc00  i/o  6526 cia
-;               $dbff-$db00  i/o  unused (z80,8088,68008)
-;               $daff-$da00  i/o  6581 sid
-;               $d9ff-$d900  i/o  unused (disks)
-;               $d8ff-$d800  i/o  6566 vic
-;               $d7ff-$d400  color nybles
-;               $d3ff-$d000  video matrix
-;               $cfff-$c000  character dot rom (p2 only)
-;               $bfff-$8000  roms external (language)
-;               $7fff-$4000  roms external (extensions)
-;               $3fff-$2000  rom  external
-;               $1fff-$1000  rom  internal
-;               $0fff-$0400  unused
-;               $03ff-$0002  ram (kernal/basic system)
-;   segment 14- segment 4 open (future expansion)
-;   segment 3 - $ffff-$0002  ram expansion
-;   segment 2 - $ffff-$0002  ram p2 optinal
-;   segment 1 - $ffff-$0002  ram p2 standard
-;   segment 0 - $ffff-$0002  ram p2 standard
-;
-; the 6509 registers appear in locations $0000 and $0001 in all segments of memory.
-; ***************************************** CONSTANTS *********************************************
-FILL		= $AA		; Fills free memory areas with $AA
-IROM		= $F		; System bank
-ID55HZ		= 14		; 55hz value required by ioinit
-WARM		= $A5		; Warm start flag
-WINIT		= $5A     	; Initialization complete flag
-TEXTCOLOR	= $06		; Default text color:   $06 = blue
-BACKGROUNDCOLOR	= $01		; background color      $01 = white
-EXTERIORCOLOR	= $03		; exterior color        $03 = cyan
-; ***************************************** ZERO PAGE *********************************************
-e6509		= $00		; 6509 execution bank reg
-i6509		= $01		; 6509 indirect bank reg
-;
-; $02-$8f BASIC zeropage 
-;
-; Kernal page zero variables
-; Kernal indirect address variables
-fnadr		= $90		; Address of file name string
-sal		= $93		; Current load/store address
-sah		= $94		;   low, high, bank
-sas		= $95
-eal		= $96		; End of load/save
-eah		= $97
-eas		= $98
-stal		= $99		; Start of load/save
-stah		= $9A
-stas		= $9B
-; Frequently used kernal variables
-status		= $9C		; I/O operation status
-fnlen		= $9D		; File name length
-la		= $9E		; Current logical index
-fa		= $9F		; Current first address
-sa		= $A0		; Current secondary address
-dfltn		= $A1		; Default input device
-dflto		= $A2		; Default output device
-; Tape buffer pointer
-tape1		= $A3		; Address of tape buffer
-; RS-232 input buffer
-ribuf		= $A6		; Input buffer
-; Variables for kernal speed
-stkey		= $A9		; Stop key flag
-ctemp		= $A9		; used to reduce cassette read times 
-c3po		= $AA		; IEEE buffer flag
-snsw1		= $AA		; used to reduce cassette read times 
-bsour		= $AB		; IEEE character buffer 
-; Cassette temps - overlays IPC buffer
-ipoint		= $AC		; next 2 bytes used for transx code
-syno		= $AC
-dpsw		= $AD
-; next 18 bytes also used for monitor
-ptr1		= $AE		; index to pass1 errors
-ptr2		= $AF		; index to pass2 errors
-pcntr		= $B0
-firt		= $B1
-cntdn		= $B2
-shcnl		= $B3
-rer		= $B4
-rez		= $B5
-rdflg		= $B6
-flagt1		= $B7		; temp during bit read time
-shcnh		= $B7
-cmp0		= $B8
-diff		= $B9
-prp		= $BA
-ochar		= $BB
-prty		= $BC
-fsblk		= $BD
-mych		= $BE
-cdata		= $BF		; how to turn cassette timers on
-; Monitor virtual registers - Place in these locations temporarly...
-pch		= $AE		; counter
-pcl		= $AF
-flgs		= $B0		; Processor status
-acc		= $B1		; Accumulator
-xr		= $B2		; X register
-yr		= $B3		; Y register
-sp		= $B4		; Stack pointer
-xi6509		= $B5		; Old indirection segment
-re6509		= $B6		; Return execution segment
-invh		= $B7		; User interrupt vector
-invl		= $B8
-; Monitor indirect variables
-tmp0		= $B9		; Temp pointer
-tmp2		= $BB		; Temp pointer
-; Other monitor variables
-tmpc		= $BD		; Place to save last cmd
-t6509		= $BE		; Temporary i6509
-ddisk		= $BF		; Default disk unit # for monitor
-; Screen editor page zero variables
-; Editor indirect variables
-pkybuf		= $C0		; Start adr of pgm key
-keypnt		= $C2		; Current pgm key buf
-sedsal		= $C4		; Scroll ptr
-sedeal		= $C6		; Scroll ptr
-pnt		= $C8		; Current character pointer
-; Editor variables for speed & size
-tblx		= $CA		; Cursor line
-pntr		= $CB		; Cursor column
-grmode		= $CC		; Graphic/text mode flag
-lstx		= $CD		; Last character index
-lstp		= $CE		; Screen editor start position
-lsxp		= $CF
-crsw		= $D0
-ndx		= $D1		; Index to keyd queue
-qtsw		= $D2		; Quote mode flag
-insrt		= $D3		; Insert mode flag
-config		= $D4		; Char before blink (petii)
-indx		= $D5		; last byte position on line (##234-02##244-02)
-kyndx		= $D6		; count of program key string
-rptcnt		= $D7		; Deelay tween chars
-delay		= $D8		; Delay to next repeat
-sedt1		= $D9		; Frequently used temp variables
-sedt2		= $DA
-; Frequently used editor variables
-data		= $DB		; Current print data
-sctop		= $DC		; Top screen 0-24 of current window
-scbot		= $DD		; Bottom 0-24
-sclf		= $DE		; Left margin
-scrt		= $DF		; Right margin
-modkey		= $E0		; Keyscanner shift/control flags ($ff-nokey)
-norkey		= $E1		; Keyscanner normal key number ($ff-nokey)
-; Screen editor usage
-bitabl		= $E2		; Wrap bitmap
-blnon		= $E6		; Blinking cursor on
-blncnt		= $E7		; Blink counter
-user		= $E8		; Pointer to color RAM
-tcolor		= $EA		; Temporary color
-blnsw		= $EB		; Blink switch
-color		= $EC		; Character color
-gdcol		= $ED		; Color behind cursor
-saver		= $EE		; Temp store for output char
-scrseg		= $EF		; Segment /bank of video RAM
-; $F0 - $FF Free zero page space, 16 bytes
-; -------------------------------------------------------------------------------------------------
-; System stack area
-stack		= $0100		; Stack
-bad		= $0100		; Cassette bad address table
-stackp		= $01FF		; System Stack pointer transx code
-; -------------------------------------------------------------------------------------------------
-; $200 - $256 Basic's ROM page work area
-buf		= $0200		; Basic input buffer
-; -------------------------------------------------------------------------------------------------
-; System RAM vectors
-cinv		= $0300		; IRQ vector
-cbinv		= $0302		; BRK vector
-nminv		= $0304		; NMI vector
-iopen		= $0306		; Open file vector
-iclose		= $0308		; Close file vector
-ichkin		= $030A		; Open channel in vector
-ickout		= $030C		; Open channel out vector
-iclrch		= $030E		; Close channel vector
-ibasin		= $0310		; Input from channel vector 
-ibsout		= $0312		; Output to channel vector
-istop		= $0314		; Check stop key vector
-igetin		= $0316		; Get from queue vector
-iclall		= $0318		; Close all files vector
-iload		= $031A		; Load from file vector
-isave		= $031C		; Save to file vector
-usrcmd		= $031E		; Monitor extension vector
-escvec		= $0320		; User ESC key vector
-ctlvec		= $0322		; unused control key vector
-isecnd		= $0324		; IEEE listen secondary address
-itksa		= $0326		; IEEE talk secondary address
-iacptr		= $0328		; IEEE character in routine
-iciout		= $032A		; IEEE character out routine
-iuntlk		= $032C		; IEEE bus untalk
-iunlsn		= $032E		; IEEE bus unlisten
-ilistn		= $0330		; IEEE listen device primary address
-italk		= $0332		; IEEE talk device primary address
-; Kernal absolute variables
-lat		= $0334		; Logical file numbers / table
-fat		= $033E		; Device numbers / table
-sat		= $0348		; Secondary addresses / table
-;
-lowadr		= $0352		; Start of system memory: low, high, bank
-hiadr		= $0355		; Top of system memory: low, high, bank
-memstr		= $0358		; Start of user memory: low, high, bank
-memsiz		= $035B		; Top of user memory: low, high, bank
-timout		= $035E		; IEEE timeout enable
-verck		= $035F		; Load/verify flag
-ldtnd		= $0360		; Device table index
-msgflg		= $0361		; Message flag
-bufpt		= $0362		; Cassette buffer index
-; Kernal temporary (local) variables
-t1		= $0363
-t2		= $0364 
-xsav		= $0365 
-savx		= $0366 
-svxt		= $0367 
-temp		= $0368 
-alarm		= $0369		; IRQ variable holds 6526 IRQ's
-; Kernal cassette variables
-itape		= $036A		; Indirect for cassette code
-cassvo		= $036C		; Cassette read variable
-aservo		= $036D		; Flag1***indicates t1 timeout cassette read
-caston		= $036E		; How to turn on timers
-relsal		= $036F		; moveable start load address
-relsah		= $0370		; 
-relsas		= $0371		; 
-oldinv		= $0372		; Restore user IRQ and i6509 after cassettes
-cas1		= $0375		; Cassette switch flag
-; RS-232 information storage
-m51ctr		= $0376		; 6551 control image
-m51cdr		= $0377		; 6551 command image
-rsstat		= $037A		; perm. RS-232 status
-dcdsr		= $037B		; last DCD/DSR value
-ridbs		= $037C		; Input start index
-ridbe		= $037D		; Input end index
-; Screen editor absolute
-; $037E - $037F Block some area for editor
-pkyend		= $0380		; Program key buffer end address
-keyseg		= $0382		; Segment / bank of function key texts
-rvs		= $0383		; Reverse mode flag
-lintmp		= $0384		; Line # between in and out 
-lstchr		= $0385		; Last char printed
-insflg		= $0386		; Insert mode flag
-scrdis		= $0387		; Scroll disable flag
-bitmsk		= $0388		; Temorary bitmask
-keyidx		= $0389		; Index to programmables
-logscr		= $038A		; Logical/physical scroll flag
-bellmd		= $038B		; Bell on/off flag
-pagsav		= $038C		; Temp RAM page
-keysiz		= $038D		; Sizes of function key texts
-tab		= $03A1		; Tabstop flags
-keyd		= $03AB		; Keyboard buffer
-funvec		= $03B5		; Vector: funktion key handler
-iwrtvrm		= $03B7		; Vector: video ram write routine
-iwrtcrm		= $03B9		; Vector: color ram write routine
-iunkwn1		= $03BB 
-iunkwn2		= $03BD
-; $03C0 - $3F7 Free absolute space
-; System warm start variables and vectors
-evect		= $03F8		; Warm start vector and flags 5 bytes
-; -------------------------------------------------------------------------------------------------
-; Free bank 15 RAM 1024 bytes
-ramloc          = $0400		; First free ram location
-; -------------------------------------------------------------------------------------------------
-; Kernal inter-process communication variables 
-ipb             = $0800		; IPC buffer size
-ijtab           = $0810		; IPC jump table
-ipptab          = $0910		; IPC parameter spec table
-; -------------------------------------------------------------------------------------------------
-; ROM + I/O addresses
-basic           = $8000		; BASIC ROM
-charrom         = $C000		; Character ROM
-vidram          = $D000		; Video RAM
-clrram          = $D400		; Color RAM nibbles
-;
-; VIC Video interface device
-vic             = $D800		; VIC
-vic_addr        = $D818		; VIC memory pointers reg
-;
-; SID Sound interface device
-sid	= $DA00
-osc1	= $00		; base addresses osc1, osc2, osc3
-osc2	= $07
-osc3	= $0E
-freqlo	= $00		; osc registers
-freqhi	= $01
-pulsef	= $02
-pulsec	= $03
-oscctl	= $04
-atkdcy	= $05
-susrel	= $06
-fclow	= $15		; filter control
-fchi	= $16
-resnce	= $17
-volume	= $18
-potx	= $19		; pots, random number and env3 out
-poty	= $1A
-random	= $1B
-env3	= $1C
-; CIA1 for inter-process communication
-ipcia	= $DB00
-;
-; CIA2 Complex interface adapter
-cia	= $dc00
-pra	= $0            ;data reg a
-prb	= $1            ;data reg b
-ddra	= $2            ;direction reg a
-ddrb	= $3            ;direction reg b
-talo	= $4            ;timer a low  byte
-tahi	= $5            ;timer a high byte
-tblo	= $6            ;timer b low  byte
-tbhi	= $7            ;timer b high byte
-tod10	= $8            ;10ths of seconds
-todsec	= $9            ;seconds
-todmin	= $a            ;minutes
-todhr	= $b            ;hours
-sdr	= $c            ;serial data register
-icr	= $d            ;interrupt control register
-cra	= $e            ;control register a
-crb	= $f            ;control register b
-
-
-cia2_pra        = $DC00         ; Data A: IEEE data / #0-1 paddle 1,2 / #6-7 trigger 1,2
-cia2_prb        = $DC01         ; Data B: #0-3 game1 / #4-7 game2
-cia2_ddra       = $DC02         ; Direction A
-cia2_ddrb       = $DC03         ; Direction B
-cia2_talo       = $DC04         ; Timer A low
-cia2_tahi       = $DC05         ; Timer A high
-cia2_tblo       = $DC06         ; Timer B low
-cia2_tbhi       = $DC07         ; Timer B high
-cia2_tod10      = $DC08         ; TOD 10th of seconds
-cia2_todsec     = $DC09         ; TOD seconds
-cia2_todmin     = $DC0A         ; TOD minutes
-cia2_todhr      = $DC0B         ; TOD hours
-cia2_sdr        = $DC0C         ; Serial data reg
-cia2_icr        = $DC0D         ; Interrupt control reg
-cia2_cra        = $DC0E         ; Control reg A
-cia2_crb        = $DC0F         ; Control reg B
-; ACIA RS-232 and network interface
-acia	= $dd00
-drsn	= $00           ;transmitt/receive data register
-srsn	= $01           ;status register
-cdr	= $02           ;command register
-ctr	= $03           ;control register
-
-dsrerr	= $40           ;data set ready error
-dcderr	= $20           ;data carrier detect error
-doverr	= $08           ;receiver outer buffer overrun
-
-
-acia_data       = $DD00         ; Transmit/receive data reg        
-acia_status     = $DD01         ; Status reg
-acia_cmd        = $DD02         ; Command reg
-acia_ctrl       = $DD03         ; Control reg
-; TPI1 Triport interface device #1
-tpi1	= $de00
-pa	= $0            ;port register a
-pb	= $1            ;port register b
-pc	= $2            ;port register c
-lir	= $2            ;interrupt latch register mc= 1
-ddpa	= $3            ;data direction register a
-ddpb	= $4            ;data direction register b
-ddpc	= $5            ;data direction register c
-mir	= $5            ;interrupt mask register mc= 1
-creg	= $6            ;control register
-air	= $7            ;active interrupt register
-
-
-tpi1_pa         = $DE00         ; Port A: IEEE control lines 
-tpi1_pb         = $DE01         ; Port B: #0-1 IEEE / #2-3 network / #4 arbitration / #5-7 cassette
-tpi1_lir        = $DE02         ; IRQ latch reg: #0 50/60Hz / #1 IEEE / #2 6526 / #3 cass / #4 6551
-tpi1_ddra       = $DE03         ; Direction A
-tpi1_ddrb       = $DE04         ; Direction B
-tpi1_mir        = $DE05         ; Interrupt mask register
-tpi1_ctrl       = $DE06         ; Control reg: #4-5 CA VIC matrix bank / #6-7 CB VIC dot/char bank
-				;  #0-1 IRQ mode, parity=1 / %1111xxxx = bank 15, %1010xxxx bank 0
-tpi1_air        = $DE07         ; Active interrupt reg
-; TPI2 Triport interface device #2
-tpi2	= $df00
-
-dc	= $01           ;75160/75161 control line
-te	= $02           ;75160/75161 control line
-ren	= $04           ;remote enable
-atn	= $08           ;attention
-dav	= $10           ;data available
-eoi	= $20           ;end or identify
-ndac	= $40           ;not data accepted
-nrfd	= $80           ;not ready for data
-ifc	= $01           ;interface clear
-srq	= $02           ;service request
-
-
-tpi2_pa         = $DF00         ; Port A: keyboard out 8-15
-tpi2_pb         = $DF01         ; Port B: keyboard out 0-7
-tpi2_pc         = $DF02         ; Port C: keyboard in 0-5, #6,7 VIC 16k bank select low, high
-tpi2_ddra       = $DF03         ; Direction A
-tpi2_ddrb       = $DF04         ; Direction B
-tpi2_ddrc       = $DF05         ; Direction C
-tpi2_ctrl       = $DF06         ; Control reg
-tpi2_air        = $DF07         ; Active interrupt reg
-; -------------------------------------------------------------------------------------------------
+; **************************************** DISCLAIMER *********************************************
+	;***************************************
+	;*                                     *
+	;* KK  K EEEEE RRRR  NN  N  AAA  LL    *
+	;* KK KK EE    RR  R NNN N AA  A LL    *
+	;* KKK   EE    RR  R NNN N AA  A LL    *
+	;* KKK   EEEE  RRRR  NNNNN AAAAA LL    *
+	;* KK K  EE    RR  R NN NN AA  A LL    *
+	;* KK KK EE    RR  R NN NN AA  A LL    *
+	;* KK KK EEEEE RR  R NN NN AA  A LLLLL *
+	;*                                     *
+	;***************************************
+	;***************************************
+	;* CBM KERNAL                          *
+	;*   MEMORY AND I/O DEPENDENT ROUTINES *
+	;* DRIVING THE HARDWARE OF THE         *
+	;* FOLLOWING CBM MODEL :               *
+	;*   P-SERIES (5XX)                    *
+	;* COPYRIGHT (C) 1983 BY               *
+	;* COMMODORE BUSINESS MACHINES (CBM)   *
+	;***************************************
+	;
+	; 6509  used to extend memory on bc2 & p2 systems
+	;   location - used to direct
+	;   $0000 -  execution register (4 bits)
+	;   $0001 -  indirect  register (4 bits)
+	;
+	;   these registers provide 4 extra high-order address control lines.  
+	;     on 6509 reset all lines are high.
+	;
+	; current memory map:
+	;   segment 15- $ffff-$e000  rom (kernal)
+	;               $dfff-$df00  i/o  6525 tpi2
+	;               $deff-$de00  i/o  6525 tpi1
+	;               $ddff-$dd00  i/o  6551 acia
+	;               $dcff-$dc00  i/o  6526 cia
+	;               $dbff-$db00  i/o  unused (z80,8088,68008)
+	;               $daff-$da00  i/o  6581 sid
+	;               $d9ff-$d900  i/o  unused (disks)
+	;               $d8ff-$d800  i/o  6569 vic
+	;               $d7ff-$d400  color nybles
+	;               $d3ff-$d000  video matrix
+	;               $cfff-$c000  character dot rom
+	;               $bfff-$8000  roms external (language)
+	;               $7fff-$4000  roms external (extensions)
+	;               $3fff-$2000  rom  external
+	;               $1fff-$1000  rom  internal
+	;               $0fff-$0400  unused
+	;               $03ff-$0002  ram (kernal/basic system)
+	;   segment 14- segment 4 open (future expansion)
+	;   segment 3 - $ffff-$0002  ram p2 optinal
+	;   segment 2 - $ffff-$0002  ram p2 optinal
+	;   segment 1 - $ffff-$0002  ram p2 standard
+	;   segment 0 - $ffff-$0002  ram p2 standard
+	;
+	; the 6509 registers appear in locations $0000 and $0001 in all segments of memory.
+; ***************************************** ZEROPAGE **********************************************
+	e6509		= $00		; 6509 execution bank reg
+	i6509		= $01		; 6509 indirect bank reg
+	;
+	; $02-$8f BASIC zeropage 
+	;
+	; Kernal page zero variables
+	; Kernal indirect address variables
+	fnadr		= $90		; Address of file name string
+	sal		= $93		; Current load/store address
+	sah		= $94		;   low, high, bank
+	sas		= $95
+	eal		= $96		; End of load/save
+	eah		= $97
+	eas		= $98
+	stal		= $99		; Start of load/save
+	stah		= $9A
+	stas		= $9B
+	; Frequently used kernal variables
+	status		= $9C		; I/O operation status
+	fnlen		= $9D		; File name length
+	la		= $9E		; Current logical index
+	fa		= $9F		; Current first address
+	sa		= $A0		; Current secondary address
+	dfltn		= $A1		; Default input device
+	dflto		= $A2		; Default output device
+	; Tape buffer pointer
+	tape1		= $A3		; Address of tape buffer
+	; RS-232 input buffer
+	ribuf		= $A6		; Input buffer
+	; Variables for kernal speed
+	stkey		= $A9		; Stop key flag
+	ctemp		= $A9		; used to reduce cassette read times 
+	c3po		= $AA		; IEEE buffer flag
+	snsw1		= $AA		; used to reduce cassette read times 
+	bsour		= $AB		; IEEE character buffer 
+	; Cassette temps - overlays IPC buffer
+	ipoint		= $AC		; next 2 bytes used for transx code
+	syno		= $AC
+	dpsw		= $AD
+	; next 18 bytes also used for monitor
+	ptr1		= $AE		; index to pass1 errors
+	ptr2		= $AF		; index to pass2 errors
+	pcntr		= $B0
+	firt		= $B1
+	cntdn		= $B2
+	shcnl		= $B3
+	rer		= $B4
+	rez		= $B5
+	rdflg		= $B6
+	flagt1		= $B7		; temp during bit read time
+	shcnh		= $B7
+	cmp0		= $B8
+	diff		= $B9
+	prp		= $BA
+	ochar		= $BB
+	prty		= $BC
+	fsblk		= $BD
+	mych		= $BE
+	cdata		= $BF		; how to turn cassette timers on
+	; Monitor virtual registers - Place in these locations temporarly...
+	pch		= $AE		; counter
+	pcl		= $AF
+	flgs		= $B0		; Processor status
+	acc		= $B1		; Accumulator
+	xr		= $B2		; X register
+	yr		= $B3		; Y register
+	sp		= $B4		; Stack pointer
+	xi6509		= $B5		; Old indirection segment
+	re6509		= $B6		; Return execution segment
+	invh		= $B7		; User interrupt vector
+	invl		= $B8
+	; Monitor indirect variables
+	tmp0		= $B9		; Temp pointer
+	tmp2		= $BB		; Temp pointer
+	; Other monitor variables
+	tmpc		= $BD		; Place to save last cmd
+	t6509		= $BE		; Temporary i6509
+	ddisk		= $BF		; Default disk unit # for monitor
+	; Screen editor page zero variables
+	; Editor indirect variables
+	pkybuf		= $C0		; Start adr of pgm key
+	keypnt		= $C2		; Current pgm key buf
+	sedsal		= $C4		; Scroll ptr
+	sedeal		= $C6		; Scroll ptr
+	pnt		= $C8		; Current character pointer
+	; Editor variables for speed & size
+	tblx		= $CA		; Cursor line
+	pntr		= $CB		; Cursor column
+	grmode		= $CC		; Graphic/text mode flag
+	lstx		= $CD		; Last character index
+	lstp		= $CE		; Screen editor start position
+	lsxp		= $CF
+	crsw		= $D0
+	ndx		= $D1		; Index to keyd queue
+	qtsw		= $D2		; Quote mode flag
+	insrt		= $D3		; Insert mode flag
+	config		= $D4		; Char before blink (petii)
+	indx		= $D5		; last byte position on line (##234-02##244-02)
+	kyndx		= $D6		; count of program key string
+	rptcnt		= $D7		; Deelay tween chars
+	delay		= $D8		; Delay to next repeat
+	sedt1		= $D9		; Frequently used temp variables
+	sedt2		= $DA
+	; Frequently used editor variables
+	data		= $DB		; Current print data
+	sctop		= $DC		; Top screen 0-24 of current window
+	scbot		= $DD		; Bottom 0-24
+	sclf		= $DE		; Left margin
+	scrt		= $DF		; Right margin
+	modkey		= $E0		; Keyscanner shift/control flags ($ff-nokey)
+	norkey		= $E1		; Keyscanner normal key number ($ff-nokey)
+	; Screen editor usage
+	bitabl		= $E2		; Wrap bitmap
+	blnon		= $E6		; Blinking cursor on
+	blncnt		= $E7		; Blink counter
+	user		= $E8		; Pointer to color RAM
+	tcolor		= $EA		; Temporary color
+	blnsw		= $EB		; Blink switch
+	color		= $EC		; Character color
+	gdcol		= $ED		; Color behind cursor
+	saver		= $EE		; Temp store for output char
+	scrseg		= $EF		; Segment /bank of video RAM
+	; $F0 - $FF Free zero page space, 16 bytes
+; ***************************************** ABSOLUTE **********************************************
+	; System stack area
+	stack		= $0100		; Stack
+	bad		= $0100		; Cassette bad address table
+	stackp		= $01FF		; System Stack pointer transx code
+	; -------------------------------------------------------------------------------------------------
+	; $200 - $256 Basic's ROM page work area
+	buf		= $0200		; Basic input buffer
+	; -------------------------------------------------------------------------------------------------
+	; System RAM vectors
+	cinv		= $0300		; IRQ vector
+	cbinv		= $0302		; BRK vector
+	nminv		= $0304		; NMI vector
+	iopen		= $0306		; Open file vector
+	iclose		= $0308		; Close file vector
+	ichkin		= $030A		; Open channel in vector
+	ickout		= $030C		; Open channel out vector
+	iclrch		= $030E		; Close channel vector
+	ibasin		= $0310		; Input from channel vector 
+	ibsout		= $0312		; Output to channel vector
+	istop		= $0314		; Check stop key vector
+	igetin		= $0316		; Get from queue vector
+	iclall		= $0318		; Close all files vector
+	iload		= $031A		; Load from file vector
+	isave		= $031C		; Save to file vector
+	usrcmd		= $031E		; Monitor extension vector
+	escvec		= $0320		; User ESC key vector
+	ctlvec		= $0322		; unused control key vector
+	isecnd		= $0324		; IEEE listen secondary address
+	itksa		= $0326		; IEEE talk secondary address
+	iacptr		= $0328		; IEEE character in routine
+	iciout		= $032A		; IEEE character out routine
+	iuntlk		= $032C		; IEEE bus untalk
+	iunlsn		= $032E		; IEEE bus unlisten
+	ilistn		= $0330		; IEEE listen device primary address
+	italk		= $0332		; IEEE talk device primary address
+	; Kernal absolute variables
+	lat		= $0334		; Logical file numbers / table
+	fat		= $033E		; Device numbers / table
+	sat		= $0348		; Secondary addresses / table
+	;
+	lowadr		= $0352		; Start of system memory: low, high, bank
+	hiadr		= $0355		; Top of system memory: low, high, bank
+	memstr		= $0358		; Start of user memory: low, high, bank
+	memsiz		= $035B		; Top of user memory: low, high, bank
+	timout		= $035E		; IEEE timeout enable
+	verck		= $035F		; Load/verify flag
+	ldtnd		= $0360		; Device table index
+	msgflg		= $0361		; Message flag
+	bufpt		= $0362		; Cassette buffer index
+	; Kernal temporary (local) variables
+	t1		= $0363
+	t2		= $0364 
+	xsav		= $0365 
+	savx		= $0366 
+	svxt		= $0367 
+	temp		= $0368 
+	alarm		= $0369		; IRQ variable holds 6526 IRQ's
+	; Kernal cassette variables
+	itape		= $036A		; Indirect for cassette code
+	cassvo		= $036C		; Cassette read variable
+	aservo		= $036D		; Flag1***indicates t1 timeout cassette read
+	caston		= $036E		; How to turn on timers
+	relsal		= $036F		; moveable start load address
+	relsah		= $0370		; 
+	relsas		= $0371		; 
+	oldinv		= $0372		; Restore user IRQ and i6509 after cassettes
+	cas1		= $0375		; Cassette switch flag
+	; RS-232 information storage
+	m51ctr		= $0376		; 6551 control image
+	m51cdr		= $0377		; 6551 command image
+	rsstat		= $037A		; perm. RS-232 status
+	dcdsr		= $037B		; last DCD/DSR value
+	ridbs		= $037C		; Input start index
+	ridbe		= $037D		; Input end index
+	; Screen editor absolute
+	; $037E - $037F Block some area for editor
+	pkyend		= $0380		; Program key buffer end address
+	keyseg		= $0382		; Segment / bank of function key texts
+	rvs		= $0383		; Reverse mode flag
+	lintmp		= $0384		; Line # between in and out 
+	lstchr		= $0385		; Last char printed
+	insflg		= $0386		; Insert mode flag
+	scrdis		= $0387		; Scroll disable flag
+	bitmsk		= $0388		; Temorary bitmask
+	keyidx		= $0389		; Index to programmables
+	logscr		= $038A		; Logical/physical scroll flag
+	bellmd		= $038B		; Bell on/off flag
+	pagsav		= $038C		; Temp RAM page
+	keysiz		= $038D		; Sizes of function key texts
+	tab		= $03A1		; Tabstop flags
+	keyd		= $03AB		; Keyboard buffer
+	funvec		= $03B5		; Vector: funktion key handler
+	iwrtvrm		= $03B7		; Vector: video ram write routine
+	iwrtcrm		= $03B9		; Vector: color ram write routine
+	iunkwn1		= $03BB 
+	iunkwn2		= $03BD
+	; $03C0 - $3F7 Free absolute space
+	; System warm start variables and vectors
+	evect		= $03F8		; Warm start vector and flags 5 bytes
+	; -------------------------------------------------------------------------------------------------
+	; Free bank 15 RAM 1024 bytes
+	ramloc          = $0400		; First free ram location
+	; -------------------------------------------------------------------------------------------------
+	; Kernal inter-process communication variables 
+	ipb             = $0800		; IPC buffer size
+	ijtab           = $0810		; IPC jump table
+	ipptab          = $0910		; IPC parameter spec table
+; *************************************** IO / EQUATES ********************************************
+	; Equates
+		IROM	= $F		; System bank
+		ID55HZ	= 14		; 55hz value required by ioinit
+		WARM	= $A5		; Warm start flag
+		WINIT	= $5A  		; Initialization complete flag
+	; Tape block types
+		eot	= 5             ;end of tape
+		blf	= 1             ;basic load file
+		bdf	= 2             ;basic data file
+		bdfh	= 4             ;basic data file header
+		bufsz	= 192           ;buffer size
+		cr	= $d            ;carriage return
+	; ROM / RAM addresses
+		basic	= $8000		; Start of rom (language)
+		charrom	= $C000		; Character ROM
+		vidram	= $D000		; Video RAM
+		clrram	= $D400		; Color RAM nibbles
+		kernal	= $E000		; Start of rom (kernal)
+	; 6569 VIC Video interface device
+		vic	= $D800		; VIC
+		memptr	= $18		; VIC memory pointers register
+	; 6581 SID Sound interface device
+		sid	= $DA00
+		osc1	= $00		; base addresses osc1, osc2, osc3
+		osc2	= $07
+		osc3	= $0E
+		freqlo	= $00		; osc registers
+		freqhi	= $01
+		pulsef	= $02
+		pulsec	= $03
+		oscctl	= $04
+		atkdcy	= $05
+		susrel	= $06
+		fclow	= $15		; filter control
+		fchi	= $16
+		resnce	= $17
+		volume	= $18
+		potx	= $19		; pots, random number and env3 out
+		poty	= $1A
+		random	= $1B
+		env3	= $1C
+	; 6526 CIA for inter-process communication
+		ipcia	= $DB00
+		; pra  = data port
+		; prb0 = busy1 (1=>6509 off dbus)
+		; prb1 = busy2 (1=>8088/z80 off dbus)
+		; prb2 = semaphore 8088/z80
+		; prb3 = semaphore 6509
+		; prb4 = unused
+		; prb5 = unused
+		; prb6 = irq to 8088/z80 (lo)
+		; prb7 = unused
+		sem88	= $04	; prb bit2
+		sem65	= $08	; prb bit3
+	; 6526 CIA Complex interface adapter - game / IEEE data / user
+		; timer a: ieee local / cass local / music / game
+		; timer b: ieee deadm / cass deadm / music / game
+		;
+		; pra0: ieee data1 / user / paddle game 1
+		; pra1: ieee data2 / user / paddle game 2
+		; pra2: ieee data3 / user
+		; pra3: ieee data4 / user
+		; pra4: ieee data5 / user
+		; pra5: ieee data6 / user
+		; pra6: ieee data7 / user / game trigger 14
+		; pra7: ieee data8 / user / game trigger 24
+		;
+		; prb0: user / game 10
+		; prb1: user / game 11
+		; prb2: user / game 12
+		; prb3: user / game 13
+		; prb4: user / game 20
+		; prb5: user / game 21
+		; prb6: user / game 22
+		; prb7: user / game 23
+		;
+		; flag: user / cassette read
+		cia	= $DC00
+		pra	= $0	; Data reg A
+		prb	= $1	; Data reg B
+		ddra	= $2	; Direction reg a
+		ddrb	= $3	; Direction reg b
+		talo	= $4	; Timer A low  byte
+		tahi	= $5	; Timer A high byte
+		tblo	= $6	; Timer B low  byte
+		tbhi	= $7	; Timer B high byte
+		tod10	= $8	; 10ths of seconds
+		todsec	= $9	; Seconds
+		todmin	= $A	; Minutes
+		todhr	= $B	; Hours
+		sdr	= $C	; Serial data register
+		icr	= $D	; Interrupt control register
+		cra	= $E	; Control register A
+		crb	= $F	; Control register B
+	; 6551 ACIA RS-232 and network interface
+		acia	= $DD00
+		drsn	= $0	; Transmitt/receive data register
+		srsn	= $1	; Status register
+		cdr	= $2	; Command register
+		ctr	= $3	; Control register
+		; Equates
+		dsrerr	= $40	; Data set ready error
+		dcderr	= $20	; Data carrier detect error
+		doverr	= $08	; Receiver outer buffer overrun
+	; 6525 TPI1 Triport interface device #1 - IEEE control / cassette / network / vic / irq
+		tpi1	= $DE00
+		; pa0: ieee dc control (ti parts)
+		; pa1: ieee te control (ti parts) (t/r)
+		; pa2: ieee ren
+		; pa3: ieee atn
+		; pa4: ieee dav
+		; pa5: ieee eoi
+		; pa6: ieee ndac
+		; pa7: ieee nrfd
+		;
+		; pb0: ieee ifc
+		; pb1: ieee srq
+		; pb2: network transmitter enable
+		; pb3: network receiver enable
+		; pb4: arbitration logic switch
+		; pb5: cassette write
+		; pb6: cassette motor
+		; pb7: cassette switch
+		;
+		; irq0: 50/60 hz irq
+		; irq1: ieee srq
+		; irq2: 6526 irq
+		; irq3: (opt) 6526 inter-processor
+		; irq4: 6551
+		; *irq: 6569 (vic) / user devices
+		; cb:   vic dot select - cr #7-6 11=bank 15, 01=bank 0
+		; ca:   vic matrix select - cr #5-4 11=bank 15, 01=bank 0
+		pa	= $0	; Port register A
+		pb	= $1	; Port register B
+		pc	= $2	; Port register C
+		lir	= $2	; Interrupt latch register mc=1
+		ddpa	= $3	; Data direction register A
+		ddpb	= $4	; Data direction register B
+		ddpc	= $5	; Data direction register C
+		mir	= $5	; Interrupt mask register mc=1
+		creg	= $6	; Control reg: #0 mc=IRQ mode / #1 ip= IRQ parity / #2-3 edge i3,i4	
+		air	= $7	; Active interrupt register
+		; Equates
+		dc	= $01	; 75160/75161 control line
+		te	= $02	; 75160/75161 control line
+		ren	= $04	; Remote enable
+		atn	= $08	; Attention
+		dav	= $10	; Data available
+		eoi	= $20	; End or identify
+		ndac	= $40	; Not data accepted
+		nrfd	= $80	; Not ready for data
+		ifc	= $01	; Interface clear
+		srq	= $02	; Service request
+		;
+		rddb	= nrfd+ndac+te+dc+ren	;directions for receiver
+		tddb	= eoi+dav+atn+te+dc+ren	;directions for transmitt
+		;
+		eoist	= $40	; eoi status test
+		tlkr	= $40	; device is talker
+		lstnr	= $20	; device is listener
+		utlkr	= $5f	; device untalk
+		ulstn	= $3f	; device unlisten
+		;       
+		toout	= $01	; timeout status on output
+		toin	= $02	; timeout status on input
+		eoist	= $40	; eoi on input
+		nodev	= $80	; no device on bus.
+		sperr	= $10	; verify error
+		; Equates for c3p0 flag bits 6 and 7.
+		slock	= $40	; screen editor lock-out
+		dibf	= $80	; data in output buffer
+	; 6525 TPI2 Triport interface device #2
+		tpi2	= $DF00
+		; pa: kyrd out 8-15
+		; pb: kybd out 0-7
+		;
+		; pc0: kybd in 0
+		; pc1: kybd in 1
+		; pc2: kybd in 2
+		; pc3: kybd in 3
+		; pc4: kybd in 4
+		; pc5: kybd in 5
+		; pc6: vic 16k bank select low
+		; pc7: vic 16k bank select hi
+; **************************************** COLD START *********************************************
 !initmem FILL                   ; All unused memory filled with $AA
+!zone cold
 *= $E000
 jmoncld:jmp monoff		; Monitor cold start
 	nop
-; -------------------------------------------------------------------------------------------------
-;***************************************
-;*                                     *
-;* EEEEE DDD   IIIII TTTTT  OOO  RRRR  *
-;* E     D  D    I     T   O   O R   R *
-;* E     D   D   I     T   O   O R   R *
-;* EEE   D   D   I     T   O   O RRRR  *
-;* E     D   D   I     T   O   O R R   *
-;* E     D  D    I     T   O   O R  R  *
-;* EEEE  DDD   IIIII   T    OOO  R   R *
-;*                                     *
-;***************************************
-;
-;***************************************
-;* CBM EDITOR FOR B/BX-SERIES SYSTEMS  *
-;*   KEYBOARD AND SCREEN EDIT ROUTINES *
-;* DRIVING THE HARDWARE OF THE         *
-;* FOLLOWING CBM MODELS:               *
-;*   B/BX-SERIES OR B128/256           *
-;* COPYRIGHT (C) 1983 BY               *
-;* COMMODORE BUSINESS MACHINES (CBM)   *
-;***************************************
+; ****************************************** EDITOR ***********************************************
+	;***************************************
+	;*                                     *
+	;* EEEEE DDD   IIIII TTTTT  OOO  RRRR  *
+	;* E     D  D    I     T   O   O R   R *
+	;* E     D   D   I     T   O   O R   R *
+	;* EEE   D   D   I     T   O   O RRRR  *
+	;* E     D   D   I     T   O   O R R   *
+	;* E     D  D    I     T   O   O R  R  *
+	;* EEEE  DDD   IIIII   T    OOO  R   R *
+	;*                                     *
+	;***************************************
+	;***************************************
+	;*   CBM EDITOR FOR P-SERIES SYSTEMS   *
+	;*   KEYBOARD AND SCREEN EDIT ROUTINES *
+	;* DRIVING THE HARDWARE OF THE         *
+	;* FOLLOWING CBM MODELS:               *
+	;*   P-SERIES                          *
+	;* COPYRIGHT (C) 1983 BY               *
+	;* COMMODORE BUSINESS MACHINES (CBM)   *
+	;***************************************
+!zone editor
 *= $E004
 ; E004 Jump vector table
 jcint:  jmp cint                ; Init Screen editor, VIC, F-keys
@@ -571,7 +625,7 @@ edveclp:lda edvect-1,x
 	sta funvec-1,x
 	dex
 	bne edveclp
-	lda #TEXTCOLOR          ; load default textcolor
+	lda #TEXTCOL          ; load default textcolor
 	sta color               ; store default text color
 ; E0C8 Clear the screen, cursor home
 clrscr: jsr home				; sub: Cursor home - returns top line in X
@@ -812,7 +866,7 @@ grcrt:  ldy #$02                ; Set Bit#1 for graphics character set
 	bne setcrt              ; skip next instruction
 txtcrt: ldy #$00                ; Clear Bit#1 for normal chacter set
 setcrt: sty grmode              ; store mode
-	lda vic_addr            ; load vic memory pointers register
+	lda vic+memptr          ; load vic memory pointers register
 	and #$FD                ; clear bit#1 = CB11
 	ora grmode              ; set CB11 (Character-ROM base-address bit#11)
 	ldy #$18                ; load VIC register number in Y
@@ -1132,9 +1186,9 @@ scr60:  nop                                     ; E464 EA                       
 	bne     scr60                           ; E46A D0 F8                    ..
 scr70:  sty     ndx                             ; E46C 84 D1                    ..
 scr75:  ldx     #$7F                            ; E46E A2 7F                    ..
-	stx     tpi2_pa                         ; E470 8E 00 DF                 ...
+	stx     tpi2+pa                         ; E470 8E 00 DF                 ...
 	ldx     #$FF                            ; E473 A2 FF                    ..
-	stx     tpi2_pb                         ; E475 8E 01 DF                 ...
+	stx     tpi2+pb                         ; E475 8E 01 DF                 ...
 	rts                                     ; E478 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -1156,8 +1210,8 @@ scr95:  ldy     #$00                            ; E48B A0 00                    
 	bne     scr70                           ; E498 D0 D2                    ..
 ; E49A Keyboard check for slow scroll
 getlin: sei                                     ; E49A 78                       x
-	stx     tpi2_pa                         ; E49B 8E 00 DF                 ...
-	sty     tpi2_pb                         ; E49E 8C 01 DF                 ...
+	stx     tpi2+pa                         ; E49B 8E 00 DF                 ...
+	sty     tpi2+pb                         ; E49E 8C 01 DF                 ...
 	jsr     getkey                          ; E4A1 20 EA E9                  ..
 	cli                                     ; E4A4 58                       X
 	rts                                     ; E4A5 60                       `
@@ -1878,16 +1932,16 @@ key:    ldy     #$FF                            ; E933 A0 FF                    
 	sty     modkey                          ; E935 84 E0                    ..
 	sty     norkey                          ; E937 84 E1                    ..
 	iny                                     ; E939 C8                       .
-	sty     tpi2_pb                         ; E93A 8C 01 DF                 ...
-	sty     tpi2_pa                         ; E93D 8C 00 DF                 ...
+	sty     tpi2+pb                         ; E93A 8C 01 DF                 ...
+	sty     tpi2+pa                         ; E93D 8C 00 DF                 ...
 	jsr     getkey                          ; E940 20 EA E9                  ..
 	and     #$3F                            ; E943 29 3F                    )?
 	eor     #$3F                            ; E945 49 3F                    I?
 	beq     nulxit                          ; E947 F0 76                    .v
 	lda     #$FF                            ; E949 A9 FF                    ..
-	sta     tpi2_pa                         ; E94B 8D 00 DF                 ...
+	sta     tpi2+pa                         ; E94B 8D 00 DF                 ...
 	asl                                     ; E94E 0A                       .
-	sta     tpi2_pb                         ; E94F 8D 01 DF                 ...
+	sta     tpi2+pb                         ; E94F 8D 01 DF                 ...
 	jsr     getkey                          ; E952 20 EA E9                  ..
 	pha                                     ; E955 48                       H
 	sta     modkey                          ; E956 85 E0                    ..
@@ -1901,8 +1955,8 @@ kyloop: lsr                                     ; E961 4A                       
 	dex                                     ; E965 CA                       .
 	bpl     kyloop                          ; E966 10 F9                    ..
 	sec                                     ; E968 38                       8
-	rol     tpi2_pb                         ; E969 2E 01 DF                 ...
-	rol     tpi2_pa                         ; E96C 2E 00 DF                 ...
+	rol     tpi2+pb                         ; E969 2E 01 DF                 ...
+	rol     tpi2+pa                         ; E96C 2E 00 DF                 ...
 	bcs     linelp                          ; E96F B0 EB                    ..
 	pla                                     ; E971 68                       h
 	bcc     nulxit                          ; E972 90 4B                    .K
@@ -1950,9 +2004,9 @@ notfun: txa                                     ; E9A2 8A                       
 nulxit: ldy     #$FF                            ; E9BF A0 FF                    ..
 keyxit: sty     lstx                            ; E9C1 84 CD                    ..
 keyxt2: ldx     #$7F                            ; E9C3 A2 7F                    ..
-	stx     tpi2_pa                         ; E9C5 8E 00 DF                 ...
+	stx     tpi2+pa                         ; E9C5 8E 00 DF                 ...
 	ldx     #$FF                            ; E9C8 A2 FF                    ..
-	stx     tpi2_pb                         ; E9CA 8E 01 DF                 ...
+	stx     tpi2+pb                         ; E9CA 8E 01 DF                 ...
 	rts                                     ; E9CD 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -1973,8 +2027,8 @@ savkey: sta     keyd,x                          ; E9DE 9D AB 03                 
 	stx     rptcnt                          ; E9E6 86 D7                    ..
 	bne     keyxit                          ; E9E8 D0 D7                    ..
 ; E9EA Read keyboard matrix and debounce
-getkey: lda     tpi2_pc                         ; E9EA AD 02 DF                 ...
-	cmp     tpi2_pc                         ; E9ED CD 02 DF                 ...
+getkey: lda     tpi2+pc                         ; E9EA AD 02 DF                 ...
+	cmp     tpi2+pc                         ; E9ED CD 02 DF                 ...
 	bne     getkey                          ; E9F0 D0 F8                    ..
 	rts                                     ; E9F2 60                       `
 
@@ -2271,8 +2325,8 @@ bits:   !byte $80,$40,$20,$10,$08,$04,$02,$01
 ; -------------------------------------------------------------------------------------------------
 ; ECF7 VIC initialization table register $11-$21 
 vicinit:!byte $1B,$00,$00,$00,$00,$08,$00,$40
-	!byte $8F,$00,$00,$00,$00,$00,$00,EXTERIORCOLOR
-	!byte BACKGROUNDCOLOR
+	!byte $8F,$00,$00,$00,$00,$00,$00,EXTCOL
+	!byte BGRCOL
 ; -------------------------------------------------------------------------------------------------
 ; ED08 Extended editor vector table (copied to $3B5)
 edvect: !word funkey
@@ -2287,7 +2341,9 @@ colortb:!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ; -------------------------------------------------------------------------------------------------
 ; ED22 Unused space
 	!byte $00
-; -------------------------------------------------------------------------------------------------
+; ****************************************** KERNAL ***********************************************
+!zone kernal
+*= $EE00
 ;************************************************
 ;* kernal monitor                               *
 ;*                                              *
@@ -2309,7 +2365,6 @@ colortb:!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ;* for syntax & semantics see cbm kernal manual *
 ;* copyright (c) 1981 by cbm                    *
 ;************************************************
-*= $EE00
 ; EE00 Monitor entry after boot (no basic)
 monon:	jsr     ioinit                          ; EE00 20 FE F9                  ..
 	jsr     restor                          ; EE03 20 B1 FB                  ..
@@ -2924,28 +2979,28 @@ talk:   ora     #$40                            ; F237 09 40                    
 listn:  ora     #$20                            ; F23B 09 20                    . 
 LF23D:  pha                                     ; F23D 48                       H
 	lda     #$3B                            ; F23E A9 3B                    .;
-	sta     tpi1_ddra                       ; F240 8D 03 DE                 ...
+	sta     tpi1+ddpa                       ; F240 8D 03 DE                 ...
 	lda     #$FF                            ; F243 A9 FF                    ..
 	sta     cia+pra                        ; F245 8D 00 DC                 ...
-	sta     cia2_ddra                       ; F248 8D 02 DC                 ...
+	sta     cia+ddra                       ; F248 8D 02 DC                 ...
 	lda     #$FE                            ; F24B A9 FE                    ..
-	sta     tpi1_pa                         ; F24D 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F24D 8D 00 DE                 ...
 	lda     c3po                            ; F250 A5 AA                    ..
 	bpl     LF26F                           ; F252 10 1B                    ..
-	lda     tpi1_pa                         ; F254 AD 00 DE                 ...
+	lda     tpi1+pa                         ; F254 AD 00 DE                 ...
 	and     #$DF                            ; F257 29 DF                    ).
-	sta     tpi1_pa                         ; F259 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F259 8D 00 DE                 ...
 	lda     bsour                           ; F25C A5 AB                    ..
 	jsr     txbyte                          ; F25E 20 C0 F2                  ..
 	lda     c3po                            ; F261 A5 AA                    ..
 	and     #$7F                            ; F263 29 7F                    ).
 	sta     c3po                            ; F265 85 AA                    ..
-	lda     tpi1_pa                         ; F267 AD 00 DE                 ...
+	lda     tpi1+pa                         ; F267 AD 00 DE                 ...
 	ora     #$20                            ; F26A 09 20                    . 
-	sta     tpi1_pa                         ; F26C 8D 00 DE                 ...
-LF26F:  lda     tpi1_pa                         ; F26F AD 00 DE                 ...
+	sta     tpi1+pa                         ; F26C 8D 00 DE                 ...
+LF26F:  lda     tpi1+pa                         ; F26F AD 00 DE                 ...
 	and     #$F7                            ; F272 29 F7                    ).
-	sta     tpi1_pa                         ; F274 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F274 8D 00 DE                 ...
 	pla                                     ; F277 68                       h
 	jmp     txbyte                          ; F278 4C C0 F2                 L..
 
@@ -2953,22 +3008,22 @@ LF26F:  lda     tpi1_pa                         ; F26F AD 00 DE                 
 ; F27B Output secondary address after listen on IEC bus
 secnd:  jsr     txbyte                          ; F27B 20 C0 F2                  ..
 ; F27E NOT ATN high after secnd
-secatn: lda     tpi1_pa                         ; F27E AD 00 DE                 ...
+secatn: lda     tpi1+pa                         ; F27E AD 00 DE                 ...
 	ora     #$08                            ; F281 09 08                    ..
-	sta     tpi1_pa                         ; F283 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F283 8D 00 DE                 ...
 	rts                                     ; F286 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; F287 Output secondary address on IEC bus
 tksa:   jsr     txbyte                          ; F287 20 C0 F2                  ..
 tkatn:  lda     #$3D                            ; F28A A9 3D                    .=
-	and     tpi1_pa                         ; F28C 2D 00 DE                 -..
+	and     tpi1+pa                         ; F28C 2D 00 DE                 -..
 ; F28F Output A on IEC, switch data to input
-setlns: sta     tpi1_pa                         ; F28F 8D 00 DE                 ...
+setlns: sta     tpi1+pa                         ; F28F 8D 00 DE                 ...
 	lda     #$C3                            ; F292 A9 C3                    ..
-	sta     tpi1_ddra                       ; F294 8D 03 DE                 ...
+	sta     tpi1+ddpa                       ; F294 8D 03 DE                 ...
 	lda     #$00                            ; F297 A9 00                    ..
-	sta     cia2_ddra                       ; F299 8D 02 DC                 ...
+	sta     cia+ddra                       ; F299 8D 02 DC                 ...
 	beq     secatn                          ; F29C F0 E0                    ..
 ; F29E Output A on IEC with EOF flag
 ciout:  pha                                     ; F29E 48                       H
@@ -2997,25 +3052,25 @@ LF2B8:  jsr     LF23D                           ; F2B8 20 3D F2                 
 ; F2C0 Output A on IEC without EOF flag
 txbyte: eor     #$FF                            ; F2C0 49 FF                    I.
 	sta     cia+pra                        ; F2C2 8D 00 DC                 ...
-	lda     tpi1_pa                         ; F2C5 AD 00 DE                 ...
+	lda     tpi1+pa                         ; F2C5 AD 00 DE                 ...
 	ora     #$12                            ; F2C8 09 12                    ..
-	sta     tpi1_pa                         ; F2CA 8D 00 DE                 ...
-	bit     tpi1_pa                         ; F2CD 2C 00 DE                 ,..
+	sta     tpi1+pa                         ; F2CA 8D 00 DE                 ...
+	bit     tpi1+pa                         ; F2CD 2C 00 DE                 ,..
 	bvc     txbyt1                          ; F2D0 50 09                    P.
 	bpl     txbyt1                          ; F2D2 10 07                    ..
 	lda     #$80                            ; F2D4 A9 80                    ..
 	jsr     udst                            ; F2D6 20 6E FB                  n.
 	bne     txbyt6                          ; F2D9 D0 30                    .0
-txbyt1: lda     tpi1_pa                         ; F2DB AD 00 DE                 ...
+txbyt1: lda     tpi1+pa                         ; F2DB AD 00 DE                 ...
 	bpl     txbyt1                          ; F2DE 10 FB                    ..
 	and     #$EF                            ; F2E0 29 EF                    ).
-	sta     tpi1_pa                         ; F2E2 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F2E2 8D 00 DE                 ...
 txbyt2: jsr     timeron                         ; F2E5 20 76 F3                  v.
 	bcc     txbyt4                          ; F2E8 90 01                    ..
 txbyt3: sec                                     ; F2EA 38                       8
-txbyt4: bit     tpi1_pa                         ; F2EB 2C 00 DE                 ,..
+txbyt4: bit     tpi1+pa                         ; F2EB 2C 00 DE                 ,..
 	bvs     txbyt5                          ; F2EE 70 13                    p.
-	lda     cia2_icr                        ; F2F0 AD 0D DC                 ...
+	lda     cia+icr                        ; F2F0 AD 0D DC                 ...
 	and     #$02                            ; F2F3 29 02                    ).
 	beq     txbyt4                          ; F2F5 F0 F4                    ..
 	lda     timout                          ; F2F7 AD 5E 03                 .^.
@@ -3023,26 +3078,26 @@ txbyt4: bit     tpi1_pa                         ; F2EB 2C 00 DE                 
 	bcc     txbyt3                          ; F2FC 90 EC                    ..
 	lda     #$01                            ; F2FE A9 01                    ..
 	jsr     udst                            ; F300 20 6E FB                  n.
-txbyt5: lda     tpi1_pa                         ; F303 AD 00 DE                 ...
+txbyt5: lda     tpi1+pa                         ; F303 AD 00 DE                 ...
 	ora     #$10                            ; F306 09 10                    ..
-	sta     tpi1_pa                         ; F308 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F308 8D 00 DE                 ...
 txbyt6: lda     #$FF                            ; F30B A9 FF                    ..
 	sta     cia+pra                        ; F30D 8D 00 DC                 ...
 	rts                                     ; F310 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; F311 Read char from IEC bus into A
-acptr:  lda     tpi1_pa                         ; F311 AD 00 DE                 ...
+acptr:  lda     tpi1+pa                         ; F311 AD 00 DE                 ...
 	and     #$BD                            ; F314 29 BD                    ).
 	ora     #$81                            ; F316 09 81                    ..
-	sta     tpi1_pa                         ; F318 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F318 8D 00 DE                 ...
 LF31B:  jsr     timeron                         ; F31B 20 76 F3                  v.
 	bcc     LF321                           ; F31E 90 01                    ..
 LF320:  sec                                     ; F320 38                       8
-LF321:  lda     tpi1_pa                         ; F321 AD 00 DE                 ...
+LF321:  lda     tpi1+pa                         ; F321 AD 00 DE                 ...
 	and     #$10                            ; F324 29 10                    ).
 	beq     LF346                           ; F326 F0 1E                    ..
-	lda     cia2_icr                        ; F328 AD 0D DC                 ...
+	lda     cia+icr                        ; F328 AD 0D DC                 ...
 	and     #$02                            ; F32B 29 02                    ).
 	beq     LF321                           ; F32D F0 F2                    ..
 	lda     timout                          ; F32F AD 5E 03                 .^.
@@ -3050,17 +3105,17 @@ LF321:  lda     tpi1_pa                         ; F321 AD 00 DE                 
 	bcc     LF320                           ; F334 90 EA                    ..
 	lda     #$02                            ; F336 A9 02                    ..
 	jsr     udst                            ; F338 20 6E FB                  n.
-	lda     tpi1_pa                         ; F33B AD 00 DE                 ...
+	lda     tpi1+pa                         ; F33B AD 00 DE                 ...
 	and     #$3D                            ; F33E 29 3D                    )=
-	sta     tpi1_pa                         ; F340 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F340 8D 00 DE                 ...
 	lda     #$0D                            ; F343 A9 0D                    ..
 	rts                                     ; F345 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; F346
-LF346:  lda     tpi1_pa                         ; F346 AD 00 DE                 ...
+LF346:  lda     tpi1+pa                         ; F346 AD 00 DE                 ...
 	and     #$7F                            ; F349 29 7F                    ).
-	sta     tpi1_pa                         ; F34B 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F34B 8D 00 DE                 ...
 	and     #$20                            ; F34E 29 20                    ) 
 	bne     LF357                           ; F350 D0 05                    ..
 	lda     #$40                            ; F352 A9 40                    .@
@@ -3068,25 +3123,25 @@ LF346:  lda     tpi1_pa                         ; F346 AD 00 DE                 
 LF357:  lda     cia+pra                        ; F357 AD 00 DC                 ...
 	eor     #$FF                            ; F35A 49 FF                    I.
 	pha                                     ; F35C 48                       H
-	lda     tpi1_pa                         ; F35D AD 00 DE                 ...
+	lda     tpi1+pa                         ; F35D AD 00 DE                 ...
 	ora     #$40                            ; F360 09 40                    .@
-	sta     tpi1_pa                         ; F362 8D 00 DE                 ...
-LF365:  lda     tpi1_pa                         ; F365 AD 00 DE                 ...
+	sta     tpi1+pa                         ; F362 8D 00 DE                 ...
+LF365:  lda     tpi1+pa                         ; F365 AD 00 DE                 ...
 	and     #$10                            ; F368 29 10                    ).
 	beq     LF365                           ; F36A F0 F9                    ..
-	lda     tpi1_pa                         ; F36C AD 00 DE                 ...
+	lda     tpi1+pa                         ; F36C AD 00 DE                 ...
 	and     #$BF                            ; F36F 29 BF                    ).
-	sta     tpi1_pa                         ; F371 8D 00 DE                 ...
+	sta     tpi1+pa                         ; F371 8D 00 DE                 ...
 	pla                                     ; F374 68                       h
 	rts                                     ; F375 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; F376 Set timer for timeout on IEC
 timeron:lda     #$80                            ; F376 A9 80                    ..
-	sta     cia2_tbhi                       ; F378 8D 07 DC                 ...
+	sta     cia+tbhi                       ; F378 8D 07 DC                 ...
 	lda     #$11                            ; F37B A9 11                    ..
-	sta     cia2_crb                        ; F37D 8D 0F DC                 ...
-	lda     cia2_icr                        ; F380 AD 0D DC                 ...
+	sta     cia+crb                        ; F37D 8D 0F DC                 ...
+	lda     cia+icr                        ; F380 AD 0D DC                 ...
 	clc                                     ; F383 18                       .
 	rts                                     ; F384 60                       `
 
@@ -3127,11 +3182,11 @@ LF38D:  cpy     fnlen                           ; F38D C4 9D                    
 	cpy     #$04                            ; F398 C0 04                    ..
 	bne     LF38D                           ; F39A D0 F1                    ..
 LF39C:  lda     m51ctr                          ; F39C AD 76 03                 .v.
-	sta     acia_ctrl                       ; F39F 8D 03 DD                 ...
+	sta     acia+ctr                       ; F39F 8D 03 DD                 ...
 	lda     m51cdr                          ; F3A2 AD 77 03                 .w.
 	and     #$F2                            ; F3A5 29 F2                    ).
 	ora     #$02                            ; F3A7 09 02                    ..
-	sta     acia_cmd                        ; F3A9 8D 02 DD                 ...
+	sta     acia+cdr                        ; F3A9 8D 02 DD                 ...
 	clc                                     ; F3AC 18                       .
 	lda     sa                              ; F3AD A5 A0                    ..
 	and     #$02                            ; F3AF 29 02                    ).
@@ -3179,10 +3234,10 @@ LF3F7:  rts                                     ; F3F7 60                       
 
 ; -------------------------------------------------------------------------------------------------
 ; F3F8 Allow RS232 interrupts
-xon232: lda     acia_cmd                        ; F3F8 AD 02 DD                 ...
+xon232: lda     acia+cdr                        ; F3F8 AD 02 DD                 ...
 	ora     #$09                            ; F3FB 09 09                    ..
 	and     #$FB                            ; F3FD 29 FB                    ).
-	sta     acia_cmd                        ; F3FF 8D 02 DD                 ...
+	sta     acia+cdr                        ; F3FF 8D 02 DD                 ...
 	rts                                     ; F402 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -3247,7 +3302,7 @@ topxit: stx     hiadr           ; store new end of system memory ($)
 ; F435 Read the RS232 status
 rdst232:php                                     ; F435 08                       .
 	sei                                     ; F436 78                       x
-	lda     acia_status                     ; F437 AD 01 DD                 ...
+	lda     acia+srsn                     ; F437 AD 01 DD                 ...
 	and     #$60                            ; F43A 29 60                    )`
 	sta     rsstat                          ; F43C 8D 7A 03                 .z.
 	sta     dcdsr                           ; F43F 8D 7B 03                 .{.
@@ -3293,10 +3348,10 @@ getin2: sty     xsav                            ; F45B 8C 65 03                 
 	ldy     ridbs                           ; F461 AC 7C 03                 .|.
 	cpy     ridbe                           ; F464 CC 7D 03                 .}.
 	bne     gn232a                          ; F467 D0 16                    ..
-	lda     acia_cmd                        ; F469 AD 02 DD                 ...
+	lda     acia+cdr                        ; F469 AD 02 DD                 ...
 	and     #$FD                            ; F46C 29 FD                    ).
 	ora     #$01                            ; F46E 09 01                    ..
-	sta     acia_cmd                        ; F470 8D 02 DD                 ...
+	sta     acia+cdr                        ; F470 8D 02 DD                 ...
 	lda     rsstat                          ; F473 AD 7A 03                 .z.
 	ora     #$10                            ; F476 09 10                    ..
 	sta     rsstat                          ; F478 8D 7A 03                 .z.
@@ -3456,12 +3511,12 @@ LF518:  stx     t1                              ; F518 8E 63 03                 
 	bit     sa                              ; F526 24 A0                    $.
 	bpl     LF52D                           ; F528 10 03                    ..
 	jsr     toascii                         ; F52A 20 CE F3                  ..
-LF52D:  sta     acia_data                       ; F52D 8D 00 DD                 ...
+LF52D:  sta     acia+drsn                       ; F52D 8D 00 DD                 ...
 	pha                                     ; F530 48                       H
 LF531:  lda     rsstat                          ; F531 AD 7A 03                 .z.
 	and     #$60                            ; F534 29 60                    )`
 	bne     LF547                           ; F536 D0 0F                    ..
-	lda     acia_status                     ; F538 AD 01 DD                 ...
+	lda     acia+srsn                     ; F538 AD 01 DD                 ...
 	and     #$10                            ; F53B 29 10                    ).
 	bne     LF547                           ; F53D D0 08                    ..
 	jsr     kstop                           ; F53F 20 E1 FF                  ..
@@ -3508,15 +3563,15 @@ LF558:  jsr     fz100                           ; F558 20 57 F6                 
 	lda     sa                              ; F569 A5 A0                    ..
 	and     #$02                            ; F56B 29 02                    ).
 	beq     LF58A                           ; F56D F0 1B                    ..
-	and     acia_cmd                        ; F56F 2D 02 DD                 -..
+	and     acia+cdr                        ; F56F 2D 02 DD                 -..
 	beq     LF583                           ; F572 F0 0F                    ..
 	eor     #$FF                            ; F574 49 FF                    I.
-	and     acia_cmd                        ; F576 2D 02 DD                 -..
+	and     acia+cdr                        ; F576 2D 02 DD                 -..
 	ora     #$01                            ; F579 09 01                    ..
 	pha                                     ; F57B 48                       H
 	jsr     rdst232                         ; F57C 20 35 F4                  5.
 	pla                                     ; F57F 68                       h
-	sta     acia_cmd                        ; F580 8D 02 DD                 ...
+	sta     acia+cdr                        ; F580 8D 02 DD                 ...
 LF583:  lda     #$02                            ; F583 A9 02                    ..
 	bne     LF58D                           ; F585 D0 06                    ..
 LF587:  jsr     tape                            ; F587 20 68 FE                  h.
@@ -3651,7 +3706,7 @@ LF5FD:  jsr     fz100                           ; F5FD 20 57 F6                 
 	cmp     #$02                            ; F60F C9 02                    ..
 	bne     LF61A                           ; F611 D0 07                    ..
 	lda     #$00                            ; F613 A9 00                    ..
-	sta     acia_cmd                        ; F615 8D 02 DD                 ...
+	sta     acia+cdr                        ; F615 8D 02 DD                 ...
 	beq     LF624                           ; F618 F0 0A                    ..
 LF61A:  pla                                     ; F61A 68                       h
 	jsr     LF625                           ; F61B 20 25 F6                  %.
@@ -4169,27 +4224,27 @@ saving: lda     msgflg                          ; F8E0 AD 61 03                 
 ;  .a = (bit7=t1,bits6-0 seconds)
 ;----------------------------------------
 ; F8ED Read the time from the TOD clock
-rdtim:  lda     cia2_tod10                      ; F8ED AD 08 DC                 ...
+rdtim:  lda     cia+tod10                      ; F8ED AD 08 DC                 ...
 	pha                                     ; F8F0 48                       H
 	pha                                     ; F8F1 48                       H
 	asl                                     ; F8F2 0A                       .
 	asl                                     ; F8F3 0A                       .
 	asl                                     ; F8F4 0A                       .
 	and     #$60                            ; F8F5 29 60                    )`
-	ora     cia2_todhr                      ; F8F7 0D 0B DC                 ...
+	ora     cia+todhr                      ; F8F7 0D 0B DC                 ...
 	tay                                     ; F8FA A8                       .
 	pla                                     ; F8FB 68                       h
 	ror                                     ; F8FC 6A                       j
 	ror                                     ; F8FD 6A                       j
 	and     #$80                            ; F8FE 29 80                    ).
-	ora     cia2_todsec                     ; F900 0D 09 DC                 ...
+	ora     cia+todsec                     ; F900 0D 09 DC                 ...
 	sta     sal                             ; F903 85 93                    ..
 	ror                                     ; F905 6A                       j
 	and     #$80                            ; F906 29 80                    ).
-	ora     cia2_todmin                     ; F908 0D 0A DC                 ...
+	ora     cia+todmin                     ; F908 0D 0A DC                 ...
 	tax                                     ; F90B AA                       .
 	pla                                     ; F90C 68                       h
-	cmp     cia2_tod10                      ; F90D CD 08 DC                 ...
+	cmp     cia+tod10                      ; F90D CD 08 DC                 ...
 	bne     rdtim                           ; F910 D0 DB                    ..
 	lda     sal                             ; F912 A5 93                    ..
 	rts                                     ; F914 60                       `
@@ -4206,8 +4261,8 @@ settim: pha                                     ; F915 48                       
 	pha                                     ; F916 48                       H
 	ror                                     ; F917 6A                       j
 	and     #$80                            ; F918 29 80                    ).
-	ora     cia2_crb                        ; F91A 0D 0F DC                 ...
-	sta     cia2_crb                        ; F91D 8D 0F DC                 ...
+	ora     cia+crb                        ; F91A 0D 0F DC                 ...
+	sta     cia+crb                        ; F91D 8D 0F DC                 ...
 	tya                                     ; F920 98                       .
 	rol                                     ; F921 2A                       *
 	rol                                     ; F922 2A                       *
@@ -4220,12 +4275,12 @@ settim: pha                                     ; F915 48                       
 	pla                                     ; F92C 68                       h
 	rol                                     ; F92D 2A                       *
 	rol     sal                             ; F92E 26 93                    &.
-	sty     cia2_todhr                      ; F930 8C 0B DC                 ...
-	stx     cia2_todmin                     ; F933 8E 0A DC                 ...
+	sty     cia+todhr                      ; F930 8C 0B DC                 ...
+	stx     cia+todmin                     ; F933 8E 0A DC                 ...
 	pla                                     ; F936 68                       h
-	sta     cia2_todsec                     ; F937 8D 09 DC                 ...
+	sta     cia+todsec                     ; F937 8D 09 DC                 ...
 	lda     sal                             ; F93A A5 93                    ..
-	sta     cia2_tod10                      ; F93C 8D 08 DC                 ...
+	sta     cia+tod10                      ; F93C 8D 08 DC                 ...
 	rts                                     ; F93F 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -4303,17 +4358,17 @@ LF97F:  rts                                     ; F97F 60                       
 ;   for stop key down.
 ;---------------------------------------
 ; F980 
-udtim:  lda     tpi2_pc                         ; F980 AD 02 DF                 ...
+udtim:  lda     tpi2+pc                         ; F980 AD 02 DF                 ...
 	lsr                                     ; F983 4A                       J
 	bcs     LF998                           ; F984 B0 12                    ..
 	lda     #$FE                            ; F986 A9 FE                    ..
-	sta     tpi2_pb                         ; F988 8D 01 DF                 ...
+	sta     tpi2+pb                         ; F988 8D 01 DF                 ...
 	lda     #$10                            ; F98B A9 10                    ..
-	and     tpi2_pc                         ; F98D 2D 02 DF                 -..
+	and     tpi2+pc                         ; F98D 2D 02 DF                 -..
 	bne     LF993                           ; F990 D0 01                    ..
 	sec                                     ; F992 38                       8
 LF993:  lda     #$FF                            ; F993 A9 FF                    ..
-	sta     tpi2_pb                         ; F995 8D 01 DF                 ...
+	sta     tpi2+pb                         ; F995 8D 01 DF                 ...
 LF998:  rol                                     ; F998 2A                       *
 	sta     stkey                           ; F999 85 A9                    ..
 	rts                                     ; F99B 60                       `
@@ -4391,45 +4446,45 @@ swarm:  jmp (evect)             ; jump to basic warm start $BBA0
 ;------------------------------------------
 ; F9FE I/O register init (TPI1, TPI2, CIA, TOD)
 ioinit: lda #$F3
-	sta tpi1_ctrl           ; TPI1 interrupt mode = on, parity / VIC bank 15 selected for both
+	sta tpi1+creg           ; TPI1 interrupt mode = on, parity / VIC bank 15 selected for both
 	lda #$FF
-	sta tpi1_mir            ; TPI1 enable all interrupts
+	sta tpi1+mir            ; TPI1 enable all interrupts
 	lda #$5C
-	sta tpi1_pb             ; TPI1 PB IEEE ifc=0, netw.=0, arb.sw.=1, cass. write=0,motor=1 
+	sta tpi1+pb             ; TPI1 PB IEEE ifc=0, netw.=0, arb.sw.=1, cass. write=0,motor=1 
 	lda #$7D                ; TPI1 DDRB input: cassette switch, IEEE srq
-	sta tpi1_ddrb           ; TPI1 DDRB output: IEEE ifc, network, arb.sw., cass. motor,write
+	sta tpi1+ddpb           ; TPI1 DDRB output: IEEE ifc, network, arb.sw., cass. motor,write
 	lda #$3D     
-	sta tpi1_pa             ; TPI1 PA IEEE dc=1, te=0, ren=1, atn=1, dav=1, eo=1
+	sta tpi1+pa             ; TPI1 PA IEEE dc=1, te=0, ren=1, atn=1, dav=1, eo=1
 	lda #$3F                ; TPI1 DDRA input:  IEEE ndac, nfrd
-	sta tpi1_ddra           ; TPI1 DDRA output: IEEE dc, te, ren, atn, dav, eoi
+	sta tpi1+ddpa           ; TPI1 DDRA output: IEEE dc, te, ren, atn, dav, eoi
 	lda #$FF     
-	sta tpi2_pa             ; TPI2 PA keyboard 8-15=1
-	sta tpi1_pb             ; TPI1 PB IEEE ifc=1, network=1, arb.sw.=1, cass. motor=1,write=1
-	sta tpi2_ddra           ; TPI2 DDRA output keyboard 8-15
-	sta tpi2_ddrb           ; TPI2 DDRB output keyboard 0-7
-	lsr tpi2_pa             ; TPI2 PA keyboard 15 bit #7=0
+	sta tpi2+pa             ; TPI2 PA keyboard 8-15=1
+	sta tpi1+pb             ; TPI1 PB IEEE ifc=1, network=1, arb.sw.=1, cass. motor=1,write=1
+	sta tpi2+ddpa           ; TPI2 DDRA output keyboard 8-15
+	sta tpi2+ddpb           ; TPI2 DDRB output keyboard 0-7
+	lsr tpi2+pa             ; TPI2 PA keyboard 15 bit #7=0
 	lda #$C0     
-	sta tpi2_pc             ; TPI2 PC VIC 16k bank select=11 $c000-$ffff
-	sta tpi2_ddrc           ; TPI2 DDRC input: #0-5 keyboard 0-5 / output: #6-7 VIC 16k bank
+	sta tpi2+pc             ; TPI2 PC VIC 16k bank select=11 $c000-$ffff
+	sta tpi2+ddpc           ; TPI2 DDRC input: #0-5 keyboard 0-5 / output: #6-7 VIC 16k bank
 	lda #$84     
-	sta cia2_icr            ; CIA2 ICR #7=set, #2=ALRM enable TOD interrupt
+	sta cia+icr            ; CIA2 ICR #7=set, #2=ALRM enable TOD interrupt
 	ldy #$00     
-	sty cia2_ddra           ; CIA2 DDRA input: IEEE data, #6,7 also trigger 1,2
-	sty cia2_ddrb           ; CIA2 DDRB input: game 1,2
-	sty cia2_crb            ; CIA2 CRB Timer B stop, PB7=off, cont, Phi2, activate TOD write
-	sta cia2_tod10          ; CIA2 clear TOD 1/10 seconds
-	sty tpi1_lir            ; TPI1 clear all interrupts
+	sty cia+ddra           ; CIA2 DDRA input: IEEE data, #6,7 also trigger 1,2
+	sty cia+ddrb           ; CIA2 DDRB input: game 1,2
+	sty cia+crb            ; CIA2 CRB Timer B stop, PB7=off, cont, Phi2, activate TOD write
+	sta cia+tod10          ; CIA2 clear TOD 1/10 seconds
+	sty tpi1+lir            ; TPI1 clear all interrupts
 ; Check for 50/60 Hz system frequency
-io100:  lda tpi1_lir            ; load interrupt latch reg
+io100:  lda tpi1+lir            ; load interrupt latch reg
 	ror                     ; shift bit #0 to carry
 	bcc io100               ; check again till bit #0 appears (50/60Hz source from PSU) 
-	sty tpi1_lir            ; TPI1 clear all interrupts
+	sty tpi1+lir            ; TPI1 clear all interrupts
 	ldx #$00   
 	ldy #$00
 io110:  inx
 	bne io110               ; delay 256x -> 1.28 ms @ 1MHz
 	iny        
-	lda tpi1_lir            ; load interrrupt latch reg
+	lda tpi1+lir            ; load interrrupt latch reg
 	ror                     ; shift bit #0 to carry
 	bcc io110               ; check again till bit #0 appears (50/60Hz source from PSU)              
 	cpy #ID55HZ   
@@ -4437,7 +4492,7 @@ io110:  inx
 	lda #$88                ; if not -> 50Hz / set extra bit #7 in A for TOD=50Hz
 	!byte $2C               ; and skip next instruction
 io120:  lda #$08
-	sta cia2_cra            ; CIA2 CRA set TOD=50/60Hz / run mode=continuous
+	sta cia+cra            ; CIA2 CRA set TOD=50/60Hz / run mode=continuous
 	lda ipcia+icr            ; CIA1 clear interrupt reg
 	lda #$90    
 	sta ipcia+icr            ; CIA1 set flag interrupt source
@@ -4450,8 +4505,8 @@ io120:  lda #$08
 	lda #$48     
 	sta ipcia+ddrb           ; CIA1 DDRB output: bit # 3,6 / all other input
 	lda #$01    
-	ora tpi1_pb             ; TPI1 PB set bit #0 IEEE ifc=1
-	sta tpi1_pb 
+	ora tpi1+pb             ; TPI1 PB set bit #0 IEEE ifc=1
+	sta tpi1+pb 
 	rts         
 ; -------------------------------------------------------------------------------------------------
 ; ramtas - initilize lower ram with $00
@@ -4708,7 +4763,7 @@ brkirq: jmp     (cbinv)                         ; FBF5 6C 02 03                 
 kirq:   lda     i6509                           ; FBF8 A5 01                    ..
 	pha                                     ; FBFA 48                       H
 	cld                                     ; FBFB D8                       .
-	lda     tpi1_air                        ; FBFC AD 07 DE                 ...
+	lda     tpi1+air                        ; FBFC AD 07 DE                 ...
 	bne     kirq1                           ; FBFF D0 03                    ..
 	jmp     prendn                          ; FC01 4C B0 FC                 L..
 
@@ -4720,7 +4775,7 @@ kirq1:  cmp     #$10                            ; FC04 C9 10                    
 
 ; -------------------------------------------------------------------------------------------------
 ; FC0B Handle ACIA IRQ
-kirq2:  lda     acia_status                     ; FC0B AD 01 DD                 ...
+kirq2:  lda     acia+srsn                     ; FC0B AD 01 DD                 ...
 	tax                                     ; FC0E AA                       .
 	and     #$60                            ; FC0F 29 60                    )`
 	tay                                     ; FC11 A8                       .
@@ -4745,22 +4800,22 @@ LFC36:  sty     ridbe                           ; FC36 8C 7D 03                 
 	dey                                     ; FC39 88                       .
 	ldx     ribuf+2                         ; FC3A A6 A8                    ..
 	stx     i6509                           ; FC3C 86 01                    ..
-	lda     acia_data                       ; FC3E AD 00 DD                 ...
+	lda     acia+drsn                       ; FC3E AD 00 DD                 ...
 	sta     (ribuf),y                       ; FC41 91 A6                    ..
-	lda     acia_status                     ; FC43 AD 01 DD                 ...
+	lda     acia+srsn                     ; FC43 AD 01 DD                 ...
 	and     #$07                            ; FC46 29 07                    ).
 LFC48:  ora     rsstat                          ; FC48 0D 7A 03                 .z.
 	sta     rsstat                          ; FC4B 8D 7A 03                 .z.
-LFC4E:  lda     acia_status                     ; FC4E AD 01 DD                 ...
+LFC4E:  lda     acia+srsn                     ; FC4E AD 01 DD                 ...
 	and     #$10                            ; FC51 29 10                    ).
 	beq     LFC66                           ; FC53 F0 11                    ..
-	lda     acia_cmd                        ; FC55 AD 02 DD                 ...
+	lda     acia+cdr                        ; FC55 AD 02 DD                 ...
 	and     #$0C                            ; FC58 29 0C                    ).
 	cmp     #$04                            ; FC5A C9 04                    ..
 	bne     LFC66                           ; FC5C D0 08                    ..
 	lda     #$F3                            ; FC5E A9 F3                    ..
-	and     acia_cmd                        ; FC60 2D 02 DD                 -..
-	sta     acia_cmd                        ; FC63 8D 02 DD                 ...
+	and     acia+cdr                        ; FC60 2D 02 DD                 -..
+	sta     acia+cdr                        ; FC63 8D 02 DD                 ...
 LFC66:  jmp     LFCAD                           ; FC66 4C AD FC                 L..
 
 ; -------------------------------------------------------------------------------------------------
@@ -4777,7 +4832,7 @@ kirq8:  cmp     #$08                            ; FC69 C9 08                    
 kirq9:  cli                                     ; FC77 58                       X
 	cmp     #$04                            ; FC78 C9 04                    ..
 	bne     kirq10                          ; FC7A D0 0C                    ..
-	lda     cia2_icr                        ; FC7C AD 0D DC                 ...
+	lda     cia+icr                        ; FC7C AD 0D DC                 ...
 	ora     alarm                           ; FC7F 0D 69 03                 .i.
 	sta     alarm                           ; FC82 8D 69 03                 .i.
 	jmp     LFCAD                           ; FC85 4C AD FC                 L..
@@ -4792,7 +4847,7 @@ kirq10: cmp     #$02                            ; FC88 C9 02                    
 ; FC8F Must be a 50/60Hz IRQ - poll keyboard, update time
 kirq11: jsr     jscnkey                         ; FC8F 20 13 E0                  ..
 	jsr     udtim                           ; FC92 20 80 F9                  ..
-	lda     tpi1_pb                         ; FC95 AD 01 DE                 ...
+	lda     tpi1+pb                         ; FC95 AD 01 DE                 ...
 	bpl     LFCA3                           ; FC98 10 09                    ..
 	ldy     #$00                            ; FC9A A0 00                    ..
 	sty     cas1                            ; FC9C 8C 75 03                 .u.
@@ -4801,8 +4856,8 @@ kirq11: jsr     jscnkey                         ; FC8F 20 13 E0                 
 LFCA3:  ldy     cas1                            ; FCA3 AC 75 03                 .u.
 	bne     LFCAD                           ; FCA6 D0 05                    ..
 	and     #$BF                            ; FCA8 29 BF                    ).
-LFCAA:  sta     tpi1_pb                         ; FCAA 8D 01 DE                 ...
-LFCAD:  sta     tpi1_air                        ; FCAD 8D 07 DE                 ...
+LFCAA:  sta     tpi1+pb                         ; FCAA 8D 01 DE                 ...
+LFCAD:  sta     tpi1+air                        ; FCAD 8D 07 DE                 ...
 ; IRQ end, restore indirect segment and registers
 prendn: pla                                     ; FCB0 68                       h
 	sta     i6509                           ; FCB1 85 01                    ..
@@ -5006,9 +5061,9 @@ ackhi:  lda     #$08                            ; FE0D A9 08                    
 
 ; -------------------------------------------------------------------------------------------------
 ; FE16 Free the bus for the coprocessor
-frebus: lda     tpi1_pb                         ; FE16 AD 01 DE                 ...
+frebus: lda     tpi1+pb                         ; FE16 AD 01 DE                 ...
 	and     #$EF                            ; FE19 29 EF                    ).
-	sta     tpi1_pb                         ; FE1B 8D 01 DE                 ...
+	sta     tpi1+pb                         ; FE1B 8D 01 DE                 ...
 	rts                                     ; FE1E 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -5016,9 +5071,9 @@ frebus: lda     tpi1_pb                         ; FE16 AD 01 DE                 
 getbus: lda     ipcia+prb                        ; FE1F AD 01 DB                 ...
 	and     #$02                            ; FE22 29 02                    ).
 	beq     getbus                          ; FE24 F0 F9                    ..
-	lda     tpi1_pb                         ; FE26 AD 01 DE                 ...
+	lda     tpi1+pb                         ; FE26 AD 01 DE                 ...
 	ora     #$10                            ; FE29 09 10                    ..
-	sta     tpi1_pb                         ; FE2B 8D 01 DE                 ...
+	sta     tpi1+pb                         ; FE2B 8D 01 DE                 ...
 	rts                                     ; FE2E 60                       `
 
 ; -------------------------------------------------------------------------------------------------
@@ -5039,9 +5094,9 @@ getpar: lda     ipptab,y                        ; FE2F B9 10 09                 
 ; FE41 End of coprocessor irq handler
 ipcgo:  ldx     #$FF                            ; FE41 A2 FF                    ..
 	stx     i6509                           ; FE43 86 01                    ..
-	lda     tpi1_pb                         ; FE45 AD 01 DE                 ...
+	lda     tpi1+pb                         ; FE45 AD 01 DE                 ...
 	and     #$EF                            ; FE48 29 EF                    ).
-	sta     tpi1_pb                         ; FE4A 8D 01 DE                 ...
+	sta     tpi1+pb                         ; FE4A 8D 01 DE                 ...
 	nop                                     ; FE4D EA                       .
 	lda     ipcia+prb                        ; FE4E AD 01 DB                 ...
 	ror                                     ; FE51 6A                       j
