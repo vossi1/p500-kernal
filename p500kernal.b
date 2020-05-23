@@ -315,17 +315,22 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	ipptab          = $0910		; IPC parameter spec table
 ; *************************************** IO / EQUATES ********************************************
 	; Equates
-		IROM	= $F		; System bank
-		ID55HZ	= 14		; 55hz value required by ioinit
-		WARM	= $A5		; Warm start flag
-		WINIT	= $5A  		; Initialization complete flag
+		irom	= $F		; System bank
+		id55hz	= 14		; 55hz value required by ioinit
+		warm	= $A5		; Warm start flag
+		winit	= $5A  		; Initialization complete flag
+		llen	= 40            ; Screen length
+		nrows	= 25            ; Scrren length
+		scxmax	= llen-1        ; Max column number
+		scymax	= nrows-1       ; Max line number
+		keymax	= 9             ; Keyboard buffer size - 1
 	; Tape block types
-		eot	= 5             ;end of tape
-		blf	= 1             ;basic load file
-		bdf	= 2             ;basic data file
-		bdfh	= 4             ;basic data file header
-		bufsz	= 192           ;buffer size
-		cr	= $d            ;carriage return
+		eot	= 5             ; End of tape
+		blf	= 1             ; Basic load file
+		bdf	= 2             ; Basic data file
+		bdfh	= 4             ; Basic data file header
+		bufsz	= 192           ; Buffer size
+		cr	= $d            ; Carriage return
 	; ROM / RAM addresses
 		basic	= $8000		; Start of rom (language)
 		charrom	= $C000		; Character ROM
@@ -547,19 +552,19 @@ plot:   bcs rdplt               ; if C=1 get cursor position
 	sty pntr                ; store row
 	sty lstp                ; store last row
 	jsr sreset              ; sub: Window to full screen (off)
-	jsr movcur              ; sub: set cursor - not necessary on P500
+	jsr movcur              ; sub: Set screen pointers to cursor line
 rdplt:  ldx tblx                ; load column
 	ldy pntr                ; load row
 nofunc: rts
 ; -------------------------------------------------------------------------------------------------
 ; E03A Return CIA base address
-iobase: ldx #<cia+pra
-	ldy #>cia+pra
+iobase: ldx #<cia
+	ldy #>cia
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E03F Return screen dimensions
-scrorg: ldx #40					; 40 columns
-	ldy #25					; 25 rows
+scrorg: ldx #llen		; 40 columns
+	ldy #nrows		; 25 rows
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; $E044 Screen editor init (editor, F-Keys, VIC)
@@ -574,7 +579,7 @@ cloop2: sta keysiz,x            ; clear editor variables area $038D-$03C9
 	dex
 	bpl cloop2
 ; init some variables
-	lda #IROM
+	lda #irom
 	sta scrseg              ; store bank with video RAM = system bank
 	lda #$0C
 	sta blncnt              ; init blink counter
@@ -599,13 +604,13 @@ cloop2: sta keysiz,x            ; clear editor variables area $038D-$03C9
 	iny                     ; if low = $00 increase high
 room10: sty pkybuf+1            ; store F-key buffer high
 keycpy: ldy #$39                ; load size of F-key texts
-	jsr pagkey				; sub: Switch to indirect bank with key buffer
+	jsr pagkey		; sub: Switch to indirect bank with key buffer
 kyset1: lda keydef-1,y
 	dey
 	sta (pkybuf),y          ; copy key texts to buffer in RAM
 	bne kyset1
-	jsr pagres    			; sub: Restore indirect bank
-	ldy #$0A                ; 10 F-key length bytes
+	jsr pagres    		; sub: Restore indirect bank
+	ldy #$0A		; 10 F-key length bytes
 kyset2: lda keylen-1,y
 	sta keysiz-1,y          ; copy F-key text length to $038D
 	dey
@@ -636,21 +641,21 @@ clrlp1: jsr scrset				; sub: Set screen pointers to line X
 	bcc clrlp1				; next line
 ; E0D3 Cursor home
 home:   ldx sctop
-	stx tblx							; load top row of window and store to cursor line
-	stx lsxp							; and store to screen editor start
+	stx tblx				; load top row of window and store to cursor line
+	stx lsxp				; and store to screen editor start
 stu10:  ldy sclf
-	sty pntr							; load left margin of window and store cursor column
-	sty lstp							; and store to screen editor start
+	sty pntr				; load left margin of window and store cursor column
+	sty lstp				; and store to screen editor start
 ; E0DF Set screen pointers to cursor line
 movcur: ldx tblx
 ; E0F1 Set screen pointers to line X 
-scrset: lda ldtab2,x						; load start of screen line low
-	sta pnt								; and store to char, color RAM pointer
+scrset: lda ldtab2,x				; load start of screen line low
+	sta pnt					; and store to char, color RAM pointer
 	sta user
-	lda ldtab1,x						; load start of screen line high
-	sta pnt+1							; and store to char pointer
+	lda ldtab1,x				; load start of screen line high
+	sta pnt+1				; and store to char pointer
 	and #$03
-	ora #$D4							; calc color RAM high and store to color RAM pointer
+	ora #>clrram				; calc color RAM high and store to color RAM pointer
 	sta user+1
 	rts
 ; -------------------------------------------------------------------------------------------------
@@ -855,7 +860,7 @@ getych: jsr pagscr				; sub: Switch to indirect bank with video screen
 	lda (pnt),y				; load char from screen and remember it
 	pha
 	lda #$00
-	ora (user),y			; load color from IROM (ORA)
+	ora (user),y			; load color from irom (ORA)
 	sta tcolor				; and store it to tcolor
 	pla
 	jmp pagres      		; sub: Restore indirect bank
@@ -1482,7 +1487,7 @@ wrtvram:sta (pnt),y		; store byte to screen line pointer + coulmn X
 wrtcram:sta saver		; remember value
 	lda i6509
 	pha			; remember indirect bank
-	lda #IROM
+	lda #irom
 	sta i6509		; switch to system bank
 wrtcrpt:lda saver
 	sta (user),y		; store to color RAM
@@ -1501,7 +1506,7 @@ wrtcram:sta (user),y		; store to color RAM
 wrtcram:sta saver		; remember value
 	lda i6509
 	pha			; remember indirect bank
-	lda #IROM
+	lda #irom
 	sta i6509		; switch to system bank
 	lda saver
 	sta (user),y		; store to color RAM
@@ -2370,8 +2375,8 @@ monon:	jsr     ioinit                          ; EE00 20 FE F9                  
 	jsr     restor                          ; EE03 20 B1 FB                  ..
 	jsr     jcint                           ; EE06 20 04 E0                  ..
 ; EE09 Monitor cold start
-monoff	:jsr     kclrch                          ; EE09 20 CC FF                  ..
-	lda     #WINIT		; waste two bytes so timc=60950
+monoff:	jsr     kclrch                          ; EE09 20 CC FF                  ..
+	lda     #winit		; waste two bytes so timc=60950
 	ldx     #$00                            ; EE0E A2 00                    ..
 	ldy     #$EE                            ; EE10 A0 EE                    ..
 	jsr     vreset                          ; EE12 20 D9 FB                  ..
@@ -4434,7 +4439,7 @@ sloop3: ldy eah
 	jsr ramtas              ; sub: ram-test $FA94
 	jsr restor              ; sub: init standard-vectors $FBB1 (copies $0300 Vector Table)
 	jsr jcint               ; sub: initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
-	lda #WARM		; Kernal initilize done flag
+	lda #warm		; Kernal initilize done flag
 	sta evect+2             ; save first warm start flag $A5
 ; F9FB Warm start entry
 swarm:  jmp (evect)             ; jump to basic warm start $BBA0
@@ -4487,7 +4492,7 @@ io110:  inx
 	lda tpi1+lir            ; load interrrupt latch reg
 	ror                     ; shift bit #0 to carry
 	bcc io110               ; check again till bit #0 appears (50/60Hz source from PSU)              
-	cpy #ID55HZ   
+	cpy #id55hz   
 	bcc io120               ; branch if signal appears again in 14 tries = <18ms -> 60Hz
 	lda #$88                ; if not -> 50Hz / set extra bit #7 in A for TOD=50Hz
 	!byte $2C               ; and skip next instruction
@@ -4534,7 +4539,7 @@ px1:    sta $0002,x             ; clear ZP above 6509 bank regs
 	dec i6509               ; decrease bank because of inc in next line
 sizlop: inc i6509               ; increase bank
 	lda i6509
-	cmp #IROM         ; check if bank 15
+	cmp #irom         ; check if bank 15
 	beq size                ; end RAM test if reached bank 15
 	ldy #$02                ; start RAM test at $0002, sal/sah already $0000
 siz100: lda (sal),y
@@ -4696,7 +4701,7 @@ setbot: stx     memstr                          ; FBA7 8E 58 03                 
 ; FBB1 Restore the system vector table at $0300
 restor: ldx     #<jmptab        ; load vector table address in kernal
 	ldy     #>jmptab
-	lda     #IROM
+	lda     #irom
 	clc
 ; FBB8 Get/set the system vector table
 vector: stx     sal             ; store address

@@ -3,615 +3,615 @@ sysage	= 0             ;monitor = 0   cassette = 1
 syssiz	= 0             ;no packing = 0  packing = 1
 ; -------------------------------------------------------------
 ; ##### disclaimer #####
-;***************************************
-;*                                     *
-;* KK  K EEEEE RRRR  NN  N  AAA  LL    *
-;* KK KK EE    RR  R NNN N AA  A LL    *
-;* KKK   EE    RR  R NNN N AA  A LL    *
-;* KKK   EEEE  RRRR  NNNNN AAAAA LL    *
-;* KK K  EE    RR  R NN NN AA  A LL    *
-;* KK KK EE    RR  R NN NN AA  A LL    *
-;* KK KK EEEEE RR  R NN NN AA  A LLLLL *
-;*                                     *
-;***************************************
-;
-;*****LISTING DATE --17:00 31 MAY  1983
-;
-;***************************************
-;* CBM KERNAL                          *
-;*   MEMORY AND I/O DEPENDENT ROUTINES *
-;* DRIVING THE HARDWARE OF THE         *
-;* FOLLOWING CBM MODELS:               *
-;*   P-SERIES (5XX) & B-SERIES (7XX)   *
-;* COPYRIGHT (C) 1983 BY               *
-;* COMMODORE BUSINESS MACHINES (CBM)   *
-;***************************************
-.SKI 2
-;***************************************
-;* THIS SOFTWARE IS FURNISHED FOR USE  *
-;* USE IN THE CBM P-SERIES AND B-SERIES*
-;* COMPUTERS.                          *
-;*                                     *
-;* COPIES THEREOF MAY NOT BE PROVIDED  *
-;* OR MADE AVAILABLE FOR USE ON ANY    *
-;* OTHER SYSTEM.                       *
-;*                                     *
-;* THE INFORMATION IN THIS DOCUMENT IS *
-;* SUBJECT TO CHANGE WITHOUT NOTICE.   *
-;*                                     *
-;* NO RESPONSIBILITY IS ASSUMED FOR    *
-;* RELIABILITY OF THIS SOFTWARE.  RSR  *
-;*                                     *
-;***************************************
-.end
-; -------------------------------------------------------------
+	;***************************************
+	;*                                     *
+	;* KK  K EEEEE RRRR  NN  N  AAA  LL    *
+	;* KK KK EE    RR  R NNN N AA  A LL    *
+	;* KKK   EE    RR  R NNN N AA  A LL    *
+	;* KKK   EEEE  RRRR  NNNNN AAAAA LL    *
+	;* KK K  EE    RR  R NN NN AA  A LL    *
+	;* KK KK EE    RR  R NN NN AA  A LL    *
+	;* KK KK EEEEE RR  R NN NN AA  A LLLLL *
+	;*                                     *
+	;***************************************
+	;
+	;*****LISTING DATE --17:00 31 MAY  1983
+	;
+	;***************************************
+	;* CBM KERNAL                          *
+	;*   MEMORY AND I/O DEPENDENT ROUTINES *
+	;* DRIVING THE HARDWARE OF THE         *
+	;* FOLLOWING CBM MODELS:               *
+	;*   P-SERIES (5XX) & B-SERIES (7XX)   *
+	;* COPYRIGHT (C) 1983 BY               *
+	;* COMMODORE BUSINESS MACHINES (CBM)   *
+	;***************************************
+	.SKI 2
+	;***************************************
+	;* THIS SOFTWARE IS FURNISHED FOR USE  *
+	;* USE IN THE CBM P-SERIES AND B-SERIES*
+	;* COMPUTERS.                          *
+	;*                                     *
+	;* COPIES THEREOF MAY NOT BE PROVIDED  *
+	;* OR MADE AVAILABLE FOR USE ON ANY    *
+	;* OTHER SYSTEM.                       *
+	;*                                     *
+	;* THE INFORMATION IN THIS DOCUMENT IS *
+	;* SUBJECT TO CHANGE WITHOUT NOTICE.   *
+	;*                                     *
+	;* NO RESPONSIBILITY IS ASSUMED FOR    *
+	;* RELIABILITY OF THIS SOFTWARE.  RSR  *
+	;*                                     *
+	;***************************************
+	.end
+	; -------------------------------------------------------------
 ; ##### declare #####
-.pag 'declare 03/11/83'
-	* =$0000
-;------------------------------------------------------
-; 6509  used to extend memory on bc2 & p2 systems
-;   location - used to direct
-;   $0000 -  execution register (4 bits)
-;   $0001 -  indirect  register (4 bits)
-;
-;   these registers provide 4 extra high-order address
-;   control lines.  on 6509 reset all lines are high.
-;
-; current memory map:
-;   segment 15- $ffff-$e000  rom (kernal)
-;               $dfff-$df00  i/o  6525 tpi2
-;               $deff-$de00  i/o  6525 tpi1
-;               $ddff-$dd00  i/o  6551 acia
-;               $dcff-$dc00  i/o  6526 cia
-;               $dbff-$db00  i/o  unused (z80,8088,68008)
-;               $daff-$da00  i/o  6581 sid
-;               $d9ff-$d900  i/o  unused (disks)
-;               $d8ff-$d800  i/o  6566 vic/ 6845 80-col
-;               $d7ff-$d400  color nybles/80-col screen
-;               $d3ff-$d000  video matrix/80-col screen
-;               $cfff-$c000  character dot rom (p2 only)
-;               $bfff-$8000  roms external (language)
-;               $7fff-$4000  roms external (extensions)
-;               $3fff-$2000  rom  external
-;               $1fff-$1000  rom  internal
-;               $0fff-$0400  unused
-;               $03ff-$0002  ram (kernal/basic system)
-;   segment 14- segment 8 open (future expansion)
-;   segment 7 - $ffff-$0002  ram expansion (external)
-;   segment 6 - $ffff-$0002  ram expansion (external)
-;   segment 5 - $ffff-$0002  ram expansion (external)
-;   segment 4 - $ffff-$0002  ram b2 expansion (p2 external)
-;   segment 3 - $ffff-$0002  ram expansion
-;   segment 2 - $ffff-$0002  ram b2 standard (p2 optinal)
-;   segment 1 - $ffff-$0002  ram b2 p2 standard
-;   segment 0 - $ffff-$0002  ram p2 standard (b2 optional)
-;
-; the 6509 registers appear in locations $0000 and
-; $0001 in all segments of memory.
-;
-;------------------------------------------------------
-e6509	*=*+1           ;6509 execution   register
-i6509	*=*+1           ;6509 indirection register
-.ski 2
-irom	=$f             ;indirect=rom or execution=rom
-	.ife sysage <
-.page 'declare - monitor'
-;
-;virtual registers
-;
-	*=$ae           ;place in these locations temporarly...
-pch	*=*+1           ;program counter
-pcl	*=*+1
-;
-flgs	*=*+1           ;processor status
-;
-acc	*=*+1           ;accumulator
-;
-xr	*=*+1           ;.x register
-;
-yr	*=*+1           ;.y register
-;
-sp	*=*+1           ;stack pointer
-;
-xi6509	*=*+1           ;old indirection segment
-;
-re6509	*=*+1           ;return execution segment
-;
-invh	*=*+1           ;user interrupt vector
-invl	*=*+1
-;
-;monitor indirect variables
-;
-tmp0	*=*+2
-tmp2	*=*+2
-;
-;other monitor variables
-;
-tmpc	*=*+1           ;place to save last cmd
-t6509	*=*+1           ;temporary i6509
-ddisk	*=*+1           ;default disk unit # for monitor
-;
->
-.pag 'declare - kernal'
-	* =$90
-;kernal page zero variables
-;
-;kernal indirect address variables
-;
-fnadr	*=*+3           ;address of file name string
-sal	*=*+1           ;current load/store address
-sah	*=*+1
-sas	*=*+1
-eal	*=*+1           ;end of load/save
-eah	*=*+1
-eas	*=*+1
-stal	*=*+1           ;start of load/save
-stah	*=*+1
-stas	*=*+1
-;
-;frequently used kernal variables
-;
-status	*=*+1           ;i/o operation status
-fnlen	*=*+1           ;file name length
-la	*=*+1           ;current logical index
-fa	*=*+1           ;current first address
-sa	*=*+1           ;current second address
-dfltn	*=*+1           ;default input device
-dflto	*=*+1           ;default output device
-;
-;tape buffer pointer
-;
-tape1	*=*+3           ;address of tape buffer
-;
-;rs-232 buffer pointers
-;
-ribuf	*=*+3           ;input buffer
-;
-;variables for kernal speed
-;
-stkey	*=*+1           ;stop key flag
-ctemp	;used to reduce cassette read times
-c3po	*=*+1           ;ieee buffer flag
-snsw1	;used to reduce cassette read times
-bsour	*=*+1           ;ieee character buffer
-;
-;   cassette temps - overlays ipc buffer
-;
-ipoint	;next 2 bytes used for transx code
-syno	*=*+1
-dpsw	*=*+1
-; next 18 bytes also used for monitor
-ptr1	*=*+1           ;index to pass1 errors
-ptr2	*=*+1           ;index to pass2 errors
-pcntr	*=*+1
-firt	*=*+1
-cntdn	*=*+1
-shcnl	*=*+1
-rer	*=*+1
-rez	*=*+1
-rdflg	*=*+1
-flagt1	;temp during bit read time
-shcnh	*=*+1
-cmp0	*=*+1
-diff	*=*+1
-prp	*=*+1
-ochar	*=*+1
-prty	*=*+1
-fsblk	*=*+1
-mych	*=*+1
-cdata	*=*+1           ;how to turn cassette timers on
-.pag 'declare-editor'
-;screen editor page zero variables
-;
-;editor indirect address variables
-;
-	*=$c0           ;leave some space
-pkybuf	*=*+2           ;start adr of pgm key
-keypnt	*=*+2           ;current pgm key buf
-sedsal	*=*+2           ;scroll ptr
-sedeal	*=*+2           ;scroll ptr
-pnt	*=*+2           ;current character pointer
-;
-;editor variables for speed & size
-;
-tblx	*=*+1           ;cursor line
-pntr	*=*+1           ;cursor column
-grmode	*=*+1           ;graphic/text mode flag
-lstx	*=*+1           ;last character index
-lstp	*=*+1           ;screen edit start position
-lsxp	*=*+1
-crsw	*=*+1           ;
-ndx	*=*+1           ;index to keyd queue
-qtsw	*=*+1           ;quote mode flag
-insrt	*=*+1           ;insert mode flag
-config	*=*+1           ;coursor type / char before blink (petii)
-indx	*=*+1           ;last byte posistion on line (##234-02##244-02)
-kyndx	*=*+1           ;count of program key string
-rptcnt	*=*+1           ;delay tween chars
-delay	*=*+1           ;delay to next repeat
-;
-sedt1	*=*+1           ;frequently used temp variables
-sedt2	*=*+1
-;
-;frequently used editor variables
-;
-data	*=*+1           ;current print data
-sctop	*=*+1           ;top screen 0-25
-scbot	*=*+1           ;bottom 0-25
-sclf	*=*+1           ;left margin
-scrt	*=*+1           ;right margin
-modkey	*=*+1           ;keyscanner shift/control flags ($ff-nokey)
-norkey	*=*+1           ;keyscanner normal key number ($ff-nokey)
-;
-; see screen editor listings for usage in this area
-;
-	* =$f0          ;free zero page space, 16 bytes
-.pag 'declare absolute'
-	* =$100         ;system stack area
-bad	*=*+1           ;cassette bad address table
-	* =$1ff
-stackp	*=*+1           ;system stack pointer transx code
-	* =$200
-buf	*=*+256         ;basic's rom page work area
-;
-;system ram vectors
-;
-cinv	*=*+2           ;irq vector
-cbinv	*=*+2           ;brk vector
-nminv	*=*+2           ;nmi vector
-iopen	*=*+2           ;open file vector
-iclose	*=*+2           ;close file vector
-ichkin	*=*+2           ;open chn in vector
-ickout	*=*+2           ;open chn out vector
-iclrch	*=*+2           ;close channel vector
-ibasin	*=*+2           ;input from chn vector
-ibsout	*=*+2           ;output to chn vector
-istop	*=*+2           ;check stop key vector
-igetin	*=*+2           ;get from queue vector
-iclall	*=*+2           ;close all files vector
-iload	*=*+2           ;load from file vector
-isave	*=*+2           ;save to file vector
-usrcmd	*=*+2           ;monitor extension vector
-escvec	*=*+2           ;user esc key vector
-ctlvec	*=*+2           ;unused control key vector
-isecnd	*=*+2           ;ieee listen secondary address
-itksa	*=*+2           ;ieee talk secondary address
-iacptr	*=*+2           ;ieee character in routine
-iciout	*=*+2           ;ieee character out routine
-iuntlk	*=*+2           ;ieee bus untalk
-iunlsn	*=*+2           ;ieee bus unlistn
-ilistn	*=*+2           ;ieee listen device primary address
-italk	*=*+2           ;ieee talk device primary address
-;
-;kernal absolute variables
-;
-lat	*=*+10          ;logical file numbers
-fat	*=*+10          ;device numbers
-sat	*=*+10          ;secondary addresses
-;
-;
-lowadr	*=*+3           ;start of system memory
-hiadr	*=*+3           ;top of system memory
-memstr	*=*+3           ;start of user memory
-memsiz	*=*+3           ;top of user memory
-timout	*=*+1           ;ieee timeout enable
-verck	*=*+1           ;load/verify flag
-ldtnd	*=*+1           ;device table index
-msgflg	*=*+1           ;message flag
-bufpt	*=*+1           ;cassette buffer index
-;
-;kernal temporary (local) variable
-;
-t1	*=*+1
-t2	*=*+1
-xsav	*=*+1
-savx	*=*+1
-svxt	*=*+1
-temp	*=*+1
-alarm	*=*+1           ; irq variable holds 6526 irq's
-;
-;kernal cassette variables
-;
-itape	*=*+2           ;indirect for cassette code
-cassvo	*=*+1           ;cassette read  variable
-aservo	*=*+1           ;flagt1***indicates t1 timeout cassette read
-caston	*=*+1           ;how to turn on timers
-relsal	*=*+1           ;moveable start load addr
-relsah	*=*+1
-relsas	*=*+1
-oldinv	*=*+3           ;restore user irq and i6509 after cassettes
-cas1	*=*+1           ;cassette switch flag
-;
-;rs-232 information storage
-;
-m51ctr	*=*+1           ;6551 control image
-m51cdr	*=*+1           ;6551 command image
-	*=*+2
-rsstat	*=*+1           ;perm. rs-232 status
-dcdsr	*=*+1           ;last dcd/dsr value
-ridbs	*=*+1           ;input start index
-ridbe	*=*+1           ;input end index
-.pag 'declare absolute'
-;
-;screen editor absolute
-;
-	*=$380          ;block some area for editor
-pkyend	*=*+2           ;program key buffer end ADDRESS
-pagsav	*=*+1           ;temp ram page
-;
-; see screen editor listings for other variables
-;
-	* =$3c0         ;free absolute space start
-;
-; system warm start variables and vectors
-;
-	* =$3f8
-evect	*=*+5
-warm	=$a5            ;warm start flag
-winit	=$5a            ;initilization complete flag
-	* =$400
-ramloc
-.pag 'declare ipc'
-;
-; kernal inter-process communication variables
-	* = $0800
-ipbsiz	= 16            ;ipc buffer size
-;
-;   ipc buffer offsets
-;
-ipccmd	= 0             ;ipc command
-ipcjmp	= 1             ;ipc jump address
-ipcin	= 3             ;ipc #input bytes
-ipcout	= 4             ;ipc #output bytes
-ipcdat	= 5             ;ipc data buffer (8 bytes max)
-;
-ipb	*=*+ipbsiz      ;ipc buffer
-ipjtab	*=*+256         ;ipc jump table
-ipptab	*=*+128         ;ipc param spec table
-;
-.end
-; -------------------------------------------------------------
+	.pag 'declare 03/11/83'
+		* =$0000
+	;------------------------------------------------------
+	; 6509  used to extend memory on bc2 & p2 systems
+	;   location - used to direct
+	;   $0000 -  execution register (4 bits)
+	;   $0001 -  indirect  register (4 bits)
+	;
+	;   these registers provide 4 extra high-order address
+	;   control lines.  on 6509 reset all lines are high.
+	;
+	; current memory map:
+	;   segment 15- $ffff-$e000  rom (kernal)
+	;               $dfff-$df00  i/o  6525 tpi2
+	;               $deff-$de00  i/o  6525 tpi1
+	;               $ddff-$dd00  i/o  6551 acia
+	;               $dcff-$dc00  i/o  6526 cia
+	;               $dbff-$db00  i/o  unused (z80,8088,68008)
+	;               $daff-$da00  i/o  6581 sid
+	;               $d9ff-$d900  i/o  unused (disks)
+	;               $d8ff-$d800  i/o  6566 vic/ 6845 80-col
+	;               $d7ff-$d400  color nybles/80-col screen
+	;               $d3ff-$d000  video matrix/80-col screen
+	;               $cfff-$c000  character dot rom (p2 only)
+	;               $bfff-$8000  roms external (language)
+	;               $7fff-$4000  roms external (extensions)
+	;               $3fff-$2000  rom  external
+	;               $1fff-$1000  rom  internal
+	;               $0fff-$0400  unused
+	;               $03ff-$0002  ram (kernal/basic system)
+	;   segment 14- segment 8 open (future expansion)
+	;   segment 7 - $ffff-$0002  ram expansion (external)
+	;   segment 6 - $ffff-$0002  ram expansion (external)
+	;   segment 5 - $ffff-$0002  ram expansion (external)
+	;   segment 4 - $ffff-$0002  ram b2 expansion (p2 external)
+	;   segment 3 - $ffff-$0002  ram expansion
+	;   segment 2 - $ffff-$0002  ram b2 standard (p2 optinal)
+	;   segment 1 - $ffff-$0002  ram b2 p2 standard
+	;   segment 0 - $ffff-$0002  ram p2 standard (b2 optional)
+	;
+	; the 6509 registers appear in locations $0000 and
+	; $0001 in all segments of memory.
+	;
+	;------------------------------------------------------
+	e6509	*=*+1           ;6509 execution   register
+	i6509	*=*+1           ;6509 indirection register
+	.ski 2
+	irom	=$f             ;indirect=rom or execution=rom
+		.ife sysage <
+	.page 'declare - monitor'
+	;
+	;virtual registers
+	;
+		*=$ae           ;place in these locations temporarly...
+	pch	*=*+1           ;program counter
+	pcl	*=*+1
+	;
+	flgs	*=*+1           ;processor status
+	;
+	acc	*=*+1           ;accumulator
+	;
+	xr	*=*+1           ;.x register
+	;
+	yr	*=*+1           ;.y register
+	;
+	sp	*=*+1           ;stack pointer
+	;
+	xi6509	*=*+1           ;old indirection segment
+	;
+	re6509	*=*+1           ;return execution segment
+	;
+	invh	*=*+1           ;user interrupt vector
+	invl	*=*+1
+	;
+	;monitor indirect variables
+	;
+	tmp0	*=*+2
+	tmp2	*=*+2
+	;
+	;other monitor variables
+	;
+	tmpc	*=*+1           ;place to save last cmd
+	t6509	*=*+1           ;temporary i6509
+	ddisk	*=*+1           ;default disk unit # for monitor
+	;
+	>
+	.pag 'declare - kernal'
+		* =$90
+	;kernal page zero variables
+	;
+	;kernal indirect address variables
+	;
+	fnadr	*=*+3           ;address of file name string
+	sal	*=*+1           ;current load/store address
+	sah	*=*+1
+	sas	*=*+1
+	eal	*=*+1           ;end of load/save
+	eah	*=*+1
+	eas	*=*+1
+	stal	*=*+1           ;start of load/save
+	stah	*=*+1
+	stas	*=*+1
+	;
+	;frequently used kernal variables
+	;
+	status	*=*+1           ;i/o operation status
+	fnlen	*=*+1           ;file name length
+	la	*=*+1           ;current logical index
+	fa	*=*+1           ;current first address
+	sa	*=*+1           ;current second address
+	dfltn	*=*+1           ;default input device
+	dflto	*=*+1           ;default output device
+	;
+	;tape buffer pointer
+	;
+	tape1	*=*+3           ;address of tape buffer
+	;
+	;rs-232 buffer pointers
+	;
+	ribuf	*=*+3           ;input buffer
+	;
+	;variables for kernal speed
+	;
+	stkey	*=*+1           ;stop key flag
+	ctemp	;used to reduce cassette read times
+	c3po	*=*+1           ;ieee buffer flag
+	snsw1	;used to reduce cassette read times
+	bsour	*=*+1           ;ieee character buffer
+	;
+	;   cassette temps - overlays ipc buffer
+	;
+	ipoint	;next 2 bytes used for transx code
+	syno	*=*+1
+	dpsw	*=*+1
+	; next 18 bytes also used for monitor
+	ptr1	*=*+1           ;index to pass1 errors
+	ptr2	*=*+1           ;index to pass2 errors
+	pcntr	*=*+1
+	firt	*=*+1
+	cntdn	*=*+1
+	shcnl	*=*+1
+	rer	*=*+1
+	rez	*=*+1
+	rdflg	*=*+1
+	flagt1	;temp during bit read time
+	shcnh	*=*+1
+	cmp0	*=*+1
+	diff	*=*+1
+	prp	*=*+1
+	ochar	*=*+1
+	prty	*=*+1
+	fsblk	*=*+1
+	mych	*=*+1
+	cdata	*=*+1           ;how to turn cassette timers on
+	.pag 'declare-editor'
+	;screen editor page zero variables
+	;
+	;editor indirect address variables
+	;
+		*=$c0           ;leave some space
+	pkybuf	*=*+2           ;start adr of pgm key
+	keypnt	*=*+2           ;current pgm key buf
+	sedsal	*=*+2           ;scroll ptr
+	sedeal	*=*+2           ;scroll ptr
+	pnt	*=*+2           ;current character pointer
+	;
+	;editor variables for speed & size
+	;
+	tblx	*=*+1           ;cursor line
+	pntr	*=*+1           ;cursor column
+	grmode	*=*+1           ;graphic/text mode flag
+	lstx	*=*+1           ;last character index
+	lstp	*=*+1           ;screen edit start position
+	lsxp	*=*+1
+	crsw	*=*+1           ;
+	ndx	*=*+1           ;index to keyd queue
+	qtsw	*=*+1           ;quote mode flag
+	insrt	*=*+1           ;insert mode flag
+	config	*=*+1           ;coursor type / char before blink (petii)
+	indx	*=*+1           ;last byte posistion on line (##234-02##244-02)
+	kyndx	*=*+1           ;count of program key string
+	rptcnt	*=*+1           ;delay tween chars
+	delay	*=*+1           ;delay to next repeat
+	;
+	sedt1	*=*+1           ;frequently used temp variables
+	sedt2	*=*+1
+	;
+	;frequently used editor variables
+	;
+	data	*=*+1           ;current print data
+	sctop	*=*+1           ;top screen 0-25
+	scbot	*=*+1           ;bottom 0-25
+	sclf	*=*+1           ;left margin
+	scrt	*=*+1           ;right margin
+	modkey	*=*+1           ;keyscanner shift/control flags ($ff-nokey)
+	norkey	*=*+1           ;keyscanner normal key number ($ff-nokey)
+	;
+	; see screen editor listings for usage in this area
+	;
+		* =$f0          ;free zero page space, 16 bytes
+	.pag 'declare absolute'
+		* =$100         ;system stack area
+	bad	*=*+1           ;cassette bad address table
+		* =$1ff
+	stackp	*=*+1           ;system stack pointer transx code
+		* =$200
+	buf	*=*+256         ;basic's rom page work area
+	;
+	;system ram vectors
+	;
+	cinv	*=*+2           ;irq vector
+	cbinv	*=*+2           ;brk vector
+	nminv	*=*+2           ;nmi vector
+	iopen	*=*+2           ;open file vector
+	iclose	*=*+2           ;close file vector
+	ichkin	*=*+2           ;open chn in vector
+	ickout	*=*+2           ;open chn out vector
+	iclrch	*=*+2           ;close channel vector
+	ibasin	*=*+2           ;input from chn vector
+	ibsout	*=*+2           ;output to chn vector
+	istop	*=*+2           ;check stop key vector
+	igetin	*=*+2           ;get from queue vector
+	iclall	*=*+2           ;close all files vector
+	iload	*=*+2           ;load from file vector
+	isave	*=*+2           ;save to file vector
+	usrcmd	*=*+2           ;monitor extension vector
+	escvec	*=*+2           ;user esc key vector
+	ctlvec	*=*+2           ;unused control key vector
+	isecnd	*=*+2           ;ieee listen secondary address
+	itksa	*=*+2           ;ieee talk secondary address
+	iacptr	*=*+2           ;ieee character in routine
+	iciout	*=*+2           ;ieee character out routine
+	iuntlk	*=*+2           ;ieee bus untalk
+	iunlsn	*=*+2           ;ieee bus unlistn
+	ilistn	*=*+2           ;ieee listen device primary address
+	italk	*=*+2           ;ieee talk device primary address
+	;
+	;kernal absolute variables
+	;
+	lat	*=*+10          ;logical file numbers
+	fat	*=*+10          ;device numbers
+	sat	*=*+10          ;secondary addresses
+	;
+	;
+	lowadr	*=*+3           ;start of system memory
+	hiadr	*=*+3           ;top of system memory
+	memstr	*=*+3           ;start of user memory
+	memsiz	*=*+3           ;top of user memory
+	timout	*=*+1           ;ieee timeout enable
+	verck	*=*+1           ;load/verify flag
+	ldtnd	*=*+1           ;device table index
+	msgflg	*=*+1           ;message flag
+	bufpt	*=*+1           ;cassette buffer index
+	;
+	;kernal temporary (local) variable
+	;
+	t1	*=*+1
+	t2	*=*+1
+	xsav	*=*+1
+	savx	*=*+1
+	svxt	*=*+1
+	temp	*=*+1
+	alarm	*=*+1           ; irq variable holds 6526 irq's
+	;
+	;kernal cassette variables
+	;
+	itape	*=*+2           ;indirect for cassette code
+	cassvo	*=*+1           ;cassette read  variable
+	aservo	*=*+1           ;flagt1***indicates t1 timeout cassette read
+	caston	*=*+1           ;how to turn on timers
+	relsal	*=*+1           ;moveable start load addr
+	relsah	*=*+1
+	relsas	*=*+1
+	oldinv	*=*+3           ;restore user irq and i6509 after cassettes
+	cas1	*=*+1           ;cassette switch flag
+	;
+	;rs-232 information storage
+	;
+	m51ctr	*=*+1           ;6551 control image
+	m51cdr	*=*+1           ;6551 command image
+		*=*+2
+	rsstat	*=*+1           ;perm. rs-232 status
+	dcdsr	*=*+1           ;last dcd/dsr value
+	ridbs	*=*+1           ;input start index
+	ridbe	*=*+1           ;input end index
+	.pag 'declare absolute'
+	;
+	;screen editor absolute
+	;
+		*=$380          ;block some area for editor
+	pkyend	*=*+2           ;program key buffer end ADDRESS
+	pagsav	*=*+1           ;temp ram page
+	;
+	; see screen editor listings for other variables
+	;
+		* =$3c0         ;free absolute space start
+	;
+	; system warm start variables and vectors
+	;
+		* =$3f8
+	evect	*=*+5
+	warm	=$a5            ;warm start flag
+	winit	=$5a            ;initilization complete flag
+		* =$400
+	ramloc
+	.pag 'declare ipc'
+	;
+	; kernal inter-process communication variables
+		* = $0800
+	ipbsiz	= 16            ;ipc buffer size
+	;
+	;   ipc buffer offsets
+	;
+	ipccmd	= 0             ;ipc command
+	ipcjmp	= 1             ;ipc jump address
+	ipcin	= 3             ;ipc #input bytes
+	ipcout	= 4             ;ipc #output bytes
+	ipcdat	= 5             ;ipc data buffer (8 bytes max)
+	;
+	ipb	*=*+ipbsiz      ;ipc buffer
+	ipjtab	*=*+256         ;ipc jump table
+	ipptab	*=*+128         ;ipc param spec table
+	;
+	.end
+	; -------------------------------------------------------------
 ; ##### equate #####
-.pag 'equate 04/29/83'
-;tape block types
-;
-eot	= 5             ;end of tape
-blf	= 1             ;basic load file
-bdf	= 2             ;basic data file
-bdfh	= 4             ;basic data file header
-bufsz	= 192           ;buffer size
-cr	= $d            ;carriage return
-basic	= $8000         ;start of rom (language)
-kernal	= $e000         ;start of rom (kernal)
-.ski 5
-; 6845 video display controller for bc2
-;
-vdc	= $d800
-adreg	= $0            ;address register
-dareg	= $1            ;data register
-.ski 3
-; 6581 sid sound interface device
-;   register list
-sid	= $da00
-;
-; base addresses osc1, osc2, osc3
-osc1	= $00
-osc2	= $07
-osc3	= $0e
-;
-; osc registers
-freqlo	= $00
-freqhi	= $01
-pulsef	= $02
-pulsec	= $03
-oscctl	= $04
-atkdcy	= $05
-susrel	= $06
-;
-; filter control
-fclow	= $15
-fchi	= $16
-resnce	= $17
-volume	= $18
-;
-; pots, random number, and env3 out
-potx	= $19
-poty	= $1a
-random	= $1b
-env3	= $1c
-.pag 'equate 6526'
-; 6526 cia  complex interface adapter
-;  game / ieee data / user
-;
-;   timer a: ieee local / cass local / music / game
-;   timer b: ieee deadm / cass deadm / music / game
-;
-;   pra0 : ieee data1 / user / paddle game 1
-;   pra1 : ieee data2 / user / paddle game 2
-;   pra2 : ieee data3 / user
-;   pra3 : ieee data4 / user
-;   pra4 : ieee data5 / user
-;   pra5 : ieee data6 / user
-;   pra6 : ieee data7 / user / game trigger 14
-;   pra7 : ieee data8 / user / game trigger 24
-;
-;   prb0 : user / game 10
-;   prb1 : user / game 11
-;   prb2 : user / game 12
-;   prb3 : user / game 13
-;   prb4 : user / game 20
-;   prb5 : user / game 21
-;   prb6 : user / game 22
-;   prb7 : user / game 23
-;
-;   flag : user / cassette read
-;   pc   : user
-;   ct   : user
-;   sp   : user
-;
-cia	= $dc00
-pra	= $0            ;data reg a
-prb	= $1            ;data reg b
-ddra	= $2            ;direction reg a
-ddrb	= $3            ;direction reg b
-talo	= $4            ;timer a low  byte
-tahi	= $5            ;timer a high byte
-tblo	= $6            ;timer b low  byte
-tbhi	= $7            ;timer b high byte
-tod10	= $8            ;10ths of seconds
-todsec	= $9            ;seconds
-todmin	= $a            ;minutes
-todhr	= $b            ;hours
-sdr	= $c            ;serial data register
-icr	= $d            ;interrupt control register
-cra	= $e            ;control register a
-crb	= $f            ;control register b
-.page 'equate ipc'
-;
-; 6526 cia for inter-process communication
-;
-;    pra  = data port
-;    prb0 = busy1 (1=>6509 off dbus)
-;    prb1 = busy2 (1=>8088/z80 off dbus)
-;    prb2 = semaphore 8088/z80
-;    prb3 = semaphore 6509
-;    prb4 = unused
-;    prb5 = unused
-;    prb6 = irq to 8088/z80 (lo)
-;    prb7 = unused
-;
-ipcia	= $db00
-;
-sem88	= $04           ;prb bit2
-sem65	= $08           ;prb bit3
-.page 'equate 6551'
-; 6551 acia  rs-232c and network interface
-;
-acia	= $dd00
-drsn	= $00           ;transmitt/receive data register
-srsn	= $01           ;status register
-cdr	= $02           ;command register
-ctr	= $03           ;control register
-.ski 5
-dsrerr	= $40           ;data set ready error
-dcderr	= $20           ;data carrier detect error
-doverr	= $08           ;receiver outer buffer overrun
-.page 'equate 6525/d1'
-; 6525 tpi1  triport interface device #1
-;  ieee control / cassette / network / vic / irq
-;
-;   pa0 : ieee dc control (ti parts)
-;   pa1 : ieee te control (ti parts) (t/r)
-;   pa2 : ieee ren
-;   pa3 : ieee atn
-;   pa4 : ieee dav
-;   pa5 : ieee eoi
-;   pa6 : ieee ndac
-;   pa7 : ieee nrfd
-;
-;   pb0 : ieee ifc
-;   pb1 : ieee srq
-;   pb2 : network transmitter enable
-;   pb3 : network receiver enable
-;   pb4 : arbitration logic switch
-;   pb5 : cassette write
-;   pb6 : cassette motor
-;   pb7 : cassette switch
-;
-;   irq0: 50/60 hz irq
-;   irq1: ieee srq
-;   irq2: 6526 irq
-;   irq3: (opt) 6526 inter-processor
-;   irq4: 6551
-;   *irq: 6566 (vic) / user devices
-;   cb  : vic dot select
-;   ca  : vic matrix select
-;
-tpi1	= $de00
-pa	= $0            ;port register a
-pb	= $1            ;port register b
-pc	= $2            ;port register c
-lir	= $2            ;interrupt latch register mc= 1
-ddpa	= $3            ;data direction register a
-ddpb	= $4            ;data direction register b
-ddpc	= $5            ;data direction register c
-mir	= $5            ;interrupt mask register mc= 1
-creg	= $6            ;control register
-air	= $7            ;active interrupt register
-;
-freq	= $01           ;irq line 50/60 hz found on...
-	.ife system <
-id55hz	= 27            ;55 hz value required by ioinit
->
-	.ifn system <
-id55hz	= 14            ;55hz value required by ioinit
->
-.page 'equate 6525/d2'
-; 6525 tpi2 tirport interface device #2
-;  keyboard / vic 16k control
-;
-;   pa0 : kybd out 8
-;   pa1 : kybd out 9
-;   pa2 : kybd out 10
-;   pa3 : kybd out 11
-;   pa4 : kybd out 12
-;   pa5 : kybd out 13
-;   pa6 : kybd out 14
-;   pa7 : kybd out 15
-;
-;   pb0 : kybd out 0
-;   pb1 : kybd out 1
-;   pb2 : kybd out 2
-;   pb3 : kybd out 3
-;   pb4 : kybd out 4
-;   pb5 : kybd out 5
-;   pb6 : kybd out 6
-;   pb7 : kybd out 7
-;
-;   pc0 : kybd in 0
-;   pc1 : kybd in 1
-;   pc2 : kybd in 2
-;   pc3 : kybd in 3
-;   pc4 : kybd in 4
-;   pc5 : kybd in 5
-;   pc6 : vic 16k bank select low
-;   pc7 : vic 16k bank select hi
-;
-tpi2	= $df00
-.page 'equate ieee lines'
-; ieee line equates
-;
-dc	= $01           ;75160/75161 control line
-te	= $02           ;75160/75161 control line
-ren	= $04           ;remote enable
-atn	= $08           ;attention
-dav	= $10           ;data available
-eoi	= $20           ;end or identify
-ndac	= $40           ;not data accepted
-nrfd	= $80           ;not ready for data
-ifc	= $01           ;interface clear
-srq	= $02           ;service request
-;       
-rddb	= nrfd+ndac+te+dc+ren ;directions for receiver
-tddb	= eoi+dav+atn+te+dc+ren ;directions for transmitt
-;
-eoist	= $40           ;eoi status test
-tlkr	= $40           ;device is talker
-lstnr	= $20           ;device is listener
-utlkr	= $5f           ;device untalk
-ulstn	= $3f           ;device unlisten
-;       
-toout	= $01           ;timeout status on output
-toin	= $02           ;timeout status on input
-eoist	= $40           ;eoi on input
-nodev	= $80           ;no device on bus.
-sperr	= $10           ;verify error
-;       
-;        equates for c3p0 flag bits 6 and 7.
-;       
-slock	= $40           ;screen editor lock-out
-dibf	= $80           ;data in output buffer
-.end
+	.pag 'equate 04/29/83'
+	;tape block types
+	;
+	eot	= 5             ;end of tape
+	blf	= 1             ;basic load file
+	bdf	= 2             ;basic data file
+	bdfh	= 4             ;basic data file header
+	bufsz	= 192           ;buffer size
+	cr	= $d            ;carriage return
+	basic	= $8000         ;start of rom (language)
+	kernal	= $e000         ;start of rom (kernal)
+	.ski 5
+	; 6845 video display controller for bc2
+	;
+	vdc	= $d800
+	adreg	= $0            ;address register
+	dareg	= $1            ;data register
+	.ski 3
+	; 6581 sid sound interface device
+	;   register list
+	sid	= $da00
+	;
+	; base addresses osc1, osc2, osc3
+	osc1	= $00
+	osc2	= $07
+	osc3	= $0e
+	;
+	; osc registers
+	freqlo	= $00
+	freqhi	= $01
+	pulsef	= $02
+	pulsec	= $03
+	oscctl	= $04
+	atkdcy	= $05
+	susrel	= $06
+	;
+	; filter control
+	fclow	= $15
+	fchi	= $16
+	resnce	= $17
+	volume	= $18
+	;
+	; pots, random number, and env3 out
+	potx	= $19
+	poty	= $1a
+	random	= $1b
+	env3	= $1c
+	.pag 'equate 6526'
+	; 6526 cia  complex interface adapter
+	;  game / ieee data / user
+	;
+	;   timer a: ieee local / cass local / music / game
+	;   timer b: ieee deadm / cass deadm / music / game
+	;
+	;   pra0 : ieee data1 / user / paddle game 1
+	;   pra1 : ieee data2 / user / paddle game 2
+	;   pra2 : ieee data3 / user
+	;   pra3 : ieee data4 / user
+	;   pra4 : ieee data5 / user
+	;   pra5 : ieee data6 / user
+	;   pra6 : ieee data7 / user / game trigger 14
+	;   pra7 : ieee data8 / user / game trigger 24
+	;
+	;   prb0 : user / game 10
+	;   prb1 : user / game 11
+	;   prb2 : user / game 12
+	;   prb3 : user / game 13
+	;   prb4 : user / game 20
+	;   prb5 : user / game 21
+	;   prb6 : user / game 22
+	;   prb7 : user / game 23
+	;
+	;   flag : user / cassette read
+	;   pc   : user
+	;   ct   : user
+	;   sp   : user
+	;
+	cia	= $dc00
+	pra	= $0            ;data reg a
+	prb	= $1            ;data reg b
+	ddra	= $2            ;direction reg a
+	ddrb	= $3            ;direction reg b
+	talo	= $4            ;timer a low  byte
+	tahi	= $5            ;timer a high byte
+	tblo	= $6            ;timer b low  byte
+	tbhi	= $7            ;timer b high byte
+	tod10	= $8            ;10ths of seconds
+	todsec	= $9            ;seconds
+	todmin	= $a            ;minutes
+	todhr	= $b            ;hours
+	sdr	= $c            ;serial data register
+	icr	= $d            ;interrupt control register
+	cra	= $e            ;control register a
+	crb	= $f            ;control register b
+	.page 'equate ipc'
+	;
+	; 6526 cia for inter-process communication
+	;
+	;    pra  = data port
+	;    prb0 = busy1 (1=>6509 off dbus)
+	;    prb1 = busy2 (1=>8088/z80 off dbus)
+	;    prb2 = semaphore 8088/z80
+	;    prb3 = semaphore 6509
+	;    prb4 = unused
+	;    prb5 = unused
+	;    prb6 = irq to 8088/z80 (lo)
+	;    prb7 = unused
+	;
+	ipcia	= $db00
+	;
+	sem88	= $04           ;prb bit2
+	sem65	= $08           ;prb bit3
+	.page 'equate 6551'
+	; 6551 acia  rs-232c and network interface
+	;
+	acia	= $dd00
+	drsn	= $00           ;transmitt/receive data register
+	srsn	= $01           ;status register
+	cdr	= $02           ;command register
+	ctr	= $03           ;control register
+	.ski 5
+	dsrerr	= $40           ;data set ready error
+	dcderr	= $20           ;data carrier detect error
+	doverr	= $08           ;receiver outer buffer overrun
+	.page 'equate 6525/d1'
+	; 6525 tpi1  triport interface device #1
+	;  ieee control / cassette / network / vic / irq
+	;
+	;   pa0 : ieee dc control (ti parts)
+	;   pa1 : ieee te control (ti parts) (t/r)
+	;   pa2 : ieee ren
+	;   pa3 : ieee atn
+	;   pa4 : ieee dav
+	;   pa5 : ieee eoi
+	;   pa6 : ieee ndac
+	;   pa7 : ieee nrfd
+	;
+	;   pb0 : ieee ifc
+	;   pb1 : ieee srq
+	;   pb2 : network transmitter enable
+	;   pb3 : network receiver enable
+	;   pb4 : arbitration logic switch
+	;   pb5 : cassette write
+	;   pb6 : cassette motor
+	;   pb7 : cassette switch
+	;
+	;   irq0: 50/60 hz irq
+	;   irq1: ieee srq
+	;   irq2: 6526 irq
+	;   irq3: (opt) 6526 inter-processor
+	;   irq4: 6551
+	;   *irq: 6566 (vic) / user devices
+	;   cb  : vic dot select
+	;   ca  : vic matrix select
+	;
+	tpi1	= $de00
+	pa	= $0            ;port register a
+	pb	= $1            ;port register b
+	pc	= $2            ;port register c
+	lir	= $2            ;interrupt latch register mc= 1
+	ddpa	= $3            ;data direction register a
+	ddpb	= $4            ;data direction register b
+	ddpc	= $5            ;data direction register c
+	mir	= $5            ;interrupt mask register mc= 1
+	creg	= $6            ;control register
+	air	= $7            ;active interrupt register
+	;
+	freq	= $01           ;irq line 50/60 hz found on...
+		.ife system <
+	id55hz	= 27            ;55 hz value required by ioinit
+	>
+		.ifn system <
+	id55hz	= 14            ;55hz value required by ioinit
+	>
+	.page 'equate 6525/d2'
+	; 6525 tpi2 tirport interface device #2
+	;  keyboard / vic 16k control
+	;
+	;   pa0 : kybd out 8
+	;   pa1 : kybd out 9
+	;   pa2 : kybd out 10
+	;   pa3 : kybd out 11
+	;   pa4 : kybd out 12
+	;   pa5 : kybd out 13
+	;   pa6 : kybd out 14
+	;   pa7 : kybd out 15
+	;
+	;   pb0 : kybd out 0
+	;   pb1 : kybd out 1
+	;   pb2 : kybd out 2
+	;   pb3 : kybd out 3
+	;   pb4 : kybd out 4
+	;   pb5 : kybd out 5
+	;   pb6 : kybd out 6
+	;   pb7 : kybd out 7
+	;
+	;   pc0 : kybd in 0
+	;   pc1 : kybd in 1
+	;   pc2 : kybd in 2
+	;   pc3 : kybd in 3
+	;   pc4 : kybd in 4
+	;   pc5 : kybd in 5
+	;   pc6 : vic 16k bank select low
+	;   pc7 : vic 16k bank select hi
+	;
+	tpi2	= $df00
+	.page 'equate ieee lines'
+	; ieee line equates
+	;
+	dc	= $01           ;75160/75161 control line
+	te	= $02           ;75160/75161 control line
+	ren	= $04           ;remote enable
+	atn	= $08           ;attention
+	dav	= $10           ;data available
+	eoi	= $20           ;end or identify
+	ndac	= $40           ;not data accepted
+	nrfd	= $80           ;not ready for data
+	ifc	= $01           ;interface clear
+	srq	= $02           ;service request
+	;       
+	rddb	= nrfd+ndac+te+dc+ren ;directions for receiver
+	tddb	= eoi+dav+atn+te+dc+ren ;directions for transmitt
+	;
+	eoist	= $40           ;eoi status test
+	tlkr	= $40           ;device is talker
+	lstnr	= $20           ;device is listener
+	utlkr	= $5f           ;device untalk
+	ulstn	= $3f           ;device unlisten
+	;       
+	toout	= $01           ;timeout status on output
+	toin	= $02           ;timeout status on input
+	eoist	= $40           ;eoi on input
+	nodev	= $80           ;no device on bus.
+	sperr	= $10           ;verify error
+	;       
+	;        equates for c3p0 flag bits 6 and 7.
+	;       
+	slock	= $40           ;screen editor lock-out
+	dibf	= $80           ;data in output buffer
+	.end
 ; -------------------------------------------------------------
 	* = kernal
 	jmp monoff      ;cold start vector
