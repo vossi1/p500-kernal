@@ -175,7 +175,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	lstx		= $CD		; Last character index
 	lstp		= $CE		; Screen editor start position
 	lsxp		= $CF
-	crsw		= $D0
+	crsw		= $D0		; cr flag - cr pressed -> input from screen
 	ndx		= $D1		; Index to keyd queue
 	qtsw		= $D2		; Quote mode flag
 	insrt		= $D3		; Insert mode flag
@@ -712,92 +712,94 @@ lp1:  	lda keyd+1,x		; shift key buffer
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E11F Screen input
-scrinp: jsr prt                           ; E11F 20 84 E2                  ..
-	asl $03BF                           ; E122 0E BF 03                 ...
-	lsr $03BF                           ; E125 4E BF 03                 N..
-LE128:  lda ndx                             ; E128 A5 D1                    ..
-	ora kyndx                           ; E12A 05 D6                    ..
-	sta blnon                           ; E12C 85 E6                    ..
-	beq LE128                           ; E12E F0 F8                    ..
-	sei                                 ; E130 78                       x
-	lda blnsw                           ; E131 A5 EB                    ..
-	beq LE140                           ; E133 F0 0B                    ..
-	lda config                          ; E135 A5 D4                    ..
-	ldy #$00                            ; E137 A0 00                    ..
-	sty blnsw                           ; E139 84 EB                    ..
-	ldx gdcol                           ; E13B A6 ED                    ..
-	jsr dspcol                           ; E13D 20 0F E2                  ..
-LE140:  jsr lp2                           ; E140 20 F4 E0                  ..
-	cmp #$0D                            ; E143 C9 0D                    ..
-	bne scrinp                          ; E145 D0 D8                    ..
-	sta crsw                            ; E147 85 D0                    ..
-	jsr fndend                          ; E149 20 F7 E4                  ..
-	stx lintmp                          ; E14C 8E 84 03                 ...
-	jsr fistrt                          ; E14F 20 E9 E4                  ..
-	lda #$00                            ; E152 A9 00                    ..
-	sta qtsw                            ; E154 85 D2                    ..
-	ldy sclf                            ; E156 A4 DE                    ..
-	lda lsxp                            ; E158 A5 CF                    ..
-	bmi LE16F                           ; E15A 30 13                    0.
-	cmp tblx                            ; E15C C5 CA                    ..
-	bcc LE16F                           ; E15E 90 0F                    ..
-	ldy lstp                            ; E160 A4 CE                    ..
-	cmp lintmp                          ; E162 CD 84 03                 ...
-	bne LE16B                           ; E165 D0 04                    ..
-	cpy indx                            ; E167 C4 D5                    ..
-	beq LE16D                           ; E169 F0 02                    ..
-LE16B:  bcs LE17E                           ; E16B B0 11                    ..
-LE16D:  sta tblx                            ; E16D 85 CA                    ..
-LE16F:  sty pntr                            ; E16F 84 CB                    ..
-	jmp LE186                           ; E171 4C 86 E1                 L..
-
+loop4:	jsr prt			; print the character
+	asl $03BF
+	lsr $03BF		; clear bit#7 in $03bf
+; E129 Main loop - wait for key input
+loop3:  lda ndx			; check key and pgm-key index
+	ora kyndx
+	sta blnon
+	beq loop3		; loop - wait for key input
+; key available
+	sei			; disable interrupts
+	lda blnsw
+	beq lp21		; skip if cursor blink already switched off
+	lda config		; load char before blink
+	ldy #$00
+	sty blnsw		; switch off cursor blink
+	ldx gdcol		; load color behind cursor
+	jsr dspcol		; write char before blink
+; check key
+lp21:	jsr lp2			; get char from queue
+	cmp #$0D
+	bne loop4		; print char if not cr
+; return recognized
+	sta crsw		; set cr flag - we pass chars now
+	jsr fndend		; check nxt line for cont
+	stx lintmp		; save last line number of sentence
+	jsr fistrt		; find begining of line
+	lda #$00
+	sta qtsw		; clear quote mode
+	ldy sclf		; retrieve from line start if left it
+	lda lsxp		; input started row
+	bmi lp80		; flag we left start line
+	cmp tblx
+	bcc lp80
+	ldy lstp		; input started column
+	cmp lintmp		; on start line
+	bne lp70
+	cpy indx		; past start column
+	beq lp75		; ok if the same
+lp70:	bcs clp2		; yes - null input
+lp75:	sta tblx		; start from here on input
+lp80:	sty pntr
+	jmp lop5
 ; -------------------------------------------------------------------------------------------------
-; E174 Read char from screen
-loop5:	tya                                     ; E174 98                       .
-	pha                                     ; E175 48                       H
-	txa                                     ; E176 8A                       .
-	pha                                     ; E177 48                       H
-	lda crsw                            ; E178 A5 D0                    ..
-	beq LE128                           ; E17A F0 AC                    ..
-	bpl LE186                           ; E17C 10 08                    ..
-LE17E:  lda #$00                            ; E17E A9 00                    ..
-	sta crsw                            ; E180 85 D0                    ..
-	lda #$0D                            ; E182 A9 0D                    ..
-	bne LE1BF                           ; E184 D0 39                    .9
-LE186:  jsr stupt                          ; E186 20 DF E0                  ..
-	jsr get1ch                          ; E189 20 3F E2                  ?.
-	sta data                            ; E18C 85 DB                    ..
-	and #$3F                            ; E18E 29 3F                    )?
-	asl data                            ; E190 06 DB                    ..
-	bit data                            ; E192 24 DB                    $.
-	bpl LE198                           ; E194 10 02                    ..
-	ora #$80                            ; E196 09 80                    ..
-LE198:  bcc LE19E                           ; E198 90 04                    ..
-	ldx qtsw                            ; E19A A6 D2                    ..
-	bne LE1A2                           ; E19C D0 04                    ..
-LE19E:  bvs LE1A2                           ; E19E 70 02                    p.
-	ora #$40                            ; E1A0 09 40                    .@
-LE1A2:  jsr qtswc                           ; E1A2 20 C8 E1                  ..
-	ldy tblx                            ; E1A5 A4 CA                    ..
-	cpy lintmp                          ; E1A7 CC 84 03                 ...
-	bcc LE1B6                           ; E1AA 90 0A                    ..
-	ldy pntr                            ; E1AC A4 CB                    ..
-	cpy indx                            ; E1AE C4 D5                    ..
-	bcc LE1B6                           ; E1B0 90 04                    ..
-	ror crsw                            ; E1B2 66 D0                    f.
-	bmi LE1B9                           ; E1B4 30 03                    0.
-LE1B6:  jsr nextchr                         ; E1B6 20 21 E5                  !.
-LE1B9:  cmp #$DE                            ; E1B9 C9 DE                    ..
-	bne LE1BF                           ; E1BB D0 02                    ..
-	lda #$FF                            ; E1BD A9 FF                    ..
-LE1BF:  sta data                            ; E1BF 85 DB                    ..
-	pla                                 ; E1C1 68                       h
-	tax                                 ; E1C2 AA                       .
-	pla                                 ; E1C3 68                       h
-	tay                                 ; E1C4 A8                       .
-	lda data                            ; E1C5 A5 DB                    ..
-	rts                                 ; E1C7 60                       `
-
+; E174 Input a line until carriage return
+loop5:	tya
+	pha
+	txa
+	pha
+	lda crsw		; passing chars to input
+	beq loop3		; no - buffer on screen
+	bpl lop5		; not done - get next char
+clp2:	lda #$00
+	sta crsw
+	lda #$0D
+	bne clp7
+lop5:	jsr stupt
+	jsr get1ch
+	sta data
+	and #$3F
+	asl data
+	bit data
+	bpl loop54
+	ora #$80
+loop54:	bcc loop52
+	ldx qtsw
+	bne loop53
+loop52:	bvs loop53
+	ora #$40
+loop53:	jsr qtswc
+	ldy tblx
+	cpy lintmp
+	bcc clp00
+	ldy pntr
+	cpy indx
+	bcc clp00
+	ror crsw
+	bmi clp1
+clp00:	jsr nxtchr
+clp1:	cmp #$DE
+	bne clp7
+	lda #$FF
+clp7:	sta data
+	pla
+	tax
+	pla
+	tay
+	lda data
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E1C8 Switch quote mode depending on char in A
 qtswc:  cmp #$22                            ; E1C8 C9 22                    ."
@@ -983,7 +985,7 @@ ntcn:   cmp     #$0D                            ; E2E0 C9 0D                    
 	lda     qtsw                            ; E2EC A5 D2                    ..
 	ora     insrt                           ; E2EE 05 D3                    ..
 	beq     LE30D                           ; E2F0 F0 1B                    ..
-	jsr     rstmode                         ; E2F2 20 72 E7                  r.
+	jsr     toqm                         ; E2F2 20 72 E7                  r.
 	sta     data                            ; E2F5 85 DB                    ..
 	beq     LE30D                           ; E2F7 F0 14                    ..
 LE2F9:  cmp     #$03                            ; E2F9 C9 03                    ..
@@ -1038,7 +1040,7 @@ cursup1:jsr     cursdn1                         ; E33A 20 2A E3                 
 ; -------------------------------------------------------------------------------------------------
 ; E342 Handle cursor right/left
 crtlf:  bcs     cleft                           ; E342 B0 06                    ..
-	jsr     nextchr                         ; E344 20 21 E5                  !.
+	jsr     nxtchr                         ; E344 20 21 E5                  !.
 	bcs     cursdn1                         ; E347 B0 E1                    ..
 critgo: rts                                     ; E349 60                       `
 
@@ -1103,14 +1105,14 @@ nxln1:  inc     tblx                            ; E3A0 E6 CA                    
 nowhop: jmp     stupt                          ; E3A2 4C DF E0                 L..
 
 ; -------------------------------------------------------------------------------------------------
-; E3A5
+; E3A5 
 nxt1:   jsr     fndend                          ; E3A5 20 F7 E4                  ..
 	inx                                     ; E3A8 E8                       .
 	jsr     clrbit                          ; E3A9 20 B6 E4                  ..
 	ldy     sclf                            ; E3AC A4 DE                    ..
 	sty     pntr                            ; E3AE 84 CB                    ..
 	jsr     nxln                            ; E3B0 20 8B E3                  ..
-	jmp     rstmode                         ; E3B3 4C 72 E7                 Lr.
+	jmp     toqm                         ; E3B3 4C 72 E7                 Lr.
 
 ; -------------------------------------------------------------------------------------------------
 ; E3B6
@@ -1299,30 +1301,31 @@ fistrt: jsr     getbit                          ; E4E9 20 A6 E4                 
 fnd0:   jmp     stupt                          ; E4F4 4C DF E0                 L..
 
 ; -------------------------------------------------------------------------------------------------
+; ****** find last non-blank char of line
+; pntr= column # / tblx= line #
 ; E4F7 cursor to end of line (esc-k)
-fndend: inc     tblx                            ; E4F7 E6 CA                    ..
-	jsr     getbit                          ; E4F9 20 A6 E4                  ..
-	bcs     fndend                          ; E4FC B0 F9                    ..
-	dec     tblx                            ; E4FE C6 CA                    ..
-	jsr     stupt                          ; E500 20 DF E0                  ..
-	ldy     scrt                            ; E503 A4 DF                    ..
-	sty     pntr                            ; E505 84 CB                    ..
-	bpl     eloup2                          ; E507 10 05                    ..
-eloup1: jsr     bakchr                          ; E509 20 34 E5                  4.
-	bcs     endbye                          ; E50C B0 10                    ..
-eloup2: jsr     get1ch                          ; E50E 20 3F E2                  ?.
-	cmp     #$20                            ; E511 C9 20                    . 
-	bne     endbye                          ; E513 D0 09                    ..
-	cpy     sclf                            ; E515 C4 DE                    ..
-	bne     eloup1                          ; E517 D0 F0                    ..
-	jsr     getbit                          ; E519 20 A6 E4                  ..
-	bcs     eloup1                          ; E51C B0 EB                    ..
-endbye: sty     indx                            ; E51E 84 D5                    ..
-	rts                                     ; E520 60                       `
-
+fndend:	inc tblx
+	jsr getbit		; is this line continued
+	bcs fndend		; branch if so
+	dec tblx		; found it - compensate for inc tblx
+	jsr stupt		; reset screen pointer to line start
+	ldy scrt		; get right margin
+	sty pntr		; point to right margin
+	bpl eloup2		; always
+eloup1:	jsr bakchr		; backup one char
+	bcs endbye		; if at top left get out
+eloup2: jsr get1ch		; get char from screen
+	cmp #$20
+	bne endbye		; yes, space
+	cpy sclf		; are we at the left margin?
+	bne eloup1		; branch if not
+	jsr getbit		; if we're on a wraped line
+	bcs eloup1		; always scan the above line
+endbye: sty indx		; remember this
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E521
-nextchr:pha                                     ; E521 48                       H
+nxtchr:pha                                     ; E521 48                       H
 	ldy     pntr                            ; E522 A4 CB                    ..
 	cpy     scrt                            ; E524 C4 DF                    ..
 	bcc     bumpnt                          ; E526 90 07                    ..
@@ -1384,11 +1387,11 @@ delout: lda     sedt1                           ; E574 A5 D9                    
 
 ; -------------------------------------------------------------------------------------------------
 ; E57F
-delop1: jsr     nextchr                         ; E57F 20 21 E5                  !.
+delop1: jsr     nxtchr                         ; E57F 20 21 E5                  !.
 	jsr     get1ch                          ; E582 20 3F E2                  ?.
 	jsr     bakchr                          ; E585 20 34 E5                  4.
 	jsr     dsptco                           ; E588 20 0D E2                  ..
-	jsr     nextchr                         ; E58B 20 21 E5                  !.
+	jsr     nxtchr                         ; E58B 20 21 E5                  !.
 	jmp     deloop                          ; E58E 4C 65 E5                 Le.
 
 ; -------------------------------------------------------------------------------------------------
@@ -1403,7 +1406,7 @@ ins10:  bcc     ins50                           ; E59D 90 21                    
 	bcs     insout                          ; E5A2 B0 22                    ."
 ins30:  jsr     bakchr                          ; E5A4 20 34 E5                  4.
 	jsr     get1ch                          ; E5A7 20 3F E2                  ?.
-	jsr     nextchr                         ; E5AA 20 21 E5                  !.
+	jsr     nxtchr                         ; E5AA 20 21 E5                  !.
 	jsr     dsptco                           ; E5AD 20 0D E2                  ..
 	jsr     bakchr                          ; E5B0 20 34 E5                  4.
 	ldx     tblx                            ; E5B3 A6 CA                    ..
@@ -1440,7 +1443,7 @@ movchr: cpy     scrt                            ; E5DB C4 DF                    
 	bit     scrdis                          ; E5E5 2C 87 03                 ,..
 	bmi     movc30                          ; E5E8 30 17                    0.
 movc10: jsr     stupt                          ; E5EA 20 DF E0                  ..
-	jsr     nextchr                         ; E5ED 20 21 E5                  !.
+	jsr     nxtchr                         ; E5ED 20 21 E5                  !.
 	bcc     movc30                          ; E5F0 90 0F                    ..
 	jsr     getbit                          ; E5F2 20 A6 E4                  ..
 	bcs     movc20                          ; E5F5 B0 09                    ..
@@ -1698,8 +1701,12 @@ sddn2:  lda     sctop                           ; E765 A5 DC                    
 	jmp     etout                           ; E76F 4C 36 E7                 L6.
 
 ; -------------------------------------------------------------------------------------------------
+;**************************************
+; turn off all modes
+;   expected to return zero
+;**************************************
 ; E772 Reset modes: insert, reverse, quote
-rstmode:lda #$00
+toqm:	lda #$00
 	sta insrt
 	sta rvs
 	sta qtsw
@@ -2147,7 +2154,7 @@ escvect:!word auton-1           ; esc-a Auto insert mode on
 	!word scrlon-1          ; esc-l Allow scrolling
 	!word scrloff-1         ; esc-m Disallow scrolling
 	!word notimp-1          ; esc-n
-	!word rstmode-1         ; esc-o Reset modes: insert, reverse, quote
+	!word toqm-1         ; esc-o Reset modes: insert, reverse, quote
 	!word erasol-1          ; esc-p Erase to start of line
 	!word eraeol-1          ; esc-q Erase to end of line
 	!word notimp-1          ; esc-r
