@@ -25,7 +25,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 ; ########################################### BUGS ################################################
 ;
 ; ########################################### INFO ################################################
-;
+; loop3 E129 = Main loop - wait for key input
 ; **************************************** DISCLAIMER *********************************************
 	;***************************************
 	;*                                     *
@@ -174,7 +174,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	grmode		= $CC		; Graphic/text mode flag
 	lstx		= $CD		; Last character index
 	lstp		= $CE		; Screen editor start position
-	lsxp		= $CF
+	lsxp		= $CF		; Screen editor start row
 	crsw		= $D0		; cr flag - cr pressed -> input from screen
 	ndx		= $D1		; Index to keyd queue
 	qtsw		= $D2		; Quote mode flag
@@ -735,7 +735,7 @@ lp21:	jsr lp2			; get char from queue
 	bne loop4		; print char if not cr
 ; return recognized
 	sta crsw		; set cr flag - we pass chars now
-	jsr fndend		; check nxt line for cont
+	jsr fndend		; check nxt line for cont (double line?)
 	stx lintmp		; save last line number of sentence
 	jsr fistrt		; find begining of line
 	lda #$00
@@ -753,9 +753,9 @@ lp21:	jsr lp2			; get char from queue
 lp70:	bcs clp2		; yes - null input
 lp75:	sta tblx		; start from here on input
 lp80:	sty pntr
-	jmp lop5
+	jmp lop5		; input a line
 ; -------------------------------------------------------------------------------------------------
-; E174 Input a line until carriage return
+; E174 Input a line
 loop5:	tya
 	pha
 	txa
@@ -841,56 +841,56 @@ LE203:  pla                                     ; E203 68                       
 
 ; -------------------------------------------------------------------------------------------------
 ; E207 Write blank ($20) at cusor position
-doblnk: lda #' '				; load blank
+doblnk: lda #' '		; load blank
 ; E209 Write char A with color or tcolor if color bit#7=1
-dsppcc: ldx color				; load char color
+dsppcc: ldx color		; load char color
 	bpl dspcol
 ; E20D Write char A with tcolor
 dsptco: ldx tcolor
 ; E20f Write char A with color X and set blink counter
 dspcol: ldy #$02
-	sty blncnt				; blink cusor
+	sty blncnt		; blink cusor
 ; E213 Write char A with color X
-dspp:   ldy pntr				; load column
-	jsr pagscr				; switch to indirect bank with video screen
-	jsr jwrtvrm				; write char to screen
+dspp:   ldy pntr		; load column
+	jsr pagscr		; switch to indirect bank with video screen
+	jsr jwrtvrm		; write char to screen
 	pha
-	txa						; move color to A
-	jsr jwrtcrm				; write color to color RAM
+	txa			; move color to A
+	jsr jwrtcrm		; write color to color RAM
 	pla
-	jmp pagres    			; restore indirect bank
+	jmp pagres    		; restore indirect bank
 ; -------------------------------------------------------------------------------------------------
 ; E224 Clear the cursor line and double length bit for line X
-clrlin: ldy sclf				; load left margin of window
-	jsr clrbit				; clear double line bit for line X
+clrlin: ldy sclf		; load left margin of window
+	jsr clrbit		; clear double line bit for line X
 ; E229 Clear from column Y till end of line
 clrprt: txa
-	pha						; remember line
+	pha			; remember line
 	lda pntr
-	pha						; remember cursor column
+	pha			; remember cursor column
 	dey
 clrllp: iny
-	sty pntr				; store column to cursor pos
-	jsr doblnk				; write blank ($20) at cusor position
-	cpy scrt				; compare to right margin of window
-	bne clrllp				; next char
+	sty pntr		; store column to cursor pos
+	jsr doblnk		; write blank ($20) at cusor position
+	cpy scrt		; compare to right margin of window
+	bne clrllp		; next char
 	pla
-	sta pntr				; restore cursor column
+	sta pntr		; restore cursor column
 	pla
 	tax
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E23F Get character from the screen to A, tcolor
-get1ch: ldy pntr				; load column
+get1ch: ldy pntr		; load column
 ; E241 Get char from column Y
-getych: jsr pagscr				; switch to indirect bank with video screen
-	lda (pnt),y				; load char from screen and remember it
+getych: jsr pagscr		; switch to indirect bank with video screen
+	lda (pnt),y		; load char from screen and remember it
 	pha
 	lda #$00
-	ora (user),y			; load color from irom (ORA)
-	sta tcolor				; and store it to tcolor
+	ora (user),y		; load color from irom (ORA)
+	sta tcolor		; and store it to tcolor
 	pla
-	jmp pagres      		; restore indirect bank
+	jmp pagres      	; restore indirect bank
 ; -------------------------------------------------------------------------------------------------
 ; E251 Set text/graphic mode (C=1 graphic)
 ctext:	bcs grcrt		; skip if graphic mode
@@ -1248,61 +1248,65 @@ getlin: sei                                     ; E49A 78                       
 
 ; -------------------------------------------------------------------------------------------------
 ; E4A6 Check for a double length line
-getbit: ldx tblx				; load current line
+getbit: ldx tblx		; load current line
 ; E4a8 Check line X for double length
-getbt1: jsr bitpos				; Find bit table position for line X
-	and bitabl,x			; check if bit for line is set in table
+getbt1: jsr bitpos		; Find bit table position for line X
+	and bitabl,x		; check if bit for line is set in table
 	cmp #$01
-	jmp bitout				; return 0 if not a double length line
+	jmp bitout		; return 0 if not a double length line
 ; -------------------------------------------------------------------------------------------------
 ; E4B2 Mark current line as double length C=1, unmark C=0
-putbit: ldx tblx				; load current line
+putbit: ldx tblx		; load current line
 ; E4B4 Mark line X as double length C=1, unmark C=0
-putbt1: bcs setbit				; branch to mark line if C=1
+putbt1: bcs setbit		; branch to mark line if C=1
 ; E4B6 Clear double length line mark
-clrbit: jsr bitpos				; Find bit table position for line X
-	eor #$FF				; bit value = 0
-	and bitabl,x			; clear bit
-bitsav: sta bitabl,x			; and store it to table at byte position X
-bitout: ldx bitmsk				; Move byte table position to X
+clrbit: jsr bitpos		; Find bit table position for line X
+	eor #$FF		; bit value = 0
+	and bitabl,x		; clear bit
+bitsav: sta bitabl,x		; and store it to table at byte position X
+bitout: ldx bitmsk		; Move byte table position to X
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E4C3 Mark a double length line
 setbit: bit scrdis
-	bvs getbt1				; branch if scrolling is disabled
-	jsr bitpos				; Find bit table position for line X
-	ora bitabl,x			; set bit in table
-	bne bitsav				; branch always to save byte to table
+	bvs getbt1		; branch if scrolling is disabled
+	jsr bitpos		; Find bit table position for line X
+	ora bitabl,x		; set bit in table
+	bne bitsav		; branch always to save byte to table
 ; Find bit table position for line X
-bitpos: stx bitmsk				; remember line
+bitpos: stx bitmsk		; remember line
 	txa
-	and #$07				; isolate bit#0-2
+	and #$07		; isolate bit#0-2
 	tax
-	lda bits,x				; load bit value from table
-	pha						; remember it
+	lda bits,x		; load bit value from table
+	pha			; remember it
 	lda bitmsk
-	lsr						; divide line by 8 for byte position in bit table
+	lsr			; divide line by 8 for byte position in bit table
 	lsr
 	lsr
-	tax						; move byte pos to X
-	pla						; return bit value in A
+	tax			; move byte pos to X
+	pla			; return bit value in A
 	rts
-
 ; -------------------------------------------------------------------------------------------------
-	bcc     fndend                          ; E4E3 90 12                    ..
+;**********************************
+; ***** Move to start of line
+;
+; E4E2 Find line start/end
+	bcc fndend		; if C=0 find line end - NOT USED
 ; E4E5 cursor to line start (esc-j)
-fndfst: ldy     sclf                            ; E4E5 A4 DE                    ..
-	sty     pntr                            ; E4E7 84 CB                    ..
-fistrt: jsr     getbit                          ; E4E9 20 A6 E4                  ..
-	bcc     fnd0                            ; E4EC 90 06                    ..
-	dec     tblx                            ; E4EE C6 CA                    ..
-	bpl     fistrt                          ; E4F0 10 F7                    ..
-	inc     tblx                            ; E4F2 E6 CA                    ..
-fnd0:   jmp     stupt                          ; E4F4 4C DF E0                 L..
-
+fndfst:	ldy sclf
+	sty pntr		; set to leftmost column
+fistrt:	jsr getbit		; find start of current line
+	bcc fnd0		; branch if found
+	dec tblx		; up a line
+	bpl fistrt		; always
+	inc tblx		; whoops went too far
+fnd0:	jmp stupt		; set line base adr
 ; -------------------------------------------------------------------------------------------------
-; ****** find last non-blank char of line
-; pntr= column # / tblx= line #
+; ****** Find last non-blank char of line
+; pntr= column #
+; tblx= line #
+;
 ; E4F7 cursor to end of line (esc-k)
 fndend:	inc tblx
 	jsr getbit		; is this line continued
@@ -1339,25 +1343,27 @@ bumpnt: iny                                     ; E52F C8                       
 	rts                                     ; E533 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; E534
-bakchr: ldy     pntr                            ; E534 A4 CB                    ..
-	dey                                     ; E536 88                       .
-	bmi     bakot1                          ; E537 30 04                    0.
-	cpy     sclf                            ; E539 C4 DE                    ..
-	bcs     bakout                          ; E53B B0 0F                    ..
-bakot1: ldy     sctop                           ; E53D A4 DC                    ..
-	cpy     tblx                            ; E53F C4 CA                    ..
-	bcs     bakot2                          ; E541 B0 0E                    ..
-	dec     tblx                            ; E543 C6 CA                    ..
-	pha                                     ; E545 48                       H
-	jsr     stupt                          ; E546 20 DF E0                  ..
-	pla                                     ; E549 68                       h
-	ldy     scrt                            ; E54A A4 DF                    ..
-bakout: sty     pntr                            ; E54C 84 CB                    ..
-	cpy     scrt                            ; E54E C4 DF                    ..
-	clc                                     ; E550 18                       .
-bakot2: rts                                     ; E551 60                       `
-
+; ****** backup one char
+; wrap up and stop a top left
+;
+; E534 Move one char left
+bakchr:	ldy pntr
+	dey
+	bmi bakot1
+	cpy sclf		; are we at the left margin
+	bcs bakout		; no - past it
+bakot1:	ldy sctop
+	cpy tblx		; are we at top line last character?
+	bcs bakot2		; leave with carry set
+	dec tblx		; else backup a line
+	pha
+	jsr stupt		; set line base adr
+	pla
+	ldy scrt		; move cursor to right side
+bakout: sty pntr
+	cpy scrt		; set z-flag if moved to new line
+	clc			; always clear
+bakot2: rts
 ; -------------------------------------------------------------------------------------------------
 ; E552
 savpos: ldy     pntr                            ; E552 A4 CB                    ..
