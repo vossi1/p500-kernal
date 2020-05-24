@@ -755,7 +755,7 @@ lp75:	sta tblx		; start from here on input
 lp80:	sty pntr
 	jmp lop5		; input a line
 ; -------------------------------------------------------------------------------------------------
-; E174 Input a line
+; E174 Read character from screen to A
 loop5:	tya
 	pha
 	txa
@@ -763,12 +763,12 @@ loop5:	tya
 	lda crsw		; passing chars to input
 	beq loop3		; no - buffer on screen
 	bpl lop5		; not done - get next char
-clp2:	lda #$00
+clp2:	lda #$00		; input done clear flag
 	sta crsw
-	lda #$0D
+	lda #$0D		; pass a return
 	bne clp7
-lop5:	jsr stupt
-	jsr get1ch
+lop5:	jsr stupt		; set pnt and user
+	jsr get1ch		; get a screen char
 	sta data
 	and #$3F
 	asl data
@@ -781,18 +781,18 @@ loop54:	bcc loop52
 loop52:	bvs loop53
 	ora #$40
 loop53:	jsr qtswc
-	ldy tblx
+	ldy tblx		; on input end line ?
 	cpy lintmp
-	bcc clp00
-	ldy pntr
+	bcc clp00		; no
+	ldy pntr		; on input end column ?
 	cpy indx
-	bcc clp00
-	ror crsw
-	bmi clp1
-clp00:	jsr nxtchr
-clp1:	cmp #$DE
-	bne clp7
-	lda #$FF
+	bcc clp00		; no
+	ror crsw		; c=1 minus flags last char sent
+	bmi clp1		; always
+clp00:	jsr nxtchr		; at next char
+clp1:	cmp #$DE		; a pi ?
+	bne clp7		; no
+	lda #$FF		; translate
 clp7:	sta data
 	pla
 	tax
@@ -1090,20 +1090,20 @@ tabtog: jsr     gettab                          ; E381 20 26 EA                 
 	rts                                     ; E38A 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; E38B
-nxln:   ldx     tblx                            ; E38B A6 CA                    ..
-	cpx     scbot                           ; E38D E4 DD                    ..
-	bcc     nxln1                           ; E38F 90 0F                    ..
-	bit     scrdis                          ; E391 2C 87 03                 ,..
-	bpl     doscrl                          ; E394 10 06                    ..
-	lda     sctop                           ; E396 A5 DC                    ..
-	sta     tblx                            ; E398 85 CA                    ..
-	bcs     nowhop                          ; E39A B0 06                    ..
-doscrl: jsr     scrup                           ; E39C 20 08 E4                  ..
-	clc                                     ; E39F 18                       .
-nxln1:  inc     tblx                            ; E3A0 E6 CA                    ..
-nowhop: jmp     stupt                          ; E3A2 4C DF E0                 L..
-
+; E38B Skip to next line
+; wrap to top if scroll disabled
+nxln:	ldx tblx
+	cpx scbot		; of the bottom of window ?
+	bcc nxln1		; no
+	bit scrdis		; what if scrolling is disabled?
+	bpl doscrl		; branch if scroll is enabled
+	lda sctop		; wrap to top
+	sta tblx
+	bcs nowhop		; always
+doscrl:	jsr scrup		; scroll it all
+	clc			; indicate scroll ok
+nxln1:	inc tblx
+nowhop:	jmp stupt		; set line base adr
 ; -------------------------------------------------------------------------------------------------
 ; E3A5 
 nxt1:   jsr     fndend                          ; E3A5 20 F7 E4                  ..
@@ -1328,25 +1328,24 @@ eloup2: jsr get1ch		; get char from screen
 endbye: sty indx		; remember this
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E521
-nxtchr:pha                                     ; E521 48                       H
-	ldy     pntr                            ; E522 A4 CB                    ..
-	cpy     scrt                            ; E524 C4 DF                    ..
-	bcc     bumpnt                          ; E526 90 07                    ..
-	jsr     nxln                            ; E528 20 8B E3                  ..
-	ldy     sclf                            ; E52B A4 DE                    ..
-	dey                                     ; E52D 88                       .
-	sec                                     ; E52E 38                       8
-bumpnt: iny                                     ; E52F C8                       .
-	sty     pntr                            ; E530 84 CB                    ..
-	pla                                     ; E532 68                       h
-	rts                                     ; E533 60                       `
-
+; E521 Move to next char
+; scroll if enabled
+; wrap to top if disabled
+nxtchr:	pha
+	ldy pntr
+	cpy scrt		; are we at the right margin?
+	bcc bumpnt		; branch if not
+	jsr nxln		; point to nextline
+	ldy sclf		; point to first char of 1st line
+	dey
+	sec			; set to show moved to new line
+bumpnt:	iny			; increment char index
+	sty pntr
+	pla
+	rts
 ; -------------------------------------------------------------------------------------------------
-; ****** backup one char
+; E534 Backup one char - Move one char left
 ; wrap up and stop a top left
-;
-; E534 Move one char left
 bakchr:	ldy pntr
 	dey
 	bmi bakot1
