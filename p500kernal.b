@@ -255,7 +255,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	memstr		= $0358		; Start of user memory: low, high, bank
 	memsiz		= $035B		; Top of user memory: low, high, bank
 	timout		= $035E		; IEEE timeout enable
-	verck		= $035F		; Load/verify flag
+	verck		= $035F		; load/verify flag
 	ldtnd		= $0360		; Device table index
 	msgflg		= $0361		; Message flag
 	bufpt		= $0362		; Cassette buffer index
@@ -275,7 +275,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	relsal		= $036F		; moveable start load address
 	relsah		= $0370		; 
 	relsas		= $0371		; 
-	oldinv		= $0372		; Restore user IRQ and i6509 after cassettes
+	oldinv		= $0372		; restore user IRQ and i6509 after cassettes
 	cas1		= $0375		; Cassette switch flag
 	; RS-232 information storage
 	m51ctr		= $0376		; 6551 control image
@@ -558,28 +558,28 @@ jloop5:	jmp loop5		; Read character from screen to A
 jprt:	jmp prt			; Print character from A on screen
 jscror:	jmp scrorg		; Return screen dimensions to X, Y
 jkey:	jmp scnkey		; Keyboard scan
-jmvcur: jmp nofunc		; Not necessary on P500 - only used with CRTC in b-series
+jmvcur: jmp nofunc		; not used in P500 - only for CRTC hardware cursor in b-series
 jplot:  jmp plot		; Get/set the cursor position to/from X, Y
 jiobas:	jmp iobase		; Return CIA base address to X, Y
 jescrt:	jmp escape		; Handle an escape sequence
 jfunky:	jmp keyfun		; Get/set/list function keys
 ; -------------------------------------------------------------------------------------------------
 ; E025 Get/set the cursor position depending on the carry flag
-plot:   bcs rdplt               ; if C=1 get cursor position
-	stx tblx                ; store column 
-	stx lsxp                ; store last column
-	sty pntr                ; store row
-	sty lstp                ; store last row
+plot:   bcs rdplt		; if C=1 get cursor position
+	stx tblx		; store column 
+	stx lsxp		; store last column
+	sty pntr		; store row
+	sty lstp		; store last row
 !ifdef CBMPATCH{		; ********** cbmii revision 3b PATCH **********
-	jsr stupt		; sub: Reset screen ptr to line begin
-rdplt:  ldx tblx                ; load column
-	ldy pntr                ; load row
+	jsr stupt		; Reset screen ptr to line begin
+rdplt:  ldx tblx
+	ldy pntr		; load column, row
 nofunc: rts
 } else{
-	jsr sreset              ; sub: Window to full screen (off)
-	jsr stupt		; sub: Reset screen ptr to line begin
-rdplt:  ldx tblx                ; load column
-	ldy pntr                ; load row
+	jsr sreset		; set full screen window
+	jsr stupt		; Reset screen ptr to line begin
+rdplt:  ldx tblx		; load column
+	ldy pntr		; load row
 nofunc: rts
 }
 *= $E03A
@@ -598,157 +598,158 @@ scrorg: ldx #llen		; 40 columns
 ; Clear editor variables
 cint:   lda #$00
 	ldx #zpend-keypnt-1
-cloop1: sta keypnt,x            ; clear editor variables area $C2-$EF
+cloop1: sta keypnt,x		; clear editor variables area $C2-$EF
 	dex
 	bpl cloop1
 	ldx #absend-rvs-1
-cloop2: sta keysiz,x            ; clear editor variables area $038D-$03C9
+cloop2: sta keysiz,x		; clear editor variables area $38D-$3C9
 	dex
 	bpl cloop2
 ; init some variables
 	lda #irom
-	sta scrseg              ; store bank with video RAM = system bank
+	sta scrseg		; store bank with video RAM = system bank
 	lda #$0C
-	sta blncnt              ; init blink counter
+	sta blncnt		; init blink counter
 	sta blnon
 ; init F-keys
-	lda pkybuf              ; load start address of F-key buffer
+	lda pkybuf
 	ora pkybuf+1
-	bne keycpy              ; branch if start address already set
+	bne keycpy		; just copy f-keys if buffers are already allocated
 	lda hiadr
-	sta pkyend              ; set F-key buffer to top of system RAM
+	sta pkyend		; get end of key area
 	lda hiadr+1
 	sta pkyend+1
-	lda #$40                ; NO SENSE - will be overwritten in alloc                
-	ldx #$00                ; Allocate $0200 from  system memory below $FEFF
+	lda #$40		; NO SENSE - will be overwritten in alloc                
+	ldx #$00	
 	ldy #$02
-	jsr kalloc              ; sub: alloc - Allocate space for F-keys
-	bcs noroom              ; if C=1 skip F-keys - no space for F-keys found
-	sta keyseg              ; store bank for F-keys
+	jsr kalloc		; get 512 bytes at end of system memory $FEFF
+	bcs noroom		; no room found...just reset the screen
+	sta keyseg		; store bank for F-keys
 	inx
-	stx pkybuf              ; store F-key buffer low (returned X+1)
+	stx pkybuf		; save start address (returned X+1)
 	bne room10
-	iny                     ; if low = $00 increase high
-room10: sty pkybuf+1            ; store F-key buffer high
-keycpy: ldy #$39                ; load size of F-key texts
-	jsr pagkey		; sub: Switch to indirect bank with key buffer
+	iny
+room10: sty pkybuf+1
+keycpy: ldy #keyend-keydef	; load size of F-key texts
+	jsr pagkey		; switch to indirect bank with key buffer
 kyset1: lda keydef-1,y
 	dey
-	sta (pkybuf),y          ; copy key texts to buffer in RAM
+	sta (pkybuf),y		; copy key texts to buffer
 	bne kyset1
-	jsr pagres    		; sub: Restore indirect bank
+	jsr pagres    		; restore indirect bank
 	ldy #$0A		; 10 F-key length bytes
 kyset2: lda keylen-1,y
-	sta keysiz-1,y          ; copy F-key text length to $038D
+	sta keysiz-1,y		; copy F-key text length to $38D
 	dey
 	bne kyset2
 ; init VIC, screen
-noroom: jsr sreset              ; sub: home-home screen window full size
-	ldx #$11                ; init vic registers $21 - $11
+noroom: jsr sreset		; set full screen window
+	ldx #$11		; init vic regs $21-$11
 	ldy #$21
 vicinlp:lda vicinit-1,x
-	jsr wrtvic              ; sub: write VIC register Y
+	jsr wrtvic		; write A to VIC register Y
 	dey
 	dex
-	bne vicinlp             ; write next register
-	jsr grcrt
-	ldx #$0A                ; copy extended editor vector table to $3B5
-edveclp:lda edvect-1,x
+	bne vicinlp
+	jsr txcrt		; set text mode
+	ldx #$0A
+edvecl: lda edvect-1,x		; copy extended editor vector table to $3B5
 	sta funvec-1,x
 	dex
-	bne edveclp
-	lda #TEXTCOL          ; load default textcolor
-	sta color               ; store default text color
-; E0C8 Clear the screen, cursor home
-clrscr: jsr home				; sub: Cursor home - returns top line in X
-clrlp1: jsr scrset				; sub: Set screen pointers to line X
-	jsr clrlin
-	cpx scbot				; compare to bottom line of window
+	bne edvecl
+	lda #TEXTCOL
+	sta color		; init color
+; E0C8 Clear screen, cursor home
+clsr:	jsr nxtd		; Cursor home - returns top line in X
+cls10:	jsr scrset		; set screen pointers to line X
+	jsr clrlin		; clear the line
+	cpx scbot		; done ?
 	inx
-	bcc clrlp1				; next line
+	bcc cls10		; no
 ; E0D3 Cursor home
-home:   ldx sctop
-	stx tblx				; load top row of window and store to cursor line
-	stx lsxp				; and store to screen editor start
-stu10:  ldy sclf
-	sty pntr				; load left margin of window and store cursor column
-	sty lstp				; and store to screen editor start
+nxtd:   ldx sctop		; move to top
+	stx tblx
+	stx lsxp		; for input after home or clear
+stu10:  ldy sclf		; left of the screen window
+	sty pntr
+	sty lstp
 ; E0DF Reset screen ptr to line begin
-stupt:	ldx tblx
+stupt:	ldx tblx		; get curent line index
 ; E0F1 Set screen ptr to line X 
-scrset: lda ldtab2,x				; load start of screen line low
-	sta pnt					; and store to char, color RAM pointer
+scrset: lda ldtab2,x		; load start of screen line low
+	sta pnt			; and store to screen, color RAM ptr
 	sta user
-	lda ldtab1,x				; load start of screen line high
-	sta pnt+1				; and store to char pointer
+	lda ldtab1,x		; load high
+	sta pnt+1		; and store to char pointer
 	and #$03
-	ora #>clrram				; calc color RAM high and store to color RAM pointer
+	ora #>clrram		; calc color RAM high and store to color RAM ptr
 	sta user+1
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E0F4 Read a key from kbd and return it in A
-lp2:  	ldx     kyndx                           ; E0F4 A6 D6                    ..
-	beq     lp3                          ; E0F6 F0 12                    ..
-	ldy     keyidx                          ; E0F8 AC 89 03                 ...
-	jsr pagkey				; sub: Switch to indirect bank with key buffer
-	lda     (keypnt),y                      ; E0FE B1 C2                    ..
-	jsr pagres    			; sub: Restore indirect bank
-	dec     kyndx                           ; E103 C6 D6                    ..
-	inc     keyidx                          ; E105 EE 89 03                 ...
-	cli                                     ; E108 58                       X
-	rts                                     ; E109 60                       `
-; E10A Remove key from kbd buffer and return it in A
-lp3: 	ldy     keyd                            ; E10A AC AB 03                 ...
-	ldx     #$00                            ; E10D A2 00                    ..
-lp1:  	lda     keyd+1,x                        ; E10F BD AC 03                 ...
-	sta     keyd,x                          ; E112 9D AB 03                 ...
-	inx                                     ; E115 E8                       .
-	cpx     ndx                             ; E116 E4 D1                    ..
-	bne     lp1                           ; E118 D0 F5                    ..
-	dec     ndx                             ; E11A C6 D1                    ..
-	tya                                     ; E11C 98                       .
-	cli                                     ; E11D 58                       X
-	rts                                     ; E11E 60                       `
+; *** Input routines ***
+; E0F4 Remove character from queue
+lp2:  	ldx kyndx		; are there any pgm keys
+	beq lp3			; branch if not
+	ldy keyidx		; get index to current char
+	jsr pagkey		; switch to indirect bank with key buffer
+	lda (keypnt),y		; get current byt
+	jsr pagres		; restore indirect bank
+	dec kyndx		; 1 byte down
+	inc keyidx		; bump index to next char
+	cli
+	rts
+; No F-key
+lp3: 	ldy keyd		; get key from irq buffer
+	ldx #$00
+lp1:  	lda keyd+1,x		; shift key buffer
+	sta keyd,x
+	inx
+	cpx ndx			; shift till last key in buffer
+	bne lp1
+	dec ndx			; decrease key index
+	tya			; return char in A
+	cli
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E11F Screen input
-scrinp: jsr     prt                           ; E11F 20 84 E2                  ..
-	asl     $03BF                           ; E122 0E BF 03                 ...
-	lsr     $03BF                           ; E125 4E BF 03                 N..
-LE128:  lda     ndx                             ; E128 A5 D1                    ..
-	ora     kyndx                           ; E12A 05 D6                    ..
-	sta     blnon                           ; E12C 85 E6                    ..
-	beq     LE128                           ; E12E F0 F8                    ..
-	sei                                     ; E130 78                       x
-	lda     blnsw                           ; E131 A5 EB                    ..
-	beq     LE140                           ; E133 F0 0B                    ..
-	lda     config                          ; E135 A5 D4                    ..
-	ldy     #$00                            ; E137 A0 00                    ..
-	sty     blnsw                           ; E139 84 EB                    ..
-	ldx     gdcol                           ; E13B A6 ED                    ..
-	jsr     dspcol                           ; E13D 20 0F E2                  ..
-LE140:  jsr     lp2                           ; E140 20 F4 E0                  ..
-	cmp     #$0D                            ; E143 C9 0D                    ..
-	bne     scrinp                          ; E145 D0 D8                    ..
-	sta     crsw                            ; E147 85 D0                    ..
-	jsr     fndend                          ; E149 20 F7 E4                  ..
-	stx     lintmp                          ; E14C 8E 84 03                 ...
-	jsr     fistrt                          ; E14F 20 E9 E4                  ..
-	lda     #$00                            ; E152 A9 00                    ..
-	sta     qtsw                            ; E154 85 D2                    ..
-	ldy     sclf                            ; E156 A4 DE                    ..
-	lda     lsxp                            ; E158 A5 CF                    ..
-	bmi     LE16F                           ; E15A 30 13                    0.
-	cmp     tblx                            ; E15C C5 CA                    ..
-	bcc     LE16F                           ; E15E 90 0F                    ..
-	ldy     lstp                            ; E160 A4 CE                    ..
-	cmp     lintmp                          ; E162 CD 84 03                 ...
-	bne     LE16B                           ; E165 D0 04                    ..
-	cpy     indx                            ; E167 C4 D5                    ..
-	beq     LE16D                           ; E169 F0 02                    ..
-LE16B:  bcs     LE17E                           ; E16B B0 11                    ..
-LE16D:  sta     tblx                            ; E16D 85 CA                    ..
-LE16F:  sty     pntr                            ; E16F 84 CB                    ..
-	jmp     LE186                           ; E171 4C 86 E1                 L..
+scrinp: jsr prt                           ; E11F 20 84 E2                  ..
+	asl $03BF                           ; E122 0E BF 03                 ...
+	lsr $03BF                           ; E125 4E BF 03                 N..
+LE128:  lda ndx                             ; E128 A5 D1                    ..
+	ora kyndx                           ; E12A 05 D6                    ..
+	sta blnon                           ; E12C 85 E6                    ..
+	beq LE128                           ; E12E F0 F8                    ..
+	sei                                 ; E130 78                       x
+	lda blnsw                           ; E131 A5 EB                    ..
+	beq LE140                           ; E133 F0 0B                    ..
+	lda config                          ; E135 A5 D4                    ..
+	ldy #$00                            ; E137 A0 00                    ..
+	sty blnsw                           ; E139 84 EB                    ..
+	ldx gdcol                           ; E13B A6 ED                    ..
+	jsr dspcol                           ; E13D 20 0F E2                  ..
+LE140:  jsr lp2                           ; E140 20 F4 E0                  ..
+	cmp #$0D                            ; E143 C9 0D                    ..
+	bne scrinp                          ; E145 D0 D8                    ..
+	sta crsw                            ; E147 85 D0                    ..
+	jsr fndend                          ; E149 20 F7 E4                  ..
+	stx lintmp                          ; E14C 8E 84 03                 ...
+	jsr fistrt                          ; E14F 20 E9 E4                  ..
+	lda #$00                            ; E152 A9 00                    ..
+	sta qtsw                            ; E154 85 D2                    ..
+	ldy sclf                            ; E156 A4 DE                    ..
+	lda lsxp                            ; E158 A5 CF                    ..
+	bmi LE16F                           ; E15A 30 13                    0.
+	cmp tblx                            ; E15C C5 CA                    ..
+	bcc LE16F                           ; E15E 90 0F                    ..
+	ldy lstp                            ; E160 A4 CE                    ..
+	cmp lintmp                          ; E162 CD 84 03                 ...
+	bne LE16B                           ; E165 D0 04                    ..
+	cpy indx                            ; E167 C4 D5                    ..
+	beq LE16D                           ; E169 F0 02                    ..
+LE16B:  bcs LE17E                           ; E16B B0 11                    ..
+LE16D:  sta tblx                            ; E16D 85 CA                    ..
+LE16F:  sty pntr                            ; E16F 84 CB                    ..
+	jmp LE186                           ; E171 4C 86 E1                 L..
 
 ; -------------------------------------------------------------------------------------------------
 ; E174 Read char from screen
@@ -756,81 +757,81 @@ loop5:	tya                                     ; E174 98                       .
 	pha                                     ; E175 48                       H
 	txa                                     ; E176 8A                       .
 	pha                                     ; E177 48                       H
-	lda     crsw                            ; E178 A5 D0                    ..
-	beq     LE128                           ; E17A F0 AC                    ..
-	bpl     LE186                           ; E17C 10 08                    ..
-LE17E:  lda     #$00                            ; E17E A9 00                    ..
-	sta     crsw                            ; E180 85 D0                    ..
-	lda     #$0D                            ; E182 A9 0D                    ..
-	bne     LE1BF                           ; E184 D0 39                    .9
-LE186:  jsr     stupt                          ; E186 20 DF E0                  ..
-	jsr     get1ch                          ; E189 20 3F E2                  ?.
-	sta     data                            ; E18C 85 DB                    ..
-	and     #$3F                            ; E18E 29 3F                    )?
-	asl     data                            ; E190 06 DB                    ..
-	bit     data                            ; E192 24 DB                    $.
-	bpl     LE198                           ; E194 10 02                    ..
-	ora     #$80                            ; E196 09 80                    ..
-LE198:  bcc     LE19E                           ; E198 90 04                    ..
-	ldx     qtsw                            ; E19A A6 D2                    ..
-	bne     LE1A2                           ; E19C D0 04                    ..
-LE19E:  bvs     LE1A2                           ; E19E 70 02                    p.
-	ora     #$40                            ; E1A0 09 40                    .@
-LE1A2:  jsr     qtswc                           ; E1A2 20 C8 E1                  ..
-	ldy     tblx                            ; E1A5 A4 CA                    ..
-	cpy     lintmp                          ; E1A7 CC 84 03                 ...
-	bcc     LE1B6                           ; E1AA 90 0A                    ..
-	ldy     pntr                            ; E1AC A4 CB                    ..
-	cpy     indx                            ; E1AE C4 D5                    ..
-	bcc     LE1B6                           ; E1B0 90 04                    ..
-	ror     crsw                            ; E1B2 66 D0                    f.
-	bmi     LE1B9                           ; E1B4 30 03                    0.
-LE1B6:  jsr     nextchr                         ; E1B6 20 21 E5                  !.
-LE1B9:  cmp     #$DE                            ; E1B9 C9 DE                    ..
-	bne     LE1BF                           ; E1BB D0 02                    ..
-	lda     #$FF                            ; E1BD A9 FF                    ..
-LE1BF:  sta     data                            ; E1BF 85 DB                    ..
-	pla                                     ; E1C1 68                       h
-	tax                                     ; E1C2 AA                       .
-	pla                                     ; E1C3 68                       h
-	tay                                     ; E1C4 A8                       .
-	lda     data                            ; E1C5 A5 DB                    ..
-	rts                                     ; E1C7 60                       `
+	lda crsw                            ; E178 A5 D0                    ..
+	beq LE128                           ; E17A F0 AC                    ..
+	bpl LE186                           ; E17C 10 08                    ..
+LE17E:  lda #$00                            ; E17E A9 00                    ..
+	sta crsw                            ; E180 85 D0                    ..
+	lda #$0D                            ; E182 A9 0D                    ..
+	bne LE1BF                           ; E184 D0 39                    .9
+LE186:  jsr stupt                          ; E186 20 DF E0                  ..
+	jsr get1ch                          ; E189 20 3F E2                  ?.
+	sta data                            ; E18C 85 DB                    ..
+	and #$3F                            ; E18E 29 3F                    )?
+	asl data                            ; E190 06 DB                    ..
+	bit data                            ; E192 24 DB                    $.
+	bpl LE198                           ; E194 10 02                    ..
+	ora #$80                            ; E196 09 80                    ..
+LE198:  bcc LE19E                           ; E198 90 04                    ..
+	ldx qtsw                            ; E19A A6 D2                    ..
+	bne LE1A2                           ; E19C D0 04                    ..
+LE19E:  bvs LE1A2                           ; E19E 70 02                    p.
+	ora #$40                            ; E1A0 09 40                    .@
+LE1A2:  jsr qtswc                           ; E1A2 20 C8 E1                  ..
+	ldy tblx                            ; E1A5 A4 CA                    ..
+	cpy lintmp                          ; E1A7 CC 84 03                 ...
+	bcc LE1B6                           ; E1AA 90 0A                    ..
+	ldy pntr                            ; E1AC A4 CB                    ..
+	cpy indx                            ; E1AE C4 D5                    ..
+	bcc LE1B6                           ; E1B0 90 04                    ..
+	ror crsw                            ; E1B2 66 D0                    f.
+	bmi LE1B9                           ; E1B4 30 03                    0.
+LE1B6:  jsr nextchr                         ; E1B6 20 21 E5                  !.
+LE1B9:  cmp #$DE                            ; E1B9 C9 DE                    ..
+	bne LE1BF                           ; E1BB D0 02                    ..
+	lda #$FF                            ; E1BD A9 FF                    ..
+LE1BF:  sta data                            ; E1BF 85 DB                    ..
+	pla                                 ; E1C1 68                       h
+	tax                                 ; E1C2 AA                       .
+	pla                                 ; E1C3 68                       h
+	tay                                 ; E1C4 A8                       .
+	lda data                            ; E1C5 A5 DB                    ..
+	rts                                 ; E1C7 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; E1C8 Switch quote mode depending on char in A
-qtswc:  cmp     #$22                            ; E1C8 C9 22                    ."
-	bne     LE1D4                           ; E1CA D0 08                    ..
-	lda     qtsw                            ; E1CC A5 D2                    ..
-	eor     #$01                            ; E1CE 49 01                    I.
-	sta     qtsw                            ; E1D0 85 D2                    ..
-	lda     #$22                            ; E1D2 A9 22                    ."
+qtswc:  cmp #$22                            ; E1C8 C9 22                    ."
+	bne LE1D4                           ; E1CA D0 08                    ..
+	lda qtsw                            ; E1CC A5 D2                    ..
+	eor #$01                            ; E1CE 49 01                    I.
+	sta qtsw                            ; E1D0 85 D2                    ..
+	lda #$22                            ; E1D2 A9 22                    ."
 LE1D4:  rts                                     ; E1D4 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; E1D5
-LE1D5:  bit     rvs                             ; E1D5 2C 83 03                 ,..
-	bpl     LE1DC                           ; E1D8 10 02                    ..
-	ora     #$80                            ; E1DA 09 80                    ..
-LE1DC:  ldx     insrt                           ; E1DC A6 D3                    ..
-	beq     LE1E2                           ; E1DE F0 02                    ..
-	dec     insrt                           ; E1E0 C6 D3                    ..
-LE1E2:  bit     insflg                          ; E1E2 2C 86 03                 ,..
-	bpl     LE1F0                           ; E1E5 10 09                    ..
-	pha                                     ; E1E7 48                       H
-	jsr     insert                          ; E1E8 20 91 E5                  ..
-	ldx     #$00                            ; E1EB A2 00                    ..
-	stx     insrt                           ; E1ED 86 D3                    ..
-	pla                                     ; E1EF 68                       h
-LE1F0:  jsr     dsppcc                           ; E1F0 20 09 E2                  ..
-	jsr     movchr                          ; E1F3 20 DB E5                  ..
-LE1F6:  lda     data                            ; E1F6 A5 DB                    ..
-	sta     lstchr                          ; E1F8 8D 85 03                 ...
-	pla                                     ; E1FB 68                       h
-	tay                                     ; E1FC A8                       .
-	lda     insrt                           ; E1FD A5 D3                    ..
-	beq     LE203                           ; E1FF F0 02                    ..
-	lsr     qtsw                            ; E201 46 D2                    F.
+LE1D5:  bit rvs                             ; E1D5 2C 83 03                 ,..
+	bpl LE1DC                           ; E1D8 10 02                    ..
+	ora #$80                            ; E1DA 09 80                    ..
+LE1DC:  ldx insrt                           ; E1DC A6 D3                    ..
+	beq LE1E2                           ; E1DE F0 02                    ..
+	dec insrt                           ; E1E0 C6 D3                    ..
+LE1E2:  bit insflg                          ; E1E2 2C 86 03                 ,..
+	bpl LE1F0                           ; E1E5 10 09                    ..
+	pha                                 ; E1E7 48                       H
+	jsr insert                          ; E1E8 20 91 E5                  ..
+	ldx #$00                            ; E1EB A2 00                    ..
+	stx insrt                           ; E1ED 86 D3                    ..
+	pla                                 ; E1EF 68                       h
+LE1F0:  jsr dsppcc                           ; E1F0 20 09 E2                  ..
+	jsr movchr                          ; E1F3 20 DB E5                  ..
+LE1F6:  lda data                            ; E1F6 A5 DB                    ..
+	sta lstchr                          ; E1F8 8D 85 03                 ...
+	pla                                 ; E1FB 68                       h
+	tay                                 ; E1FC A8                       .
+	lda insrt                           ; E1FD A5 D3                    ..
+	beq LE203                           ; E1FF F0 02                    ..
+	lsr qtsw                            ; E201 46 D2                    F.
 LE203:  pla                                     ; E203 68                       h
 	tax                                     ; E204 AA                       .
 	pla                                     ; E205 68                       h
@@ -849,17 +850,17 @@ dspcol: ldy #$02
 	sty blncnt				; blink cusor
 ; E213 Write char A with color X
 dspp:   ldy pntr				; load column
-	jsr pagscr				; sub: Switch to indirect bank with video screen
-	jsr jwrtvrm				; sub: write char to screen
+	jsr pagscr				; switch to indirect bank with video screen
+	jsr jwrtvrm				; write char to screen
 	pha
 	txa						; move color to A
-	jsr jwrtcrm				; sub: write color to color RAM
+	jsr jwrtcrm				; write color to color RAM
 	pla
-	jmp pagres    			; sub: Restore indirect bank
+	jmp pagres    			; restore indirect bank
 ; -------------------------------------------------------------------------------------------------
 ; E224 Clear the cursor line and double length bit for line X
 clrlin: ldy sclf				; load left margin of window
-	jsr clrbit				; sub: clear double line bit for line X
+	jsr clrbit				; clear double line bit for line X
 ; E229 Clear from column Y till end of line
 clrprt: txa
 	pha						; remember line
@@ -868,7 +869,7 @@ clrprt: txa
 	dey
 clrllp: iny
 	sty pntr				; store column to cursor pos
-	jsr doblnk				; sub: Write blank ($20) at cusor position
+	jsr doblnk				; write blank ($20) at cusor position
 	cpy scrt				; compare to right margin of window
 	bne clrllp				; next char
 	pla
@@ -880,31 +881,31 @@ clrllp: iny
 ; E23F Get character from the screen to A, tcolor
 get1ch: ldy pntr				; load column
 ; E241 Get char from column Y
-getych: jsr pagscr				; sub: Switch to indirect bank with video screen
+getych: jsr pagscr				; switch to indirect bank with video screen
 	lda (pnt),y				; load char from screen and remember it
 	pha
 	lda #$00
 	ora (user),y			; load color from irom (ORA)
 	sta tcolor				; and store it to tcolor
 	pla
-	jmp pagres      		; sub: Restore indirect bank
+	jmp pagres      		; restore indirect bank
 ; -------------------------------------------------------------------------------------------------
-; E251 Switch the VIC to normal or graphics character set
-crtmode:bcs txtcrt              ; jump to normal character set if C=1
-grcrt:  ldy #$02                ; Set Bit#1 for graphics character set   
-	bne setcrt              ; skip next instruction
-txtcrt: ldy #$00                ; Clear Bit#1 for normal chacter set
-setcrt: sty grmode              ; store mode
-	lda vic+memptr          ; load vic memory pointers register
-	and #$FD                ; clear bit#1 = CB11
-	ora grmode              ; set CB11 (Character-ROM base-address bit#11)
-	ldy #$18                ; load VIC register number in Y
-	jmp wrtvic              ; sub: write VIC register
+; E251 Set text/graphic mode (C=1 graphic)
+ctext:	bcs grcrt		; skip if graphic mode
+txcrt:	ldy #$02		; set Bit#1 for text character set   
+	bne crtset
+grcrt:	ldy #$00		; clear Bit#1 for graphic char set
+crtset: sty grmode		; store new mode
+	lda vic+memptr		; load vic memory pointers register
+	and #$FD
+	ora grmode		; clear bit #1 and set to desired mode (char-ROM base-adr bit#11)
+	ldy #memptr
+	jmp wrtvic		; write VIC memory pointers reg
 ; -------------------------------------------------------------------------------------------------
 ; E267 Switch to indirect bank with key buffer
 pagkey: pha                     ; remember A
 	lda keyseg              ; load F-key bank
-	jmp pagsub              ; sub: switch to ibank in A
+	jmp pagsub              ; switch to ibank in A
 ; E26E Switch to indirect bank with video screen
 pagscr: pha                     ; remember A
 	lda scrseg              ; load screen memory bank
@@ -1054,16 +1055,14 @@ rvsf:   eor     #$80                            ; E355 49 80                    
 	rts                                     ; E35A 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; E35B Handle home/clear
-homeclr:bcc     curhome                         ; E35B 90 03                    ..
-	jmp     clrscr                          ; E35D 4C C5 E0                 L..
-
-; -------------------------------------------------------------------------------------------------
+; E35B Home/clear
+homclr:	bcc homes		; if C=0 home
+	jmp clsr		; Clear screen, cursor home
 ; E360 Cursor home
-curhome:cmp     lstchr                          ; E360 CD 85 03                 ...
-	bne     hm110                           ; E363 D0 03                    ..
-	jsr     sreset                          ; E365 20 93 EA                  ..
-hm110:  jmp     home                            ; E368 4C D3 E0                 L..
+homes:	cmp lstchr		; last char a home ?
+	bne hm110		; no
+	jsr sreset		; top=0,left=0,bot=nrows-1,rt=cols-1
+hm110:  jmp nxtd		; set to top left
 
 ; -------------------------------------------------------------------------------------------------
 ; E36B Set/reset a tabulator
@@ -1123,16 +1122,16 @@ movlin: lda     ldtab2,x                        ; E3B6 BD 3A EC                 
 	and     #$03                            ; E3C2 29 03                    ).
 	ora     #$D4                            ; E3C4 09 D4                    ..
 	sta     sedeal+1                        ; E3C6 85 C7                    ..
-	jsr pagscr				; sub: Switch to indirect bank with video screen
+	jsr pagscr				; switch to indirect bank with video screen
 movl10: lda     (sedsal),y                      ; E3CB B1 C4                    ..
-	jsr     jwrtvrm				; sub: write char to screen
+	jsr     jwrtvrm				; write char to screen
 	lda     #$00                            ; E3D0 A9 00                    ..
 	ora     (sedeal),y                      ; E3D2 11 C6                    ..
-	jsr     jwrtcrm				; sub: write color to color RAM
+	jsr     jwrtcrm				; write color to color RAM
 	cpy     scrt                            ; E3D7 C4 DF                    ..
 	iny                                     ; E3D9 C8                       .
 	bcc     movl10                          ; E3DA 90 EF                    ..
-	jmp pagres    			; sub: Restore indirect bank
+	jmp pagres    			; restore indirect bank
 
 ; -------------------------------------------------------------------------------------------------
 ; E3DF Scroll down
@@ -1249,7 +1248,7 @@ getlin: sei                                     ; E49A 78                       
 ; E4A6 Check for a double length line
 getbit: ldx tblx				; load current line
 ; E4a8 Check line X for double length
-getbt1: jsr bitpos				; sub: Find bit table position for line X
+getbt1: jsr bitpos				; Find bit table position for line X
 	and bitabl,x			; check if bit for line is set in table
 	cmp #$01
 	jmp bitout				; return 0 if not a double length line
@@ -1259,7 +1258,7 @@ putbit: ldx tblx				; load current line
 ; E4B4 Mark line X as double length C=1, unmark C=0
 putbt1: bcs setbit				; branch to mark line if C=1
 ; E4B6 Clear double length line mark
-clrbit: jsr bitpos				; sub: Find bit table position for line X
+clrbit: jsr bitpos				; Find bit table position for line X
 	eor #$FF				; bit value = 0
 	and bitabl,x			; clear bit
 bitsav: sta bitabl,x			; and store it to table at byte position X
@@ -1269,7 +1268,7 @@ bitout: ldx bitmsk				; Move byte table position to X
 ; E4C3 Mark a double length line
 setbit: bit scrdis
 	bvs getbt1				; branch if scrolling is disabled
-	jsr bitpos				; sub: Find bit table position for line X
+	jsr bitpos				; Find bit table position for line X
 	ora bitabl,x			; set bit in table
 	bne bitsav				; branch always to save byte to table
 ; Find bit table position for line X
@@ -1492,7 +1491,7 @@ wrtvic: sta vic,y
 ; -------------------------------------------------------------------------------------------------
 ; E641 Write char A to screen at current line, column Y
 !ifdef STANDARD_VIDEO{		; ********** Standard video **********
-wrtvram:sta saver		; remember value
+wrvram:	sta saver		; remember value
 wrtrrpt:lda saver
 	sta (pnt),y		; store to screen RAM
 	lda (pnt),y		; load from screen
@@ -1501,14 +1500,14 @@ wrtrrpt:lda saver
 	lda saver
 	rts
 } else{                         ; ********** Fast video PATCH **********
-wrtvram:sta (pnt),y		; store byte to screen line pointer + coulmn X
+wrvram:	sta (pnt),y		; store byte to screen line pointer + coulmn X
 	rts
 }
 *= $E650
 ; -------------------------------------------------------------------------------------------------
 ; E650 Write color to color RAM at current line, column Y
 !ifdef STANDARD_VIDEO{          ; ********** Standard video **********
-wrtcram:sta saver		; remember value
+wrcram:	sta saver		; remember value
 	lda i6509
 	pha			; remember indirect bank
 	lda #irom
@@ -1524,10 +1523,10 @@ wrtcrpt:lda saver
 	rts
 } else{
 !ifdef BANK15_VIDEO{            ; ********** Video bank15 PATCH **********
-wrtcram:sta (user),y		; store to color RAM
+wrcram:sta (user),y		; store to color RAM
 	rts
 	} else{                 ; ********** Fast video PATCH **********
-wrtcram:sta saver		; remember value
+wrcram:sta saver		; remember value
 	lda i6509
 	pha			; remember indirect bank
 	lda #irom
@@ -1786,9 +1785,9 @@ LE7EE:  cpx     #$08                            ; E7EE E0 08                    
 	beq     LE7F5                           ; E7F0 F0 03                    ..
 	jsr     jbsout                          ; E7F2 20 53 E8                  S.
 LE7F5:  php                                     ; E7F5 08                       .
-	jsr pagkey				; sub: Switch to indirect bank with key buffer
+	jsr pagkey				; switch to indirect bank with key buffer
 	lda     (keypnt),y                      ; E7F9 B1 C2                    ..
-	jsr pagres    			; sub: Restore indirect bank
+	jsr pagres    			; restore indirect bank
 	plp                                     ; E7FE 28                       (
 	cmp     #$0D                            ; E7FF C9 0D                    ..
 	beq     LE83C                           ; E801 F0 39                    .9
@@ -1881,7 +1880,7 @@ addkey: pha                                     ; E86C 48                       
 
 ; -------------------------------------------------------------------------------------------------
 ; E8A2
-keysho: jsr pagkey				; sub: Switch to indirect bank with key buffer
+keysho: jsr pagkey				; switch to indirect bank with key buffer
 kymove: lda     sedeal                          ; E8A5 A5 C6                    ..
 	clc                                     ; E8A7 18                       .
 	sbc     sedsal                          ; E8A8 E5 C4                    ..
@@ -1927,12 +1926,12 @@ kyinlp: dey                                     ; E8F3 88                       
 	lda     $03,x                           ; E8F6 B5 03                    ..
 	sta     i6509                           ; E8F8 85 01                    ..
 	lda     (sedeal),y                      ; E8FA B1 C6                    ..
-	jsr pagres    			; sub: Restore indirect bank
-	jsr pagkey				; sub: Switch to indirect bank with key buffer
+	jsr pagres    			; restore indirect bank
+	jsr pagkey				; switch to indirect bank with key buffer
 	sta     (sedsal),y                      ; E902 91 C4                    ..
 	jmp     kyinlp                          ; E904 4C F3 E8                 L..
 
-kyinok: jsr pagres    			; sub: Restore indirect bank
+kyinok: jsr pagres    			; restore indirect bank
 	clc                                     ; E90A 18                       .
 	rts                                     ; E90B 60                       `
 
@@ -2173,10 +2172,10 @@ setbts: sta scbot               ; store last row
 	stx scrt                ; store last column
 	rts
 ; -------------------------------------------------------------------------------------------------
-; EA93 Window to full screen (off)
-sreset: lda #scymax		; last row = 24
-	ldx #scxmax		; last columns = 39
-	jsr setbts              ; sub: set lower right corner
+; EA93 Set full screen window
+sreset: lda #scymax		; load last row, column of screen
+	ldx #scxmax
+	jsr setbts              ; et lower right corner
 	lda #$00                ; clear A, X to first row, column
 	tax
 settps: sta sctop               ; set first row
@@ -2282,12 +2281,12 @@ ctlvect:!word ctluser-1
 	!word ctluser-1
 	!word ctluser-1
 	!word nxt1-1
-	!word crtmode-1
+	!word ctext-1
 	!word window-1
 	!word colorky-1
 	!word cdnup-1
 	!word rvsf-1
-	!word homeclr-1
+	!word homclr-1
 	!word delins-1
 	!word colorky-1
 	!word colorky-1
@@ -2348,6 +2347,7 @@ keydef: !pet "rU",$0d                   ; F1
 ;        !pet "scratch",$22              ; F9
 ;        !pet "header",$22               ; F10
 ;}
+keyend:
 ; -------------------------------------------------------------------------------------------------
 ; ECEF Generic bit mask table
 bits:   !byte $80,$40,$20,$10,$08,$04,$02,$01
@@ -2359,8 +2359,8 @@ vicinit:!byte $1B,$00,$00,$00,$00,$08,$00,$40
 ; -------------------------------------------------------------------------------------------------
 ; ED08 Extended editor vector table (copied to $3B5)
 edvect: !word funkey
-	!word wrtvram
-	!word wrtcram
+	!word wrvram
+	!word wrcram
 	!word nofunc
 	!word nofunc
 ; -------------------------------------------------------------------------------------------------
@@ -4456,13 +4456,13 @@ sloop3: ldy eah
 	sty evect+1             ; store rom address highbyte to warm start vector
 	tax                     ; move 1. ident byte to x to set N-flag
 	bpl swarm               ; jump to warm start if value is positive ('c'=$43)
-	jsr ioinit              ; sub: I/O register init $F9FE (TPI1, TPI2, CIA, TOD)
+	jsr ioinit              ; I/O register init $F9FE (TPI1, TPI2, CIA, TOD)
 	lda #$F0
 	sta pkybuf+1            ; start F-keys
-	jsr jcint               ; sub: initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
-	jsr ramtas              ; sub: ram-test $FA94
-	jsr restor              ; sub: init standard-vectors $FBB1 (copies $0300 Vector Table)
-	jsr jcint               ; sub: initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
+	jsr jcint               ; initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
+	jsr ramtas              ; ram-test $FA94
+	jsr restor              ; init standard-vectors $FBB1 (copies $0300 Vector Table)
+	jsr jcint               ; initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
 	lda #warm		; Kernal initilize done flag
 	sta evect+2             ; save first warm start flag $A5
 ; F9FB Warm start entry
