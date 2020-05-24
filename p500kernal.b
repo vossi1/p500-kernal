@@ -304,8 +304,8 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	funvec		= $03B5		; Vector: funktion key handler
 	iwrtvrm		= $03B7		; Vector: video ram write routine
 	iwrtcrm		= $03B9		; Vector: color ram write routine
-	iunkwn1		= $03BB		; Vector: nofunc - from old edi
-	iunkwn2		= $03BD		; Vector: nofunc
+	iunkwn1		= $03BB		; Vector: -> E039 nofunc
+	iunkwn2		= $03BD		; Vector: -> E039 nofunc
 	; $03C0 - $3F7 Free absolute space
 	absend		= $03C0
 	; System warm start variables and vectors
@@ -549,6 +549,7 @@ jmoncld:jmp monoff		; Monitor cold start
 ;****************************************
 ;
 ;  40 column pet ii screen editor
+;    with unlimited screen line wrap
 ;
 ;****************************************
 ; E004 Jump vector table
@@ -811,34 +812,35 @@ qtswc:  cmp #$22                            ; E1C8 C9 22                    ."
 LE1D4:  rts                                     ; E1D4 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; E1D5
-LE1D5:  bit rvs                             ; E1D5 2C 83 03                 ,..
-	bpl LE1DC                           ; E1D8 10 02                    ..
-	ora #$80                            ; E1DA 09 80                    ..
-LE1DC:  ldx insrt                           ; E1DC A6 D3                    ..
-	beq LE1E2                           ; E1DE F0 02                    ..
-	dec insrt                           ; E1E0 C6 D3                    ..
-LE1E2:  bit insflg                          ; E1E2 2C 86 03                 ,..
-	bpl LE1F0                           ; E1E5 10 09                    ..
-	pha                                 ; E1E7 48                       H
-	jsr insert                          ; E1E8 20 91 E5                  ..
-	ldx #$00                            ; E1EB A2 00                    ..
-	stx insrt                           ; E1ED 86 D3                    ..
-	pla                                 ; E1EF 68                       h
-LE1F0:  jsr dsppcc                           ; E1F0 20 09 E2                  ..
-	jsr movchr                          ; E1F3 20 DB E5                  ..
-LE1F6:  lda data                            ; E1F6 A5 DB                    ..
-	sta lstchr                          ; E1F8 8D 85 03                 ...
-	pla                                 ; E1FB 68                       h
-	tay                                 ; E1FC A8                       .
-	lda insrt                           ; E1FD A5 D3                    ..
-	beq LE203                           ; E1FF F0 02                    ..
-	lsr qtsw                            ; E201 46 D2                    F.
-LE203:  pla                                     ; E203 68                       h
-	tax                                     ; E204 AA                       .
-	pla                                     ; E205 68                       h
-	rts                                     ; E206 60                       `
-
+; E1D5 *** Output chars ***
+nxt3:	bit rvs
+	bpl nvs
+	ora #$80
+nvs:	ldx insrt
+	beq nvsa
+	dec insrt
+nvsa:	bit insflg		; are we in auto insert mode?
+	bpl nvs1		; branch if not
+	pha			; save the char
+	jsr insert		; make room for this char
+	ldx #$00
+	stx insrt		; make sure we turn off insert mode.
+	pla			; restore char
+nvs1:	jsr dsppcc		; display the character
+	jsr movchr		; move to next char pos
+; -------------------------------------------------------------------------------------------------
+; E1F6 ********* exit from prt *********
+loop2:	lda data		; copy last char
+	sta lstchr
+	pla
+	tay
+	lda insrt
+	beq lop2
+	lsr qtsw
+lop2: 	pla
+	tax
+	pla
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E207 Write blank ($20) at cusor position
 doblnk: lda #' '		; load blank
@@ -926,97 +928,88 @@ pagres: pha
 	pla
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E284 Print character on screen
-prt:  pha                                     ; E284 48                       H
-	cmp     #$FF                            ; E285 C9 FF                    ..
-	bne     LE28B                           ; E287 D0 02                    ..
-	lda     #$DE                            ; E289 A9 DE                    ..
-LE28B:  sta     data                            ; E28B 85 DB                    ..
-	txa                                     ; E28D 8A                       .
-	pha                                     ; E28E 48                       H
-	tya                                     ; E28F 98                       .
-	pha                                     ; E290 48                       H
-	lda     #$00                            ; E291 A9 00                    ..
-	sta     crsw                            ; E293 85 D0                    ..
-	ldy     pntr                            ; E295 A4 CB                    ..
-	lda     data                            ; E297 A5 DB                    ..
-	and     #$7F                            ; E299 29 7F                    ).
-	cmp     #$20                            ; E29B C9 20                    . 
-	bcc     ntcn                            ; E29D 90 41                    .A
-	ldx     qtsw                            ; E29F A6 D2                    ..
-	beq     LE2B0                           ; E2A1 F0 0D                    ..
-	ldx     $03BF                           ; E2A3 AE BF 03                 ...
-	beq     LE2C5                           ; E2A6 F0 1D                    ..
-	jsr     junkwn1                         ; E2A8 20 69 E6                  i.
-	lda     data                            ; E2AB A5 DB                    ..
-	jmp     LE2C5                           ; E2AD 4C C5 E2                 L..
-
-LE2B0:  ldx     insrt                           ; E2B0 A6 D3                    ..
-	bne     LE2C5                           ; E2B2 D0 11                    ..
-	bit     $03BF                           ; E2B4 2C BF 03                 ,..
-	bpl     LE2C5                           ; E2B7 10 0C                    ..
-	jsr     junkwn1                         ; E2B9 20 69 E6                  i.
-	lda     data                            ; E2BC A5 DB                    ..
-	cmp     #$22                            ; E2BE C9 22                    ."
-	beq     LE2D2                           ; E2C0 F0 10                    ..
-	jmp     LE1F6                           ; E2C2 4C F6 E1                 L..
-
-LE2C5:  ldx     lstchr                          ; E2C5 AE 85 03                 ...
-	cpx     #$1B                            ; E2C8 E0 1B                    ..
-	bne     LE2D2                           ; E2CA D0 06                    ..
-	jsr     escseq                          ; E2CC 20 DE E6                  ..
-	jmp     LE1F6                           ; E2CF 4C F6 E1                 L..
-
-LE2D2:  and     #$3F                            ; E2D2 29 3F                    )?
-LE2D4:  bit     data                            ; E2D4 24 DB                    $.
-	bpl     LE2DA                           ; E2D6 10 02                    ..
-	ora     #$40                            ; E2D8 09 40                    .@
-LE2DA:  jsr     qtswc                           ; E2DA 20 C8 E1                  ..
-	jmp     LE1D5                           ; E2DD 4C D5 E1                 L..
-
-; -------------------------------------------------------------------------------------------------
-; E2E0
-ntcn:   cmp     #$0D                            ; E2E0 C9 0D                    ..
-	beq     LE30D                           ; E2E2 F0 29                    .)
-	cmp     #$1B                            ; E2E4 C9 1B                    ..
-	bne     LE2F9                           ; E2E6 D0 11                    ..
-	bit     data                            ; E2E8 24 DB                    $.
-	bmi     LE2F9                           ; E2EA 30 0D                    0.
-	lda     qtsw                            ; E2EC A5 D2                    ..
-	ora     insrt                           ; E2EE 05 D3                    ..
-	beq     LE30D                           ; E2F0 F0 1B                    ..
-	jsr     toqm                         ; E2F2 20 72 E7                  r.
-	sta     data                            ; E2F5 85 DB                    ..
-	beq     LE30D                           ; E2F7 F0 14                    ..
-LE2F9:  cmp     #$03                            ; E2F9 C9 03                    ..
-	beq     LE30D                           ; E2FB F0 10                    ..
-	cmp     #$14                            ; E2FD C9 14                    ..
-	beq     LE30D                           ; E2FF F0 0C                    ..
-	ldy     insrt                           ; E301 A4 D3                    ..
-	bne     LE309                           ; E303 D0 04                    ..
-	ldy     qtsw                            ; E305 A4 D2                    ..
-	beq     LE30D                           ; E307 F0 04                    ..
-LE309:  ora     #$80                            ; E309 09 80                    ..
-	bne     LE2D4                           ; E30B D0 C7                    ..
-LE30D:  lda     data                            ; E30D A5 DB                    ..
-	asl                                     ; E30F 0A                       .
-	tax                                     ; E310 AA                       .
-	jsr     ctldisp                         ; E311 20 17 E3                  ..
-	jmp     LE1F6                           ; E314 4C F6 E1                 L..
-
-; -------------------------------------------------------------------------------------------------
+; E284 *** Print a char ***
+prt:	pha
+	cmp #$FF
+	bne prt10
+	lda #$DE
+prt10:	sta data
+	txa
+	pha
+	tya
+	pha
+	lda #$00
+	sta crsw
+	ldy pntr
+	lda data
+	and #$7F
+	cmp #$20
+	bcc ntcn
+	ldx qtsw
+	beq njt1
+	ldx $03BF
+	beq njt2
+	jsr junkwn1		; vector -> nofunc (rts)
+	lda data
+	jmp njt2
+njt1:	ldx insrt
+	bne njt2
+	bit $03BF
+	bpl njt2
+	jsr junkwn1		; vector -> nofunc (rts)
+	lda data
+	cmp #$22
+	beq njt10
+	jmp loop2
+njt2:	ldx lstchr
+	cpx #$1B
+	bne njt10
+	jsr escseq
+	jmp loop2
+njt10:	and #$3F
+njt20:	bit data
+	bpl njt30
+	ora #$40
+njt30:	jsr qtswc
+	jmp nxt3
+; E2E0 ********* Control keys *********
+ntcn:	cmp #$0D
+	beq ntcn20
+	cmp #$1B
+	bne ntcn1
+	bit data
+	bmi ntcn1
+	lda qtsw
+	ora insrt
+	beq ntcn20
+	jsr toqm
+	sta data
+	beq ntcn20
+ntcn1:	cmp #$03
+	beq ntcn20
+	cmp #$14
+	beq ntcn20
+	ldy insrt
+	bne ntcn10
+	ldy qtsw
+	beq ntcn20
+ntcn10:	ora #$80
+	bne njt20
+ntcn20:	lda data
+	asl
+	tax
+	jsr ctdsp
+	jmp loop2
 ; E317 Control code dispatcher
-ctldisp:lda     ctlvect+1,x                     ; E317 BD 6D EC                 .m.
-	pha                                     ; E31A 48                       H
-	lda     ctlvect,x                       ; E31B BD 6C EC                 .l.
-	pha                                     ; E31E 48                       H
-	lda     data                            ; E31F A5 DB                    ..
-	rts                                     ; E321 60                       `
-
+ctdsp:	lda ctlvect+1,x
+	pha
+	lda ctlvect,x
+	pha
+	lda data
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E322 User control code jump vector
 ctluser:jmp     (ctlvec)                        ; E322 6C 22 03                 l".
-
 ; -------------------------------------------------------------------------------------------------
 ; E325 Handle cursor up/down
 cdnup:  bcs     cursup                          ; E325 B0 0D                    ..
@@ -1550,10 +1543,10 @@ wrcram:sta saver		; remember value
 *= $E669
 ; -------------------------------------------------------------------------------------------------
 ; E669
-junkwn1:jmp     (iunkwn1)                       ; E669 6C BB 03                 l..
+junkwn1:jmp (iunkwn1)		; vector -> nofunc (rts)
 ; -------------------------------------------------------------------------------------------------
 ; E66C
-junkwn2:jmp     (iunkwn2)                       ; E66C 6C BD 03                 l..
+junkwn2:jmp (iunkwn2)		; vector -> nofunc (rts)
 ; -------------------------------------------------------------------------------------------------
 ; E66F Jump vector: Write char to screen
 jwrtvrm:jmp     (iwrtvrm)		; -> $03B7 -> $E641
@@ -1707,7 +1700,7 @@ sddn2:  lda     sctop                           ; E765 A5 DC                    
 
 ; -------------------------------------------------------------------------------------------------
 ;**************************************
-; turn off all modes
+; Turn off all modes
 ;   expected to return zero
 ;**************************************
 ; E772 Reset modes: insert, reverse, quote
@@ -1949,7 +1942,7 @@ kyinok: jsr pagres    			; restore indirect bank
 
 ; -------------------------------------------------------------------------------------------------
 ; E90C Keyboard scan
-scnkey: jsr     junkwn2                         ; E90C 20 6C E6                  l.
+scnkey: jsr     junkwn2		; vector -> nofunc (rts)
 	lda     blnon                           ; E90F A5 E6                    ..
 	bne     key                             ; E911 D0 20                    . 
 	dec     blncnt                          ; E913 C6 E7                    ..
