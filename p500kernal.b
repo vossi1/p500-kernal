@@ -663,7 +663,7 @@ edvecl: lda edvect-1,x		; copy extended editor vector table to $3B5
 ; E0C8 Clear screen, cursor home
 clsr:	jsr nxtd		; Cursor home - returns top line in X
 cls10:	jsr scrset		; set screen pointers to line X
-	jsr clrlin		; clear the line
+	jsr clrln		; clear the line
 	cpx scbot		; done ?
 	inx
 	bcc cls10		; no
@@ -771,10 +771,10 @@ clp2:	lda #$00		; input done clear flag
 lop5:	jsr stupt		; set pnt and user
 	jsr get1ch		; get a screen char
 ; convert screencode to petscii
-	sta data
-	and #$3F		; clear bit#6,7 
+	sta data		; store screen code for bit#5,6,7 check temporary
+	and #$3F		; clear bit#6,7 in A
 	asl data		; check: scrcode bit#7->C
-	bit data		; check: scrcode bit#6->Z, #5->V
+	bit data		; check: scrcode bit#6->N, #5->V (shiftet to left)
 	bpl loop54		; skip if scrcode #6=0 x0x -> 00x
 	ora #$80		; x1x -> 10x
 loop54:	bcc loop52		; skip if scrcode #7=0 (not reverse)
@@ -804,14 +804,15 @@ clp7:	sta data
 	lda data		; return petscii char in A
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E1C8 Switch quote mode depending on char in A
-qtswc:  cmp #$22                            ; E1C8 C9 22                    ."
-	bne LE1D4                           ; E1CA D0 08                    ..
-	lda qtsw                            ; E1CC A5 D2                    ..
-	eor #$01                            ; E1CE 49 01                    I.
-	sta qtsw                            ; E1D0 85 D2                    ..
-	lda #$22                            ; E1D2 A9 22                    ."
-LE1D4:  rts                                     ; E1D4 60                       `
+; *** Test for quote mode ***
+; E1C8 Switch quote mode depending on in A
+qtswc:	cmp #$22
+	bne qtswl		; skip if no quote-char
+	lda qtsw
+	eor #$01		; toggle quoteswitch
+	sta qtsw
+	lda #$22		; restore quote in A
+qtswl:	rts
 
 ; -------------------------------------------------------------------------------------------------
 ; E1D5 *** Output chars ***
@@ -844,6 +845,9 @@ lop2: 	pla
 	pla
 	rts
 ; -------------------------------------------------------------------------------------------------
+;********************************
+; Display a character
+;********************************
 ; E207 Write blank ($20) at cusor position
 doblnk: lda #' '		; load blank
 ; E209 Write char A with color or tcolor if color bit#7=1
@@ -856,7 +860,7 @@ dspcol: ldy #$02
 	sty blncnt		; blink cusor
 ; E213 Write char A with color X
 dspp:   ldy pntr		; load column
-	jsr pagscr		; switch to indirect bank with video screen
+	jsr pagscr		; switch to screen ibank
 	jsr jwrvrm		; write char to screen
 	pha
 	txa			; move color to A
@@ -864,34 +868,37 @@ dspp:   ldy pntr		; load column
 	pla
 	jmp pagres    		; restore indirect bank
 ; -------------------------------------------------------------------------------------------------
-; E224 Clear the cursor line and double length bit for line X
-clrlin: ldy sclf		; load left margin of window
-	jsr clrbit		; clear double line bit for line X
-; E229 Clear from column Y till end of line
-clrprt: txa
-	pha			; remember line
+; E224 Subroutine to clear one line
+;                  x = line number
+;         clrln :  blank entire line
+;         clrprt:  y = starting column position
+;
+clrln:	ldy sclf		; load left margin
+	jsr clrbit		; make sure non-continued line
+clrprt:	txa
+	pha			; save X
 	lda pntr
-	pha			; remember cursor column
+	pha			; remember column
 	dey
-clrllp: iny
-	sty pntr		; store column to cursor pos
-	jsr doblnk		; write blank ($20) at cusor position
-	cpy scrt		; compare to right margin of window
-	bne clrllp		; next char
+clr10:	iny
+	sty pntr
+	jsr doblnk		; print a blank
+	cpy scrt		; line completely blank?
+	bne clr10		; branch if not
 	pla
-	sta pntr		; restore cursor column
+	sta pntr
 	pla
 	tax
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E23F Get character from the screen to A, tcolor
-get1ch: ldy pntr		; load column
+; E23F Grab a character from screen
+get1ch: ldy pntr		; get char/color index
 ; E241 Get char from column Y
-getych: jsr pagscr		; switch to indirect bank with video screen
-	lda (pnt),y		; load char from screen and remember it
+getych: jsr pagscr		; switch to screen ibank
+	lda (pnt),y		; get the character
 	pha
 	lda #$00
-	ora (user),y		; load color from irom (ORA)
+	ora (user),y		; get color (ORA = always systembank)
 	sta tcolor		; and store it to tcolor
 	pla
 	jmp pagres      	; restore indirect bank
@@ -934,28 +941,28 @@ pagres: pha
 prt:	pha
 	cmp #$FF
 	bne prt10
-	lda #$DE
-prt10:	sta data
-	txa
+	lda #$DE		; convert pi character
+prt10:	sta data		; save char
+	txa			; save regs
 	pha
 	tya
 	pha
-	lda #$00
+	lda #$00		; clear cr flag
 	sta crsw
-	ldy pntr
+	ldy pntr		; column we are in
 	lda data
 	and #$7F
-	cmp #$20
-	bcc ntcn
-	ldx qtsw
-	beq njt1
-	ldx $03BF
+	cmp #$20		; test if control character (< $20)
+	bcc ntcn		; yes
+	ldx qtsw		; test if in quote mode...
+	beq njt1		; if not, skip
+	ldx $03BF		; ?
 	beq njt2
 	jsr junkwn1		; vector -> nofunc (rts)
 	lda data
 	jmp njt2
-njt1:	ldx insrt
-	bne njt2
+njt1:	ldx insrt		; test if in insert mode
+	bne njt2		; if not, skip
 	bit $03BF
 	bpl njt2
 	jsr junkwn1		; vector -> nofunc (rts)
@@ -963,52 +970,52 @@ njt1:	ldx insrt
 	cmp #$22
 	beq njt10
 	jmp loop2
-njt2:	ldx lstchr
+njt2:	ldx lstchr		; was last char an esc
 	cpx #$1B
 	bne njt10
 	jsr escseq
 	jmp loop2
-njt10:	and #$3F
+njt10:	and #$3F		; no - make a screen char
 njt20:	bit data
-	bpl njt30
-	ora #$40
-njt30:	jsr qtswc
-	jmp nxt3
+	bpl njt30		; skip ahead if normal set - 00 - 3f
+	ora #$40		; convert a0 - bf to 60 - 7f & c0 - df to 40 - 5f
+njt30:	jsr qtswc		; test for quote
+	jmp nxt3		; put on screen
 ; E2E0 ********* Control keys *********
-ntcn:	cmp #$0D
-	beq ntcn20
-	cmp #$1B
+ntcn:	cmp #$0D		; test if a return
+	beq ntcn20		; no inverse if yes
+	cmp #$1B		; test if escape key
 	bne ntcn1
 	bit data
-	bmi ntcn1
-	lda qtsw
-	ora insrt
+	bmi ntcn1		; its a $9b
+	lda qtsw		; test if in quote mode...
+	ora insrt		; ...or insert mode
+	beq ntcn20		; if not, go execute remaining code
+	jsr toqm		; else go turn off all modes
+	sta data		; and forget about this character
+	beq ntcn20		; always
+ntcn1:	cmp #$03		; test if a run/load or stop
 	beq ntcn20
-	jsr toqm
-	sta data
-	beq ntcn20
-ntcn1:	cmp #$03
-	beq ntcn20
-	cmp #$14
-	beq ntcn20
-	ldy insrt
-	bne ntcn10
-	ldy qtsw
-	beq ntcn20
-ntcn10:	ora #$80
+	cmp #$14		; test if insert or delete
+	beq ntcn20		; no inverse if yes
+	ldy insrt		; test if in insert mode
+	bne ntcn10		; go reverse - if yes
+	ldy qtsw		; check for quote mode
+	beq ntcn20		; do not reverse if not
+ntcn10:	ora #$80		; make reverse
 	bne njt20
 ntcn20:	lda data
-	asl
+	asl			; set carry if shifted ctrl
 	tax
-	jsr ctdsp
+	jsr ctdsp		; indirect jsr
 	jmp loop2
 ; E317 Control code dispatcher
-ctdsp:	lda ctlvect+1,x
+ctdsp:	lda ctable+1,x		; hi byte
 	pha
-	lda ctlvect,x
+	lda ctable,x		; low byte
 	pha
 	lda data
-	rts
+	rts			; indirect jmp
 ; -------------------------------------------------------------------------------------------------
 ; E322 User control code jump vector
 ctluser:jmp     (ctlvec)                        ; E322 6C 22 03                 l".
@@ -1119,7 +1126,7 @@ movlin: lda     ldtab2,x                        ; E3B6 BD 3A EC                 
 	and     #$03                            ; E3C2 29 03                    ).
 	ora     #$D4                            ; E3C4 09 D4                    ..
 	sta     sedeal+1                        ; E3C6 85 C7                    ..
-	jsr pagscr				; switch to indirect bank with video screen
+	jsr pagscr			; switch to screen ibank
 movl10: lda     (sedsal),y                      ; E3CB B1 C4                    ..
 	jsr     jwrvrm				; write char to screen
 	lda     #$00                            ; E3D0 A9 00                    ..
@@ -1149,7 +1156,7 @@ scd10:  jsr     scrset                          ; E3EB 20 E1 E0                 
 	dex                                     ; E3FC CA                       .
 	jsr     movlin                          ; E3FD 20 B6 E3                  ..
 	bcs     scd10                           ; E400 B0 E9                    ..
-scd20:  jsr     clrlin                          ; E402 20 24 E2                  $.
+scd20:  jsr     clrln                          ; E402 20 24 E2                  $.
 	jmp     setbit                          ; E405 4C C3 E4                 L..
 
 ; -------------------------------------------------------------------------------------------------
@@ -1196,7 +1203,7 @@ scr10:  jsr     scrset                          ; E43F 20 E1 E0                 
 	jsr     movlin                          ; E451 20 B6 E3                  ..
 	bcs     scr10                           ; E454 B0 E9                    ..
 ; E456 Test for slow scroll
-scr40:  jsr     clrlin                          ; E456 20 24 E2                  $.
+scr40:  jsr     clrln                          ; E456 20 24 E2                  $.
 	ldx     #$FF                            ; E459 A2 FF                    ..
 	ldy     #$FE                            ; E45B A0 FE                    ..
 	jsr     getlin                          ; E45D 20 9A E4                  ..
@@ -1526,10 +1533,10 @@ wrtcrpt:lda saver
 	rts
 } else{
 !ifdef BANK15_VIDEO{            ; ********** Video bank15 PATCH **********
-wrcram:sta (user),y		; store to color RAM
+wrcram:	sta (user),y		; store to color RAM
 	rts
 	} else{                 ; ********** Fast video PATCH **********
-wrcram:sta saver		; remember value
+wrcram:	sta saver		; remember value
 	lda i6509
 	pha			; remember indirect bank
 	lda #irom
@@ -2274,7 +2281,7 @@ ldtab1: !byte $D0,$D0,$D0,$D0,$D0,$D0,$D0,$D1
 	!byte $D3
 ; -------------------------------------------------------------------------------------------------
 ; EC6C Control key handler table
-ctlvect:!word ctluser-1
+ctable:!word ctluser-1
 	!word colorky-1
 	!word ctluser-1
 	!word stprun-1
