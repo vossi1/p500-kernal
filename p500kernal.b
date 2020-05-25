@@ -306,6 +306,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	iwrtcrm		= $03B9		; Vector: color ram write routine
 	iunkwn1		= $03BB		; Vector: -> E039 nofunc
 	iunkwn2		= $03BD		; Vector: -> E039 nofunc
+	unknwn		= $03BF		; unknown from old editor (some flag like quote or insert?)
 	; $03C0 - $3F7 Free absolute space
 	absend		= $03C0
 	; System warm start variables and vectors
@@ -647,7 +648,7 @@ kyset2: lda keylen-1,y
 noroom: jsr sreset		; set full screen window
 	ldx #$11		; init vic regs $21-$11
 	ldy #$21
-vicinlp:lda vicinit-1,x
+vicinlp:lda tvic-1,x
 	jsr wrtvic		; write A to VIC register Y
 	dey
 	dex
@@ -714,9 +715,14 @@ lp1:  	lda keyd+1,x		; shift key buffer
 ; -------------------------------------------------------------------------------------------------
 ; E11F Screen input
 loop4:	jsr prt			; print the character
-	asl $03BF
-	lsr $03BF		; clear bit#7 in $03bf
-; E129 Main loop - wait for key input
+!ifdef CBMPATCH{		; ********** cbmii revision 3b PATCH **********
+	jmp loop3
+} else{
+	asl unknwn
+	lsr unknwn		; clear bit#7 in $03BF
+}
+*= $E128
+; E128 Main loop - wait for key input
 loop3:  lda ndx			; check key and pgm-key index
 	ora kyndx
 	sta blnon
@@ -954,22 +960,24 @@ prt10:	sta data		; save char
 	and #$7F
 	cmp #$20		; test if control character (< $20)
 	bcc ntcn		; yes
+!ifndef CBMPATCH{		; ********** cbmii revision 3b PATCH **********
 	ldx qtsw		; test if in quote mode...
 	beq njt1		; if not, skip
-	ldx $03BF		; ?
+	ldx unknwn		; ?
 	beq njt2
 	jsr junkwn1		; vector -> nofunc (rts)
 	lda data
 	jmp njt2
 njt1:	ldx insrt		; test if in insert mode
 	bne njt2		; if not, skip
-	bit $03BF
+	bit unknwn		; ?
 	bpl njt2
 	jsr junkwn1		; vector -> nofunc (rts)
 	lda data
 	cmp #$22
 	beq njt10
 	jmp loop2
+}
 njt2:	ldx lstchr		; was last char an esc
 	cpx #$1B
 	bne njt10
@@ -981,9 +989,25 @@ njt20:	bit data
 	ora #$40		; convert a0 - bf to 60 - 7f & c0 - df to 40 - 5f
 njt30:	jsr qtswc		; test for quote
 	jmp nxt3		; put on screen
+*= $E2E0
 ; E2E0 ********* Control keys *********
 ntcn:	cmp #$0D		; test if a return
 	beq ntcn20		; no inverse if yes
+!ifdef CBMPATCH{		; ********** cbmii revision 3b PATCH **********
+	cmp #$14		;test if insert or delete
+	beq ntcn20		;allow in insert or quote mode
+	cmp #$1b		;test if escape key
+	bne ntcn1
+	bit data
+	bmi ntcn1		;its a $9b
+	lda qtsw		;test if in quote mode...
+	ora insrt		;...or insert mode
+	beq ntcn20		;if not, go execute remaining code
+	jsr toqm		;else go turn off all modes
+	sta data		;and forget about this character
+	beq ntcn20		;always
+ntcn1	cmp #$03		;test if a run/load or stop
+} else{
 	cmp #$1B		; test if escape key
 	bne ntcn1
 	bit data
@@ -997,6 +1021,7 @@ ntcn:	cmp #$0D		; test if a return
 ntcn1:	cmp #$03		; test if a run/load or stop
 	beq ntcn20
 	cmp #$14		; test if insert or delete
+}
 	beq ntcn20		; no inverse if yes
 	ldy insrt		; test if in insert mode
 	bne ntcn10		; go reverse - if yes
@@ -1009,6 +1034,7 @@ ntcn20:	lda data
 	tax
 	jsr ctdsp		; indirect jsr
 	jmp loop2
+*= $E317
 ; E317 Control code dispatcher
 ctdsp:	lda ctable+1,x		; hi byte
 	pha
@@ -1018,7 +1044,7 @@ ctdsp:	lda ctable+1,x		; hi byte
 	rts			; indirect jmp
 ; -------------------------------------------------------------------------------------------------
 ; E322 User control code jump vector
-ctluser:jmp     (ctlvec)                        ; E322 6C 22 03                 l".
+cuser:	jmp (ctlvec)
 ; -------------------------------------------------------------------------------------------------
 ; E325 Handle cursor up/down
 cdnup:  bcs     cursup                          ; E325 B0 0D                    ..
@@ -1463,16 +1489,14 @@ movc30: rts                                     ; E601 60                       
 
 ; -------------------------------------------------------------------------------------------------
 ; E602 
-colorky:ldy     #$10                            ; E602 A0 10                    ..
-LE604:  dey                                     ; E604 88                       .
-	bmi     LE60F                           ; E605 30 08                    0.
-	cmp     colortb,y                       ; E607 D9 12 ED                 ...
-	bne     LE604                           ; E60A D0 F8                    ..
-	sty     color                           ; E60C 84 EC                    ..
-	rts                                     ; E60E 60                       `
-
-LE60F:  jmp     ctluser                         ; E60F 4C 22 E3                 L".
-
+chkcol:	ldy #$10		; there's 16 colors
+chk1a:	dey
+	bmi chk1b
+	cmp coltab,y
+	bne chk1a
+	sty color		; change the color
+	rts
+chk1b:	jmp cuser
 ; -------------------------------------------------------------------------------------------------
 ; E612 Write a byte to the VIC chip
 !ifdef STANDARD_VIDEO{          ; ********** Standard video **********
@@ -1717,8 +1741,11 @@ toqm:	lda #$00
 	sta insrt
 	sta rvs
 	sta qtsw
-	sta $03BF
+!ifndef CBMPATCH{		; ********** cbmii revision 3b PATCH **********
+	sta unknwn
+}
 	rts
+*= $E77F
 ; -------------------------------------------------------------------------------------------------
 ; E77F Allow scrolling (esc-l)
 scrlon: clc
@@ -1749,12 +1776,11 @@ logsw:  lda     #$00                            ; E799 A9 00                    
 	sta     logscr                          ; E79C 8D 8A 03                 ...
 	rts                                     ; E79F 60                       `
 ; -------------------------------------------------------------------------------------------------
-; E7A0
-LE7A0:  lda     $03BF                           ; E7A0 AD BF 03                 ...
+; E7A0 Not used - removed in patch 3
+unused:	lda     unknwn                           ; E7A0 AD BF 03                 ...
 	eor     #$C0                            ; E7A3 49 C0                    I.
-	sta     $03BF                           ; E7A5 8D BF 03                 ...
+	sta     unknwn                           ; E7A5 8D BF 03                 ...
 	rts                                     ; E7A8 60                       `
-
 ; -------------------------------------------------------------------------------------------------
 ; E7A9 Get/set/list function keys
 keyfun: dey                                     ; E7A9 88                       .
@@ -2161,7 +2187,7 @@ escvect:!word auton-1           ; esc-a Auto insert mode on
 	!word scrlon-1          ; esc-l Allow scrolling
 	!word scrloff-1         ; esc-m Disallow scrolling
 	!word notimp-1          ; esc-n
-	!word toqm-1         ; esc-o Reset modes: insert, reverse, quote
+	!word toqm-1         	; esc-o Reset modes: insert, reverse, quote
 	!word erasol-1          ; esc-p Erase to start of line
 	!word eraeol-1          ; esc-q Erase to end of line
 	!word notimp-1          ; esc-r
@@ -2280,39 +2306,39 @@ ldtab1: !byte $D0,$D0,$D0,$D0,$D0,$D0,$D0,$D1
 	!byte $D2,$D2,$D2,$D2,$D3,$D3,$D3,$D3
 	!byte $D3
 ; -------------------------------------------------------------------------------------------------
-; EC6C Control key handler table
-ctable:!word ctluser-1
-	!word colorky-1
-	!word ctluser-1
-	!word stprun-1
-	!word ce-1
-	!word colorky-1
-	!word LE7A0-1
-	!word bell-1
-	!word ctluser-1
-	!word tabit-1
-	!word ctluser-1
-	!word ctluser-1
-	!word ctluser-1
-	!word nxt1-1
-	!word ctext-1
-	!word window-1
-	!word colorky-1
-	!word cdnup-1
-	!word rvsf-1
-	!word homclr-1
-	!word delins-1
-	!word colorky-1
-	!word colorky-1
-	!word colorky-1
-	!word colorky-1
-	!word colorky-1
-	!word colorky-1
-	!word colorky-1
-	!word colorky-1
-	!word crtlf-1
-	!word colorky-1
-	!word colorky-1
+; EC6C Dispatch table (control codes $00-$1F, $80-$9F)
+ctable:	!word cuser-1
+	!word chkcol-1		; -/orange
+	!word cuser-1
+	!word stprun-1		; stop/run
+	!word ce-1		; cancel
+	!word chkcol-1		; white/-
+	!word unused-1		; unused - from rev.01/02 editor (uses $03BF)
+	!word bell-1		; bell/-
+	!word cuser-1
+	!word tabit-1		; tab/tab toggle
+	!word cuser-1
+	!word cuser-1
+	!word cuser-1
+	!word nxt1-1		; return or shifted return
+	!word ctext-1		; text/graphic mode
+	!word window-1		; set top/bottom
+	!word chkcol-1		; -/black
+	!word cdnup-1		; cursor down/up
+	!word rvsf-1		; rvs on/off
+	!word homclr-1		; home/clr
+	!word delins-1		; delete/insert character
+	!word chkcol-1		; -/brown
+	!word chkcol-1		; -/lightred
+	!word chkcol-1		; -/gray1
+	!word chkcol-1		; -/gray2
+	!word chkcol-1		; -/lightgreen
+	!word chkcol-1		; -/lightblue
+	!word chkcol-1		; -/gray3
+	!word chkcol-1		; red/purple
+	!word crtlf-1		; cursor right/left
+	!word chkcol-1		; green/yellow
+	!word chkcol-1		; blue/cyan
 ; -------------------------------------------------------------------------------------------------
 !ifdef STANDARD_FKEYS{          ; ********** Standard F-keys **********
 ; ECAC Length of function key texts
@@ -2363,23 +2389,24 @@ keydef: !pet "rU",$0d                   ; F1
 ;}
 keyend:
 ; -------------------------------------------------------------------------------------------------
-; ECEF Generic bit mask table
-bits:   !byte $80,$40,$20,$10,$08,$04,$02,$01
+; ECEF bits  -  bit position table
+bits:	!byte $80,$40,$20,$10,$08,$04,$02,$01
 ; -------------------------------------------------------------------------------------------------
-; ECF7 VIC initialization table register $11-$21 
-vicinit:!byte $1B,$00,$00,$00,$00,$08,$00,$40
+; ECF7 VIC initialization table regs $11-$21 
+tvic:	!byte $1B,$00,$00,$00,$00,$08,$00,$40
 	!byte $8F,$00,$00,$00,$00,$00,$00,EXTCOL
 	!byte BGRCOL
 ; -------------------------------------------------------------------------------------------------
 ; ED08 Extended editor vector table (copied to $3B5)
-edvect: !word funkey
+edvect:	!word funkey
 	!word wrvram
 	!word wrcram
 	!word nofunc
 	!word nofunc
 ; -------------------------------------------------------------------------------------------------
-; ED12 Table with color values
-colortb:!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
+; ED12 Color control code table
+; blk,wht,red,cyan,magenta,grn,blue,yellow
+coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 	!byte $81,$95,$96,$97,$98,$99,$9A,$9B
 ; -------------------------------------------------------------------------------------------------
 ; ED22 Unused space
