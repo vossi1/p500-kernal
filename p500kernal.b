@@ -770,17 +770,19 @@ clp2:	lda #$00		; input done clear flag
 	bne clp7
 lop5:	jsr stupt		; set pnt and user
 	jsr get1ch		; get a screen char
+; convert screencode to petscii
 	sta data
-	and #$3F
-	asl data
-	bit data
-	bpl loop54
-	ora #$80
-loop54:	bcc loop52
+	and #$3F		; clear bit#6,7 
+	asl data		; check: scrcode bit#7->C
+	bit data		; check: scrcode bit#6->Z, #5->V
+	bpl loop54		; skip if scrcode #6=0 x0x -> 00x
+	ora #$80		; x1x -> 10x
+loop54:	bcc loop52		; skip if scrcode #7=0 (not reverse)
 	ldx qtsw
-	bne loop53
-loop52:	bvs loop53
-	ora #$40
+	bne loop53		; skip if bit#7=1 & quote on: 10x -> 00x, 11x -> 10x
+				; if quote off or bit#7=0:
+loop52:	bvs loop53		; skip if scrcode #5=1: 001 -> 001, 011 -> 101
+	ora #$40		; 000 -> 010, 100 -> 110
 loop53:	jsr qtswc
 	ldy tblx		; on input end line ?
 	cpy lintmp
@@ -799,7 +801,7 @@ clp7:	sta data
 	tax
 	pla
 	tay
-	lda data
+	lda data		; return petscii char in A
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E1C8 Switch quote mode depending on char in A
@@ -855,10 +857,10 @@ dspcol: ldy #$02
 ; E213 Write char A with color X
 dspp:   ldy pntr		; load column
 	jsr pagscr		; switch to indirect bank with video screen
-	jsr jwrtvrm		; write char to screen
+	jsr jwrvrm		; write char to screen
 	pha
 	txa			; move color to A
-	jsr jwrtcrm		; write color to color RAM
+	jsr jwrcrm		; write color to color RAM
 	pla
 	jmp pagres    		; restore indirect bank
 ; -------------------------------------------------------------------------------------------------
@@ -1119,10 +1121,10 @@ movlin: lda     ldtab2,x                        ; E3B6 BD 3A EC                 
 	sta     sedeal+1                        ; E3C6 85 C7                    ..
 	jsr pagscr				; switch to indirect bank with video screen
 movl10: lda     (sedsal),y                      ; E3CB B1 C4                    ..
-	jsr     jwrtvrm				; write char to screen
+	jsr     jwrvrm				; write char to screen
 	lda     #$00                            ; E3D0 A9 00                    ..
 	ora     (sedeal),y                      ; E3D2 11 C6                    ..
-	jsr     jwrtcrm				; write color to color RAM
+	jsr     jwrcrm				; write color to color RAM
 	cpy     scrt                            ; E3D7 C4 DF                    ..
 	iny                                     ; E3D9 C8                       .
 	bcc     movl10                          ; E3DA 90 EF                    ..
@@ -1549,10 +1551,10 @@ junkwn1:jmp (iunkwn1)		; vector -> nofunc (rts)
 junkwn2:jmp (iunkwn2)		; vector -> nofunc (rts)
 ; -------------------------------------------------------------------------------------------------
 ; E66F Jump vector: Write char to screen
-jwrtvrm:jmp     (iwrtvrm)		; -> $03B7 -> $E641
+jwrvrm:jmp     (iwrtvrm)		; -> $03B7 -> $E641
 ; -------------------------------------------------------------------------------------------------
 ; E672 Jump vector: Write color to color RAM
-jwrtcrm:jmp     (iwrtcrm)		; -> $03B9 -> $E650
+jwrcrm:jmp     (iwrtcrm)		; -> $03B9 -> $E650
 ; -------------------------------------------------------------------------------------------------
 ; E675 Ring the bell
 bell:   lda     bellmd                          ; E675 AD 8B 03                 ...
