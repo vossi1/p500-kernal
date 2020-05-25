@@ -648,11 +648,11 @@ kyset2: lda keylen-1,y
 noroom: jsr sreset		; set full screen window
 	ldx #$11		; init vic regs $21-$11
 	ldy #$21
-vicinlp:lda tvic-1,x
+vicint:	lda tvic-1,x
 	jsr wrtvic		; write A to VIC register Y
 	dey
 	dex
-	bne vicinlp
+	bne vicint
 	jsr txcrt		; set text mode
 	ldx #$0A
 edvecl: lda edvect-1,x		; copy extended editor vector table to $3B5
@@ -845,8 +845,8 @@ loop2:	lda data		; copy last char
 	tay
 	lda insrt
 	beq lop2
-	lsr qtsw
-lop2: 	pla
+	lsr qtsw		; clear quote switch if in insert mode
+lop2:	pla
 	tax
 	pla
 	rts
@@ -878,7 +878,6 @@ dspp:   ldy pntr		; load column
 ;                  x = line number
 ;         clrln :  blank entire line
 ;         clrprt:  y = starting column position
-;
 clrln:	ldy sclf		; load left margin
 	jsr clrbit		; make sure non-continued line
 clrprt:	txa
@@ -921,26 +920,29 @@ crtset: sty grmode		; store new mode
 	ldy #memptr
 	jmp wrtvic		; write VIC memory pointers reg
 ; -------------------------------------------------------------------------------------------------
+;**************************************************
+;   Handle ram paging
+;**************************************************
 ; E267 Switch to indirect bank with key buffer
-pagkey: pha                     ; remember A
-	lda keyseg              ; load F-key bank
-	jmp pagsub              ; switch to ibank in A
+pagkey: pha
+	lda keyseg              ; for function key page
+	jmp pagsub
 ; E26E Switch to indirect bank with video screen
-pagscr: pha                     ; remember A
-	lda scrseg              ; load screen memory bank
-pagsub: pha                     ; remember new ibank
-	lda i6509
-	sta pagsav              ; store old ibank temporary
+pagscr: pha
+	lda scrseg              ; for screen memory bank
+pagsub: pha
+	lda i6509		; get current page number
+	sta pagsav              ; - and save it
 	pla
 	sta i6509               ; switch to new ibank
-	pla                     ; restore A
+	pla                     ; restore a-reg
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E27C Restore indirect bank
-pagres: pha
-	lda pagsav
-	sta i6509               ; restore temporary stored ibank
-	pla
+pagres: pha			; save a-reg
+	lda pagsav		; get saved ram page number
+	sta i6509               ; restore ram page number
+	pla			; restore a-reg
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E284 *** Print a char ***
@@ -2408,6 +2410,8 @@ edvect:	!word funkey
 ; blk,wht,red,cyan,magenta,grn,blue,yellow
 coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 	!byte $81,$95,$96,$97,$98,$99,$9A,$9B
+; rsr modify for vic-40 system			*** Just for fun from rev.1 c64-kernal rev.1 ;) ***
+; rsr 12/31/81 add 8 more colors
 ; -------------------------------------------------------------------------------------------------
 ; ED22 Unused space
 	!byte $00
