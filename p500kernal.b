@@ -5405,6 +5405,7 @@ txjmp1:	tax
 	jsr ipinit		; go initilize ipoint
 	lda #$fe
 	sta (ipoint),y
+	jmp exsub		; added cause it's not directly ahead exsub
 ; 04/14/83 bp
 ; transfer exec routines for cbm2
 }
@@ -5466,7 +5467,7 @@ clall:	jmp (iclall)		; Close all files
 	jmp jiobas		; return I/O base
 ; -------------------------------------------------------------------------------------------------
 ; FFF6 Actual execution segment switch routine
-gbye:  sta e6509		; goodbye...
+gbye:	sta e6509		; goodbye...
 	rts
 	!byte $80
 *= $FFFA
