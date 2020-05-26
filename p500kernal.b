@@ -6,15 +6,16 @@
 ; v1.3 all patches selectable
 ; v1.4 new F-keys for petsd+
 ; v1.5 superfast video if always in indirect bank 15
+; v1.6 add txjmp routine from b-series rev -03 kernal (diag test detects too much RAM banks?)
 !cpu 6502
 !ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
 ; * switches
-;STANDARD_FKEYS	= 1	; Standard F-keys
-;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
+STANDARD_FKEYS	= 1	; Standard F-keys
+FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+;BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -5273,6 +5274,31 @@ fnadry: ldx i6509
 	stx i6509
 	rts
 ; -------------------------------------------------------------------------------------------------
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+; ##### transx #####
+; txjmp - transfer-of-execution jumper
+;   entry - .a=seg # .x=low .y=high
+;   caller must be a jsr txjmp
+;   all registers and i6509 destroyed
+;   returns directly to caller...
+txjmp	sta i6509		; bp routine
+	txa
+	clc
+	adc #2
+	bcc txjmp1
+	iny
+txjmp1:	tax
+	tya
+	pha
+	txa
+	pha
+	jsr ipinit		; go initilize ipoint
+	lda #$fe
+	sta (ipoint),y
+; 04/14/83 bp
+; transfer exec routines for cbm2
+}
+; -------------------------------------------------------------------------------------------------
 ; FEAB Support routine for cross bank calls
 exsub:	php
 	sei
@@ -5327,6 +5353,9 @@ exgby:	tsx
 ; FEFE Return from call to foreign bank
 excrts: php			; P
 	php			; P
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+	sei             	; dis ints
+}
 	pha			; A
 	txa
 	pha			; X
@@ -5383,32 +5412,6 @@ exend:
 ;
 excrt2=excrts-1
 expul2=expull-1
-; -------------------------------------------------------------------------------------------------
-!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
-; ##### transx #####
-; txjmp - transfer-of-execution jumper
-;   entry - .a=seg # .x=low .y=high
-;   caller must be a jsr txjmp
-;   all registers and i6509 destroyed
-;   returns directly to caller...
-txjmp	sta i6509		; bp routine
-	txa
-	clc
-	adc #2
-	bcc txjmp1
-	iny
-txjmp1:	tax
-	tya
-	pha
-	txa
-	pha
-	jsr ipinit		; go initilize ipoint
-	lda #$fe
-	sta (ipoint),y
-	jmp exsub		; added cause it's not directly ahead exsub
-; 04/14/83 bp
-; transfer exec routines for cbm2
-}
 ; -------------------------------------------------------------------------------------------------
 ; (FF36) Unused space
 	!byte $AC
