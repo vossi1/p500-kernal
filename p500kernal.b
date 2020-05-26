@@ -10,11 +10,11 @@
 !ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
 ; * switches
-STANDARD_FKEYS	= 1	; Standard F-keys
-FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-;BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
+;STANDARD_FKEYS	= 1	; Standard F-keys
+;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -5404,7 +5404,7 @@ txjmp1:	tax
 	pha
 	jsr ipinit		; go initilize ipoint
 	lda #$fe
-	sta (ipoint)y
+	sta (ipoint),y
 ; 04/14/83 bp
 ; transfer exec routines for cbm2
 }
