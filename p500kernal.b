@@ -8,6 +8,7 @@
 ; v1.5 superfast video if always in indirect bank 15
 ; v1.6 add txjmp routine from b-series rev -03 kernal (diag test detects too much RAM banks?)
 ; v1.7 moved tx-routines in the correct place = 100% identical to cbm2 04a kernal
+; v1.8 basic SYS patched - now to selected bank -> Basic $8063 csys vector =  $EDDC-1: $DB, $ED
 !cpu 6502
 !ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
@@ -17,6 +18,7 @@
 ;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
 CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
 BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
+SYSPATCH	= 1	; patched Basic SYS command
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -2047,7 +2049,7 @@ havkey: ldx     normtb,y                        ; E974 BE B1 EA                 
 	bne     havasc                          ; E986 D0 08                    ..
 	ldx     shftgr,y                        ; E988 BE 71 EB                 .q.
 	bne     havasc                          ; E98B D0 03                    ..
-doctl:  ldx     ctrltb,y                        ; E98D BE D1 EB                 ...
+doctl:  ldx     ctltbl,y                        ; E98D BE D1 EB                 ...
 havasc: cpx     #$FF                            ; E990 E0 FF                    ..
 	beq     keyxit                          ; E992 F0 2D                    .-
 	txa                                     ; E994 8A                       .
@@ -2244,63 +2246,148 @@ auton:  lda #$FF
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; EAB1 Keyboard tables
-normtb: !byte $E0,$1B,$09,$FF,$00,$01,$E1,$31 ; no modifiers
-	!byte $51,$41,$5A,$FF,$E2,$32,$57,$53
-	!byte $58,$43,$E3,$33,$45,$44,$46,$56
-	!byte $E4,$34,$52,$54,$47,$42,$E5,$35
-	!byte $36,$59,$48,$4E,$E6,$37,$55,$4A
-	!byte $4D,$20,$E7,$38,$49,$4B,$2C,$2E
-	!byte $E8,$39,$4F,$4C,$3B,$2F,$E9,$30
-	!byte $2D,$50,$5B,$27,$11,$3D,$5F,$5D
-	!byte $0D,$DE,$91,$9D,$1D,$14,$02,$FF
-	!byte $13,$3F,$37,$34,$31,$30,$12,$04
-	!byte $38,$35,$32,$2E,$8E,$2A,$39,$36
-	!byte $33,$30,$03,$2F,$2D,$2B,$0D,$FF
-; EB11
-shfttb: !byte $EA,$1B,$89,$FF,$00,$01,$EB,$21 ; with shift
-	!byte $D1,$C1,$DA,$FF,$EC,$40,$D7,$D3
-	!byte $D8,$C3,$ED,$23,$C5,$C4,$C6,$D6
-	!byte $EE,$24,$D2,$D4,$C7,$C2,$EF,$25
-	!byte $5E,$D9,$C8,$CE,$F0,$26,$D5,$CA
-	!byte $CD,$A0,$F1,$2A,$C9,$CB,$3C,$3E
-	!byte $F2,$28,$CF,$CC,$3A,$3F,$F3,$29
-	!byte $2D,$D0,$5B,$22,$11,$2B,$5C,$5D
-	!byte $8D,$DE,$91,$9D,$1D,$94,$82,$FF
-	!byte $93,$3F,$37,$34,$31,$30,$92,$84
-	!byte $38,$35,$32,$2E,$0E,$2A,$39,$36
-	!byte $33,$30,$83,$2F,$2D,$2B,$8D,$FF
-; EB71
-shftgr: !byte $EA,$1B,$89,$FF,$00,$01,$EB,$21 ; with shift and graphics
-	!byte $D1,$C1,$DA,$FF,$EC,$40,$D7,$D3
-	!byte $D8,$C0,$ED,$23,$C5,$C4,$C6,$C3
-	!byte $EE,$24,$D2,$D4,$C7,$C2,$EF,$25
-	!byte $5E,$D9,$C8,$DD,$F0,$26,$D5,$CA
-	!byte $CD,$A0,$F1,$2A,$C9,$CB,$3C,$3E
-	!byte $F2,$28,$CF,$D6,$3A,$3F,$F3,$29
-	!byte $2D,$D0,$5B,$22,$11,$2B,$5C,$5D
-	!byte $8D,$DE,$91,$9D,$1D,$94,$82,$FF
-	!byte $93,$B7,$B4,$B1,$B0,$AD,$92,$B8
-	!byte $B5,$B2,$AE,$BD,$0E,$B9,$B6,$B3
-	!byte $DB,$30,$83,$AF,$AA,$AB,$8D,$FF
-; EBD1
-ctrltb: !byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$A1 ; with control
-	!byte $11,$01,$1A,$FF,$FF,$A2,$17,$13
-	!byte $18,$03,$FF,$A3,$05,$04,$06,$16
-	!byte $FF,$A4,$12,$14,$07,$02,$FF,$A5
-	!byte $A7,$19,$08,$0E,$FF,$BE,$15,$0A
-	!byte $0D,$FF,$FF,$BB,$09,$0B,$CE,$FF
-	!byte $FF,$BF,$0F,$0C,$DC,$FF,$FF,$AC
-	!byte $BC,$10,$CC,$A8,$FF,$A9,$DF,$BA
-	!byte $FF,$A6,$FF,$FF,$FF,$FF,$FF,$FF
-	!byte $FF,$96,$9E,$9C,$05,$90,$FF,$99
-	!byte $81,$1E,$1C,$FF,$FF,$9A,$95,$1F
-	!byte $9F,$FF,$FF,$97,$98,$9B,$FF,$FF    
+normtb:					; keyboard table - no control/no shift
+	;line 0: f1, escape, tab, null, shift, control
+	 !byte $e0,$1b,$09,$ff,$00,$01
+	;line 1: f2, 1, q, a, z, null
+	 !byte $e1,$31,$51,$41,$5a,$ff
+	;line 2: f3, 2, w, s, x, c
+	 !byte $e2,$32,$57,$53,$58,$43
+	;line 3: f4, 3, e, d, f, v
+	 !byte $e3,$33,$45,$44,$46,$56
+	;line 4: f5, 4, r, t, g, b
+	 !byte $e4,$34,$52,$54,$47,$42
+	;line 5: f6, 5, 6, y, h, n
+	 !byte $e5,$35,$36,$59,$48,$4e
+	;line 6: f7, 7, u, j, m, space
+	 !byte $e6,$37,$55,$4a,$4d,$20
+	;line 7: f8, 8, i, k, "," , .
+	 !byte $e7,$38,$49,$4b,$2c,$2e
+	;line 8: f9, 9, o, l, ;, /
+	 !byte $e8,$39,$4f,$4c,$3b,$2f
+	;line 9: f10, 0, -, p, [, '
+	 !byte $e9,$30,$2d,$50,$5b,$27
+	;line 10: down cursor, =, _, ], return, pi
+	 !byte $11,$3d,$5f,$5d,$0d,$de
+	;line 11: up cur, lt cur, rt cur, del, cmdr, null
+	 !byte $91,$9d,$1d,$14,$02,$ff
+	;line 12: home, ?, 7, 4, 1, 0
+	 !byte $13,$3f,$37,$34,$31,$30
+	;line 13: rvs on, cancel, 8, 5, 2, decimal point
+	 !byte $12,$04,$38,$35,$32,$2e
+	;line 14: graphic, mult, 9, 6, 3, 00
+	 !byte $8e,$2a,$39,$36,$33,$30
+	;line 15: stop, div, subtr, add, enter, null
+	 !byte $03,$2f,$2d,$2b,$0d,$ff
+
+shfttb:					; keyboard table - shift only & text mode
+	;line 0: f11, sht esc, tab toggle, null, shift, ctl
+	 !byte $ea,$1b,$89,$ff,$00,$01
+	;line 1: f12, !, q, a, z, null
+	 !byte $eb,$21,$d1,$c1,$da,$ff
+	;line 2: f13, @, w, s, x, c
+	 !byte $ec,$40,$d7,$d3,$d8,$c3
+	;line 3: f14, #, e, d, f, v
+	 !byte $ed,$23,$c5,$c4,$c6,$d6
+	;line 4: f15, $, r, t, g, b
+	 !byte $ee,$24,$d2,$d4,$c7,$c2
+	;line 5: f16, %, ^, y, h, n
+	 !byte $ef,$25,$5e,$d9,$c8,$ce
+	;line 6: f17, &, u, j, m, shifted space
+	 !byte $f0,$26,$d5,$ca,$cd,$a0
+	;line 7: f18, *, i, k, <, >
+	 !byte $f1,$2a,$c9,$cb,$3c,$3e
+	;line 8: f19, (, o, l, :, ?
+	 !byte $f2,$28,$cf,$cc,$3a,$3f
+	;line 9: f20, ), -, p, [, "
+	 !byte $f3,$29,$2d,$d0,$5b,$22
+	;line 10: down cursor, +, pound sign, ], sht return, pi
+	 !byte $11,$2b,$5c,$5d,$8d,$de
+	;line 11: up cursor,left cursor,right cursor, ins, cmdr, null
+	 !byte $91,$9d,$1d,$94,$82,$ff
+	;line 12: clear/home, ?, 7, 4, 1, 0
+	 !byte $93,$3f,$37,$34,$31,$30
+	;line 13: rvs off, shft cancel, 8, 5, 2, decimal point
+	 !byte $92,$84,$38,$35,$32,$2e
+	;line 14: text, mult, 9, 6, 3, 00
+	 !byte $0e,$2a,$39,$36,$33,$30
+	;line 15: run, div, subtr, add, enter, null
+	 !byte $83,$2f,$2d,$2b,$8d,$ff
+
+shftgr:					; keyboard table - shift only & graphic mode
+	;line 0: f11, sht esc, tab toggle, null, shift, ctl
+	 !byte $ea,$1b,$89,$ff,$00,$01
+	;line 1: f12, !, gr, gr, gr, null
+	 !byte $eb,$21,$d1,$c1,$da,$ff
+	;line 2: f13, @, gr, gr, gr, gr
+	 !byte $ec,$40,$d7,$d3,$d8,$c0
+	;line 3: f14, #, gr, gr, gr, gr
+	 !byte $ed,$23,$c5,$c4,$c6,$c3
+	;line 4: f15, $, gr, gr, gr, gr
+	 !byte $ee,$24,$d2,$d4,$c7,$c2
+	;line 5: f16, %, ^, gr, gr, gr
+	 !byte $ef,$25,$5e,$d9,$c8,$dd
+	;line 6: f17, &, gr, gr, gr, shifted space
+	 !byte $f0,$26,$d5,$ca,$cd,$a0
+	;line 7: f18, *, gr, gr, <, >
+	 !byte $f1,$2a,$c9,$cb,$3c,$3e
+	;line 8: f19, (, gr, gr, :, ?
+	 !byte $f2,$28,$cf,$d6,$3a,$3f
+	;line 9: f20, ), -, gr, [, "
+	 !byte $f3,$29,$2d,$d0,$5b,$22
+	;line 10: down cursor, +, pound, ], shifted return, pi
+	 !byte $11,$2b,$5c,$5d,$8d,$de
+	;line 11: up cursor,left cursor,right cursor, ins, cmdr, null
+	 !byte $91,$9d,$1d,$94,$82,$ff
+	;line 12: clear/home, 		last 5 changed **************** cbm2: , ?, 7, 4, 1, 0
+	 !byte $93,$b7,$b4,$b1,$b0,$ad
+	;line 13: rvs off,		last 5 changed **************** cbm2: shift cancel, 8, 5, 2, dp
+	 !byte $92,$b8,$b5,$b2,$ae,$bd
+	;line 14: text,              00 middle 4 chged **************** cbm2: mult, 9, 6, 3,
+	 !byte $0e,$b9,$b6,$b3,$db,$30
+	;line 15: run,      enter, null changed 2,3,4  **************** cbm2: div, subtr, add,
+	 !byte $83,$af,$aa,$ab,$8d,$ff
+
+ctltbl:					; keyboard table... control characters, any mode
+	;line 0: null,null,null,null,null
+	 !byte $ff,$ff,$ff,$ff,$ff,$ff
+	;line 1: null,gr,q,a,z,null
+	 !byte $ff,$a1,$11,$01,$1a,$ff
+	;line 2: null,gr,w,s,x,c
+	 !byte $ff,$a2,$17,$13,$18,$03
+	;line 3: null,gr,e,d,f,v
+	 !byte $ff,$a3,$05,$04,$06,$16
+	;line 4: null,gr,r,t,g,b
+	 !byte $ff,$a4,$12,$14,$07,$02
+	;line 5: null,gr,gr,y,h,n
+	 !byte $ff,$a5,$a7,$19,$08,$0e
+	;line 6: null,gr,u,j,m,null
+	 !byte $ff,$be,$15,$0a,$0d,$ff
+	;line 7: null,gr,i,k,gr,null
+	 !byte $ff,$bb,$09,$0b,$ce,$ff
+	;line 8: null,gr,o,l,gr,null
+	 !byte $ff,$bf,$0f,$0c,$dc,$ff
+	;line 9: null,gr,gr,p,gr,gr
+	 !byte $ff,$ac,$bc,$10,$cc,$a8
+	;line 10: null,gr,gr,gr,null,gr
+	 !byte $ff,$a9,$df,$ba,$ff,$a6
+	;line 11: null,null,null,null,null,null
+	 !byte $ff,$ff,$ff,$ff,$ff,$ff
+	;line 12: null,	                last 5 chnaged *************** cbm2: gr,gr,gr,gr,gr
+	 !byte $ff,$96,$9e,$9c,$05,$90
+	;line 13: null,			last 5 changed *************** cbm2: gr,gr,gr,gr,gr
+	 !byte $ff,$99,$81,$1e,$1c,$ff
+	;line 14: null,		    null middle 4 chgd *************** cbm2: gr,gr,gr,gr,
+	 !byte $ff,$9a,$95,$1f,$9f,$ff
+	;line 15: null,        null,null changed 2,3,4 *************** cbm2: gr,gr,gr,
+	 !byte $ff,$97,$98,$9b,$ff,$ff
 ; -------------------------------------------------------------------------------------------------
 ; EC31 <SHIFT> <RUN/STOP> String: DLOAD "*" + RUN
 runtb:  !pet "d",$CC,$22        ; dL"
 	!pet "*",$0D            ; * <RETURN>
 	!pet "run",$0D          ; run <RETURN>
 ; -------------------------------------------------------------------------------------------------
+;****** address of screen lines ******
 ; EC3A Start of screen lines, low bytes
 ldtab2: !byte $00,$28,$50,$78,$A0,$C8,$F0,$18
 	!byte $40,$68,$90,$B8,$E0,$08,$30,$58
@@ -2419,6 +2506,32 @@ coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ; -------------------------------------------------------------------------------------------------
 ; ED22 Unused space
 	!byte $00
+!ifdef SYSPATCH{
+poker	= $1B
+dfbank	= $0257
+getpin	= $B4B9
+*= $EDDC
+csys:	jsr getpin      ; get positive integer
+	lda i6509
+	pha
+	lda dfbank 	; current bank
+	cmp #$f
+	beq fligm
+	ldx poker
+	ldy poker+1
+	jsr newsys
+csysrz	=*-1
+	pla
+	sta $1
+	rts
+fligm:
+	lda #>csysrz    ;push return address
+	pha
+	lda #<csysrz
+	pha
+	jmp (poker)
+	rts	
+}
 ; ****************************************** KERNAL ***********************************************
 !zone kernal
 *= kernal+$E00
@@ -5276,9 +5389,9 @@ fnadry: ldx i6509
 	lda (fnadr),y
 	stx i6509
 	rts
-*= $FE9D
 ; -------------------------------------------------------------------------------------------------
 !ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+*= $FE9D
 ; ##### transx #####
 ; txjmp - transfer-of-execution jumper
 ;   entry - .a=seg # .x=low .y=high
@@ -5438,7 +5551,7 @@ incr20:	rts
 ; FF6F (FF6C) Jump table kernal functions
 !ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
 *= $FF6C
-	jmp txjmp		; Transfer-of-execution jumper
+newsys:	jmp txjmp		; Transfer-of-execution jumper
 }
 *= $FF6F
 	jmp vreset		; Power-on/off vector reset
