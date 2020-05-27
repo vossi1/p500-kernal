@@ -7,15 +7,16 @@
 ; v1.4 new F-keys for petsd+
 ; v1.5 superfast video if always in indirect bank 15
 ; v1.6 add txjmp routine from b-series rev -03 kernal (diag test detects too much RAM banks?)
+; v1.7 moved tx-routines in the correct place = 100% identical to cbm2 04a kernal
 !cpu 6502
 !ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
 ; * switches
-STANDARD_FKEYS	= 1	; Standard F-keys
-FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-;BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
+;STANDARD_FKEYS	= 1	; Standard F-keys
+;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -5225,6 +5226,7 @@ cmpste: sec
 	lda sas
 	sbc eas
 	rts
+!ifndef CBMPATCH{
 ; FE8D 
 incsal: inc sal
 	bne incr20
@@ -5236,6 +5238,7 @@ incsal: inc sal
 	lda #$02		; skip $0000 and $0001
 	sta sal
 incr20:	rts
+}
 ; -------------------------------------------------------------------------------------------------
 ;-------------------------------------
 ; tapery - get from the tape buffer
@@ -5273,6 +5276,7 @@ fnadry: ldx i6509
 	lda (fnadr),y
 	stx i6509
 	rts
+*= $FE9D
 ; -------------------------------------------------------------------------------------------------
 !ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
 ; ##### transx #####
@@ -5415,6 +5419,20 @@ expul2=expull-1
 ; -------------------------------------------------------------------------------------------------
 ; (FF36) Unused space
 	!byte $AC
+; -------------------------------------------------------------------------------------------------
+!ifdef CBMPATCH{		; ***** moved to place to transfer routines right!
+; FE8D 
+incsal: inc sal
+	bne incr20
+	inc sah
+	bne incr20
+	inc sas
+	lda sas
+	sta i6509
+	lda #$02		; skip $0000 and $0001
+	sta sal
+incr20:	rts
+}
 ; -------------------------------------------------------------------------------------------------
 ; ##### vectors #####
 ; FF6F (FF6C) Jump table kernal functions
