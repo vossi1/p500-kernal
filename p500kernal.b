@@ -13,12 +13,12 @@
 !ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
 ; * switches
-STANDARD_FKEYS	= 1	; Standard F-keys
-FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-;BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
-;SYSPATCH	= 1	; patched Basic SYS command
+;STANDARD_FKEYS	= 1	; Standard F-keys
+;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
+SYSPATCH	= 1	; patched Basic SYS command
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -4587,7 +4587,7 @@ LF998:  rol                                     ; F998 2A                       
 ; F99C Test bytes for ROMs
 patall: !byte $C2,$CD
 ; F99E System reset routine
-start:	ldx #$FE
+start:	ldx #$FE		; $1ff reserved for stackpointer
 	sei                     ; disable interrupts
 	txs                     ; init stack
 	cld                     ; clear decimal flag
@@ -5406,85 +5406,85 @@ fnadry: ldx i6509
 txjmp	sta i6509		; bp routine
 	txa
 	clc
-	adc #2
+	adc #2			; add 2 to target address
 	bcc txjmp1
 	iny
 txjmp1:	tax
 	tya
-	pha
+	pha			; store target+2 to stack
 	txa
 	pha
 	jsr ipinit		; go initilize ipoint
 	lda #$fe
-	sta (ipoint),y
+	sta (ipoint),y		; $fe to top of foreign stack
 ; 04/14/83 bp
 ; transfer exec routines for cbm2
 }
 ; -------------------------------------------------------------------------------------------------
 ; FEAB Support routine for cross bank calls
-exsub:	php
-	sei
-	pha
+exsub:	php			; save status
+	sei			; disable interrupts
+	pha			; .a
 	txa
-	pha
+	pha			; .x
 	tya
-	pha
-	jsr ipinit
-	tay
-	lda e6509
-	jsr putas
-	lda #<excrt2	;xfer seg rts routn
-	ldx #>excrt2	;xfer seg rts routn
-	jsr putaxs
+	pha			; .y
+	jsr ipinit		; init ipoint and load stack from xfer seg
+	tay			; .y is xfer seg stack pointer
+	lda e6509		; push return segment to user stack
+	jsr putas		; push .a to other stack
+	lda #<excrt2		; xfer seg rts routn
+	ldx #>excrt2		; xfer seg rts routn
+	jsr putaxs		; put .a.x to xfer seg stack
 	tsx
-	lda stack+5,x
+	lda stack+5,x		; .sp +5 is actual routn addr lo
 	sec
-	sbc #$03
-	pha
-	lda stack+6,x
+	sbc #$03		; -3 for jsr to this routn
+	pha			; save .a
+	lda stack+6,x		; hi addr
 	sbc #$00
-	tax
-	pla
-	jsr putaxs
-	tya
+	tax			; .x hi
+	pla			; restore .a lo
+	jsr putaxs		; save .a.x onto xfer seg stack
+	tya			; xfer seg stack pointer
 excomm:	sec
-	sbc #$04
-	sta stackp
-	tay
-	ldx #$04
+	sbc #$04		; 4 bytes .y.x.a.p
+	sta stackp		; xfer seg new stack pointer temp storage
+	tay			; use this as new pointer also
+	ldx #$04		; 4 bytes .y.x.a.p
 exsu10:	pla
 	iny
-	sta (ipoint),y
+	sta (ipoint),y		; push regs from this stack to xfer seg stack
 	dex
 	bne exsu10
-	ldy stackp
-	lda #<expul2
-	ldx #>expul2
-	jsr putaxs
-	pla
-	pla
+	ldy stackp		; restore .y as stack pointer for xfer seg
+	lda #<expul2		; pull regs and rts routn
+	ldx #>expul2		; .hi prendn routn in xfer seg
+	jsr putaxs		; put .a.x on xfer seg stack
+	pla			; fix stack
+	pla			; fix stack
 exgby:	tsx
-	stx stackp
-	tya
+	stx stackp		; save current stack pointer this seg
+	tya			; .y is stack pointer for xfer seg
 	tax
-	txs
-	lda i6509
-	jmp gbye
+	txs			; new stack for xfer seg
+	lda i6509		; xfer seg #
+	jmp gbye		; good bye
 ; -------------------------------------------------------------------------------------------------
 	nop			; returns here if rti
 ; FEFE Return from call to foreign bank
-excrts: php			; P
-	php			; P
+excrts: php			; .p
+	php			; .p
 !ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
 	sei             	; dis ints
 }
-	pha			; A
+	pha			; .a
 	txa
-	pha			; X
+	pha			; .x
 	tya
-	pha			; Y
+	pha			; .y
 	tsx
-	lda stack+6,x		; sp +7 is return seg
+	lda stack+6,x		; sp +6 is return seg
 	sta i6509		; restore i6509 to return seg
 	jsr ipinit		; init ipoint and load stack from xfer seg
 	jmp excomm
@@ -5494,32 +5494,32 @@ ipinit: ldy #$01
 	sty ipoint+1
 	dey
 	sty ipoint		; ipoint=$0100
-	dey			; Y=$ff
+	dey			; .y=$ff
 	lda (ipoint),y		; load stack pointer from $001ff
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; FF1C Place X/A to ipoint (build stack in foreign bank)
 putaxs: pha			; save A
 	txa
-	sta (ipoint),y		; X hi
+	sta (ipoint),y		; .x hi
 	dey
 	pla
 ; FF22 Place A to ipoint (build stack in foreign bank)
-putas:  sta (ipoint),y		; A lo
+putas:  sta (ipoint),y		; .a lo
 	dey
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; FF26 Pull registers after calling subroutine in foreign bank
 expull: pla
-	tay			; Y
+	tay			; .y
 	pla
-	tax			; X
-	pla			; A
-	plp			; P
+	tax			; .x
+	pla			; .a
+	plp			; .p
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; FF2D Helper routine to route interrupts from foreign to system bank
-exnmi:  php			; P
+exnmi:  php			; .p
 	jmp (hwnmi)		; do nmi proc
 ; -------------------------------------------------------------------------------------------------
 ; FF31 Helper routine to route BRK insns from foreign to system bank
