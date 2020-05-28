@@ -13,12 +13,12 @@
 !ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
 !to "kernal.bin", plain
 ; * switches
-;STANDARD_FKEYS	= 1	; Standard F-keys
-;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
-SYSPATCH	= 1	; patched Basic SYS command
+STANDARD_FKEYS	= 1	; Standard F-keys
+FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+;BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
+;SYSPATCH	= 1	; patched Basic SYS command
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -1692,10 +1692,10 @@ dline:  jsr fistrt
 	jmp stu10
 ; -------------------------------------------------------------------------------------------------
 ; E71F Erase to end of line (esc-q)
-eraeol: clc
+etoeol: clc
 	!byte $24               ; skips next instruction with bit $xx
 ; E721 Erase to start of line (esc-p)
-erasol: sec
+etosol: sec
 	jsr savpos                          ; E722 20 52 E5                  R.
 	bcs LE739                           ; E725 B0 12                    ..
 LE727:  jsr clrprt                          ; E727 20 29 E2                  ).
@@ -1714,31 +1714,35 @@ LE739:  jsr doblnk                          ; E739 20 07 E2                  ..
 	bcc etout                           ; E743 90 F1                    ..
 LE745:  jsr bakchr                          ; E745 20 34 E5                  4.
 	bcc LE739                           ; E748 90 EF                    ..
+;*****************************
+; scroll up
+;*****************************
 ; E74A Scroll upwards (esc-v)
-scrlup: clc
+esuup:	clc
 	!byte $24               ; skips next instruction with bit $xx
 ; E74C Scroll downwards (esc-w)
-scrldwn:sec
+esddn:	sec
 ; E74D Scroll screen depending on carry
-scroll: jsr     savpos                          ; E74D 20 52 E5                  R.
-	bcs     sddn                            ; E750 B0 0B                    ..
-	txa                                     ; E752 8A                       .
-	pha                                     ; E753 48                       H
-	jsr     scrup                           ; E754 20 08 E4                  ..
-	pla                                     ; E757 68                       h
-	sta     sedt2                           ; E758 85 DA                    ..
-	jmp     etout                           ; E75A 4C 36 E7                 L6.
-
-sddn:   jsr     getbit                          ; E75D 20 A6 E4                  ..
-	bcs     sddn2                           ; E760 B0 03                    ..
-	sec                                     ; E762 38                       8
-	ror     lsxp                            ; E763 66 CF                    f.
-sddn2:  lda     sctop                           ; E765 A5 DC                    ..
-	sta     tblx                            ; E767 85 CA                    ..
-	jsr     scrdwn                          ; E769 20 DF E3                  ..
-	jsr     clrbit                          ; E76C 20 B6 E4                  ..
-	jmp     etout                           ; E76F 4C 36 E7                 L6.
-
+suup:	jsr savpos
+	bcs sddn
+	txa
+	pha
+	jsr scrup
+	pla
+	sta sedt2
+	jmp etout
+;*****************************
+; scroll down
+;*****************************
+sddn:   jsr getbit
+	bcs sddn2
+	sec
+	ror lsxp		; set flag - left line
+sddn2:  lda sctop
+	sta tblx		; scroll from screen top
+	jsr scrdwn
+	jsr clrbit		; make first line non-continued
+	jmp etout
 ; -------------------------------------------------------------------------------------------------
 ;**************************************
 ; Turn off all modes
@@ -1756,10 +1760,10 @@ toqm:	lda #$00
 *= $E77F
 ; -------------------------------------------------------------------------------------------------
 ; E77F Allow scrolling (esc-l)
-scrlon: clc
+scrsw0: clc
 	bcc scrsw
 ; E782 Disallow scrolling (esc-m)
-scrloff:sec
+scrsw1:sec
 scrsw:  lda #$00
 	ror
 	sta scrdis
@@ -2173,40 +2177,40 @@ escrts: rts
 ; EA46 Call an escape sequence routine
 escgo:  asl                                     ; EA46 0A                       .
 	tax                                     ; EA47 AA                       .
-	lda     escvect+1,x                     ; EA48 BD 52 EA                 .R.
+	lda     escvct+1,x                     ; EA48 BD 52 EA                 .R.
 	pha                                     ; EA4B 48                       H
-	lda     escvect,x                       ; EA4C BD 51 EA                 .Q.
+	lda     escvct,x                       ; EA4C BD 51 EA                 .Q.
 	pha                                     ; EA4F 48                       H
 	rts                                     ; EA50 60                       `
 
 ; -------------------------------------------------------------------------------------------------
-; EA51 Alphabetical table of escape sequence handlers
-escvect:!word auton-1           ; esc-a Auto insert mode on
-	!word sethtb-1          ; esc-b Set bottom right window corner
-	!word autoff-1          ; esc-c Auto insert mode off
-	!word dline-1           ; esc-d Delete a line
-	!word notimp-1          ; esc-e
-	!word notimp-1          ; esc-f
-	!word bellon-1          ; esc-g Bell on
-	!word belloff-1         ; esc-h Bell of
-	!word iline-1           ; esc-i Insert a line
-	!word fndfst-1          ; esc-j cursor to line start
-	!word fndend-1          ; esc-k cursor to end of line
-	!word scrlon-1          ; esc-l Allow scrolling
-	!word scrloff-1         ; esc-m Disallow scrolling
-	!word notimp-1          ; esc-n
-	!word toqm-1         	; esc-o Reset modes: insert, reverse, quote
-	!word erasol-1          ; esc-p Erase to start of line
-	!word eraeol-1          ; esc-q Erase to end of line
-	!word notimp-1          ; esc-r
-	!word notimp-1          ; esc-s
-	!word sethtt-1          ; esc-t Set top left window corner
-	!word notimp-1          ; esc-u
-	!word scrlup-1          ; esc-v Scroll upwards
-	!word scrldwn-1         ; esc-w Scroll downwards
-	!word escrts-1          ; esc-x Break escape
-	!word notimp-1          ; esc-y
-	!word notimp-1          ; esc-z
+; EA51 Escape sequence table
+escvct:	!word auton-1		; a Auto insert
+	!word sethtb-1		; b set bottom
+	!word autoff-1		; c cancel auto insert
+	!word dline-1		; d Delete line
+	!word notimp-1		; e
+	!word notimp-1		; f
+	!word bellon-1		; g enable bell
+	!word bellof-1		; h disable bell
+	!word iline-1		; i Insert line
+	!word fndfst-1		; j Move to start of line
+	!word fndend-1		; k Move to end of line
+	!word scrsw0-1		; l enable scrolling
+	!word scrsw1-1		; m disable scrolling
+	!word notimp-1		; n
+	!word toqm-1		; o cancel insert, quote and reverse
+	!word etosol-1		; p Erase to start of line
+	!word etoeol-1		; q Erase to end of line
+	!word notimp-1		; r
+	!word notimp-1		; s
+	!word sethtt-1		; t Set top left of page
+	!word notimp-1		; u
+	!word esuup-1		; v Scroll up
+	!word esddn-1		; w Scroll down
+	!word escrts-1		; x cancel esacpe sequence
+	!word notimp-1		; y
+	!word notimp-1		; z
 ; -------------------------------------------------------------------------------------------------
 ; EA85 Set top left window corner (esc-t)
 sethtt: clc                     ; set upper left corner with C=0
@@ -2233,7 +2237,7 @@ settps: sta sctop               ; set first row
 ; EAA2 Bell on (esc-g)
 bellon: lda #$00                ; $00 = bell on
 ; EAA4 Bell off (esc-h)
-belloff:sta bellmd              ; store bell flag - any value = bell off
+bellof:sta bellmd              ; store bell flag - any value = bell off
 ; EAA7 Not implemented escape sequences jump here
 notimp: rts
 ; -------------------------------------------------------------------------------------------------
@@ -2339,13 +2343,13 @@ shftgr:					; keyboard table - shift only & graphic mode
 	 !byte $11,$2b,$5c,$5d,$8d,$de
 	;line 11: up cursor,left cursor,right cursor, ins, cmdr, null
 	 !byte $91,$9d,$1d,$94,$82,$ff
-	;line 12: clear/home, 		last 5 changed **************** cbm2: , ?, 7, 4, 1, 0
+	;line 12: clear/home,gr,gr,gr,gr,gr
 	 !byte $93,$b7,$b4,$b1,$b0,$ad
-	;line 13: rvs off,		last 5 changed **************** cbm2: shift cancel, 8, 5, 2, dp
+	;line 13: rvs off,gr,gr,gr,gr,gr
 	 !byte $92,$b8,$b5,$b2,$ae,$bd
-	;line 14: text,              00 middle 4 chged **************** cbm2: mult, 9, 6, 3,
+	;line 14: text,gr,gr,gr,gr,00
 	 !byte $0e,$b9,$b6,$b3,$db,$30
-	;line 15: run,      enter, null changed 2,3,4  **************** cbm2: div, subtr, add,
+	;line 15: run,gr,gr,gr,gr,null
 	 !byte $83,$af,$aa,$ab,$8d,$ff
 
 ctltbl:					; keyboard table... control characters, any mode
@@ -2373,13 +2377,13 @@ ctltbl:					; keyboard table... control characters, any mode
 	 !byte $ff,$a9,$df,$ba,$ff,$a6
 	;line 11: null,null,null,null,null,null
 	 !byte $ff,$ff,$ff,$ff,$ff,$ff
-	;line 12: null,	                last 5 chnaged *************** cbm2: gr,gr,gr,gr,gr
+	;line 12: null,lred,yell,mag,wht,blk
 	 !byte $ff,$96,$9e,$9c,$05,$90
-	;line 13: null,			last 5 changed *************** cbm2: gr,gr,gr,gr,gr
+	;line 13: null,lblue,org,grn,red,null
 	 !byte $ff,$99,$81,$1e,$1c,$ff
-	;line 14: null,		    null middle 4 chgd *************** cbm2: gr,gr,gr,gr,
+	;line 14: null,gray3,brown,blue,cyan,null
 	 !byte $ff,$9a,$95,$1f,$9f,$ff
-	;line 15: null,        null,null changed 2,3,4 *************** cbm2: gr,gr,gr,
+	;line 15: null,gray1,gray2,purple,null,null
 	 !byte $ff,$97,$98,$9b,$ff,$ff
 ; -------------------------------------------------------------------------------------------------
 ; EC31 <SHIFT> <RUN/STOP> String: DLOAD "*" + RUN
@@ -2500,6 +2504,7 @@ edvect:	!word funkey
 ; ED12 Color control code table
 ; blk,wht,red,cyan,magenta,grn,blue,yellow
 coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
+; org,brown,lred,gray1,gray2,lgreen,lblue,gray3,purple
 	!byte $81,$95,$96,$97,$98,$99,$9A,$9B
 ; rsr modify for vic-40 system			*** Just for fun from rev.1 c64-kernal rev.1 ;) ***
 ; rsr 12/31/81 add 8 more colors
