@@ -10,7 +10,7 @@
 ; v1.7 moved tx-routines in the correct place = 100% identical to cbm2 04a kernal
 ; v1.8 basic SYS patched - now to selected bank -> Basic $8063 csys vector =  $EDDC-1: $DB, $ED
 !cpu 6502
-!ct scr		; Standard text/char conversion table -> Screencode (pet = PETSCII, raw)
+!ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
 ;STANDARD_FKEYS	= 1	; Standard F-keys
@@ -1891,10 +1891,10 @@ jbsout: jmp     (ibsout)                        ; E853 6C 12 03                 
 
 ; -------------------------------------------------------------------------------------------------
 ; E856 
-keword: !scr   " YEK"                           ; E856 20 59 45 4B               YEK
-crword: !scr   "31($RHC+"                       ; E85A 33 31 28 24 52 48 43 2B  31($RHC+
+keword: !pet   " yek"                           ; E856 20 59 45 4B               YEK
+crword: !pet   "31($rhc+"                       ; E85A 33 31 28 24 52 48 43 2B  31($RHC+
 	!byte   $22                                     ; E862 22                       "
-qtword: !scr   "43($RHC+"                       ; E863 34 33 28 24 52 48 43 2B  43($RHC+
+qtword: !pet   "43($rhc+"                       ; E863 34 33 28 24 52 48 43 2B  43($RHC+
 	!byte   $22                                     ; E86B 22                       "
 ; -------------------------------------------------------------------------------------------------
 ; E86C Get/set a function key
@@ -2680,40 +2680,40 @@ s4:     sta     tmpc                            ; EEAE 85 BD                    
 s5:     rts                                     ; EED0 60                       `
 ; -------------------------------------------------------------------------------------------------
 ; EED1 Table with monitor commands. One letter command followed by address.
-cmds:   !scr         ":"                                ; EED1 3A                       :
+cmds:   !pet         ":"                                ; EED1 3A                       :
 	!word   msetmem                         ; EED2 F7 EF                    ..
 ; -------------------------------------------------------------------------------------------------
-	!scr         ";"                                ; EED4 3B                       ;
+	!pet         ";"                                ; EED4 3B                       ;
 	!word   msetreg                         ; EED5 C5 EF                    ..
 ; -------------------------------------------------------------------------------------------------
-	!scr         "R"                                ; EED7 52                       R
+	!pet         "r"                                ; EED7 52                       R
 	!word   mregs                           ; EED8 41 EF                    A.
 ; -------------------------------------------------------------------------------------------------
-	!scr         "M"                                ; EEDA 4D                       M
+	!pet         "m"                                ; EEDA 4D                       M
 	!word   mdump                           ; EEDB 84 EF                    ..
 ; -------------------------------------------------------------------------------------------------
-	!scr         "G"                                ; EEDD 47                       G
+	!pet         "g"                                ; EEDD 47                       G
 	!word   mgo                             ; EEDE 14 F0                    ..
 ; -------------------------------------------------------------------------------------------------
-	!scr         "L"                                ; EEE0 4C                       L
+	!pet         "l"                                ; EEE0 4C                       L
 	!word   mload                           ; EEE1 43 F0                    C.
 ; -------------------------------------------------------------------------------------------------
-	!scr         "S"                                ; EEE3 53                       S
+	!pet         "s"                                ; EEE3 53                       S
 	!word   mload                           ; EEE4 43 F0                    C.
 ; -------------------------------------------------------------------------------------------------
-	!scr         "V"                                ; EEE6 56                       V
+	!pet         "v"                                ; EEE6 56                       V
 	!word   mbank                           ; EEE7 DF EF                    ..
 ; -------------------------------------------------------------------------------------------------
 	!pet   "@"                                      ; EEE9 40                       @
 	!word   mdisk                           ; EEEA 68 F1                    h.
 ; -------------------------------------------------------------------------------------------------
-	!scr         "Z"                                ; EEEC 5A                       Z
+	!pet         "z"                                ; EEEC 5A                       Z
 	!word   ipcgov                          ; EEED 72 FF                    r.
 ; -------------------------------------------------------------------------------------------------
-	!scr         "X"                                ; EEEF 58                       X
+	!pet         "x"                                ; EEEF 58                       X
 	!word   mexit                           ; EEF0 F5 EE                    ..
 ; -------------------------------------------------------------------------------------------------
-	!scr         "U"                                ; EEF2 55                       U
+	!pet         "u"                                ; EEF2 55                       U
 	!word   mdunit                          ; EEF3 EB EF                    ..
 ; -------------------------------------------------------------------------------------------------
 ; EEF5 Monitor command 'x' (exit)
@@ -2761,7 +2761,7 @@ crlf:   lda     #$0D                            ; EF21 A9 0D                    
 ; EF26 Header for 'r' command
 reghead:
 	!byte   $0D
-	!scr   "   PC  IRQ  SR AC XR YR SP"
+	!pet   "   pc  irq  sr ac xr yr sp"
 ; -------------------------------------------------------------------------------------------------
 ; EF41 Monitor command 'r' (regs)
 mregs:  ldx     #$00                            ; EF41 A2 00                    ..
@@ -3128,29 +3128,29 @@ LF1BF:  jsr     clrch                          ; F1BF 20 CC FF                  
 ; -------------------------------------------------------------------------------------------------
 ; F1CA Table with kernal messages
 kmsgtab:!byte   $0D                                     ; F1CA 0D                       .
-	!scr   "I/O ERROR "                             ; F1CB 49 2F 4F 20 45 52 52 4F  I/O ERRO
+	!pet   "i/o error "                             ; F1CB 49 2F 4F 20 45 52 52 4F  I/O ERRO
 							; F1D3 52 20                    R 
 	!byte   $A3,$0D                                 ; F1D5 A3 0D                    ..
-	!scr   "SEARCHING"                              ; F1D7 53 45 41 52 43 48 49 4E  SEARCHIN
+	!pet   "searching"                              ; F1D7 53 45 41 52 43 48 49 4E  SEARCHIN
 							; F1DF 47                       G
 	!byte   $A0                                     ; F1E0 A0                       .
-	!scr   "FOR"                                    ; F1E1 46 4F 52                 FOR
+	!pet   "for"                                    ; F1E1 46 4F 52                 FOR
 	!byte   $A0,$0D                                 ; F1E4 A0 0D                    ..
-	!scr   "LOADIN"                                 ; F1E6 4C 4F 41 44 49 4E        LOADIN
+	!pet   "loadin"                                 ; F1E6 4C 4F 41 44 49 4E        LOADIN
 	!byte   $C7,$0D                                 ; F1EC C7 0D                    ..
-	!scr   "SAVING"                                 ; F1EE 53 41 56 49 4E 47        SAVING
+	!pet   "saving"                                 ; F1EE 53 41 56 49 4E 47        SAVING
 	!byte   $A0,$0D                                 ; F1F4 A0 0D                    ..
-	!scr   "VERIFYIN"                               ; F1F6 56 45 52 49 46 59 49 4E  VERIFYIN
+	!pet   "verifyin"                               ; F1F6 56 45 52 49 46 59 49 4E  VERIFYIN
 	!byte   $C7,$0D                                 ; F1FE C7 0D                    ..
-	!scr   "FOUND"                                  ; F200 46 4F 55 4E 44           FOUND
+	!pet   "found"                                  ; F200 46 4F 55 4E 44           FOUND
 	!byte   $A0,$0D                                 ; F205 A0 0D                    ..
-	!scr   "OK"                                     ; F207 4F 4B                    OK
+	!pet   "ok"                                     ; F207 4F 4B                    OK
 	!byte   $8D,$0D                                 ; F209 8D 0D                    ..
-	!scr   "** MONITOR 1.0 **"                      ; F20B 2A 2A 20 4D 4F 4E 49 54  ** MONIT
+	!pet   "** monitor 1.0 **"                      ; F20B 2A 2A 20 4D 4F 4E 49 54  ** MONIT
 							; F213 4F 52 20 31 2E 30 20 2A  OR 1.0 *
 							; F21B 2A                       *
 	!byte   $8D,$0D                                 ; F21C 8D 0D                    ..
-	!scr   "BREA"                                   ; F21E 42 52 45 41              BREA
+	!pet   "brea"                                   ; F21E 42 52 45 41              BREA
 	!byte   $CB                                     ; F222 CB                       .
 ; -------------------------------------------------------------------------------------------------
 ; F223 Test error flag, print system message
