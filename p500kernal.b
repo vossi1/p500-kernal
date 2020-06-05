@@ -13,12 +13,12 @@
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
-;STANDARD_FKEYS	= 1	; Standard F-keys
-;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
-SYSPATCH	= 1	; patched Basic SYS command
+STANDARD_FKEYS	= 1	; Standard F-keys
+FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+;BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
+;SYSPATCH	= 1	; patched Basic SYS command
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -825,7 +825,6 @@ qtswc:	cmp #$22
 	sta qtsw
 	lda #$22		; restore quote in A
 qtswl:	rts
-
 ; -------------------------------------------------------------------------------------------------
 ; E1D5 *** Output chars ***
 nxt3:	bit rvs
@@ -1054,44 +1053,43 @@ ctdsp:	lda ctable+1,x		; hi byte
 ; E322 User control code jump vector
 cuser:	jmp (ctlvec)
 ; -------------------------------------------------------------------------------------------------
-; E325 Handle cursor up/down
-cdnup:  bcs     cursup                          ; E325 B0 0D                    ..
-	jsr     nxln                            ; E327 20 8B E3                  ..
-cursdn1:jsr     getbit                          ; E32A 20 A6 E4                  ..
-	bcs     cdrts                           ; E32D B0 03                    ..
-	sec                                     ; E32F 38                       8
-	ror     lsxp                            ; E330 66 CF                    f.
-cdrts:  clc                                     ; E332 18                       .
-	rts                                     ; E333 60                       `
+; E325 Cursor down/up
+cdnup:  bcs cup			; cursor up
 
-; -------------------------------------------------------------------------------------------------
+cdwn:	jsr nxln
+cdn10:	jsr getbit		; a wrapped line ?
+	bcs cdrts		; skip if yes
+	sec			; flag we left line
+	ror lsxp
+
+cdrts:  clc
+	rts
 ; E334 Cursor up
-cursup: ldx     sctop                           ; E334 A6 DC                    ..
-	cpx     tblx                            ; E336 E4 CA                    ..
-	bcs     critgo                          ; E338 B0 0F                    ..
-cursup1:jsr     cursdn1                         ; E33A 20 2A E3                  *.
-	dec     tblx                            ; E33D C6 CA                    ..
-	jmp     stupt                          ; E33F 4C DF E0                 L..
-
+cup:	ldx sctop		; cursor up
+	cpx tblx		; at top of window ?
+	bcs critgo		; yes - do nothing
+cup10:	jsr cdn10		; about to wrap to a new line ?
+	dec tblx		; up a line
+	jmp stupt
 ; -------------------------------------------------------------------------------------------------
-; E342 Handle cursor right/left
-crtlf:  bcs     cleft                           ; E342 B0 06                    ..
-	jsr     nxtchr                         ; E344 20 21 E5                  !.
-	bcs     cursdn1                         ; E347 B0 E1                    ..
-critgo: rts                                     ; E349 60                       `
+; E342 Cursor right/left
+crtlf:  bcs cleft		; cursor left
 
-; -------------------------------------------------------------------------------------------------
+crit:	jsr nxtchr		; cursor right
+	bcs cdn10		; yes - test for wrap
+
+critgo: rts
 ; E34A Cursor left
-cleft:  jsr     bakchr                          ; E34A 20 34 E5                  4.
-	bcs     critgo                          ; E34D B0 FA                    ..
-	bne     cdrts                           ; E34F D0 E1                    ..
-	inc     tblx                            ; E351 E6 CA                    ..
-	bne     cursup1                         ; E353 D0 E5                    ..
+cleft:  jsr bakchr		; move back
+	bcs critgo		; abort if at top left
+	bne cdrts		; no - exit
+	inc tblx
+	bne cup10		; go set flag if needed
+; -------------------------------------------------------------------------------------------------
 ; E355 RVS on/off
-rvsf:   eor     #$80                            ; E355 49 80                    I.
-	sta     rvs                             ; E357 8D 83 03                 ...
-	rts                                     ; E35A 60                       `
-
+rvsf:   eor #$80
+	sta rvs
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E35B Home/clear
 homclr:	bcc homes		; if C=0 home
@@ -1101,30 +1099,26 @@ homes:	cmp lstchr		; last char a home ?
 	bne hm110		; no
 	jsr sreset		; top=0,left=0,bot=nrows-1,rt=cols-1
 hm110:  jmp nxtd		; set to top left
-
 ; -------------------------------------------------------------------------------------------------
-; E36B Set/reset a tabulator
-tabit:  ldy     pntr                            ; E36B A4 CB                    ..
-	bcs     tabtog                          ; E36D B0 12                    ..
-tab1:   cpy     scrt                            ; E36F C4 DF                    ..
-	bcc     tab2                            ; E371 90 05                    ..
-	lda     scrt                            ; E373 A5 DF                    ..
-	sta     pntr                            ; E375 85 CB                    ..
-	rts                                     ; E377 60                       `
+; E36B Tab function
+tabit:  ldy pntr
+	bcs tabtog		; a tab toggle
+tab1:	cpy scrt		; at right of window
+	bcc tab2		; no - tab to next
+	lda scrt		; set to screen right
+	sta pntr
+	rts
 
-tab2:   iny                                     ; E378 C8                       .
-	jsr     gettab                          ; E379 20 26 EA                  &.
-	beq     tab1                            ; E37C F0 F1                    ..
-	sty     pntr                            ; E37E 84 CB                    ..
-	rts                                     ; E380 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; E381 Toggle a tabulator at the current position
-tabtog: jsr     gettab                          ; E381 20 26 EA                  &.
-	eor     bitmsk                          ; E384 4D 88 03                 M..
-	sta     tab,x                           ; E387 9D A1 03                 ...
-	rts                                     ; E38A 60                       `
-
+tab2:   iny			; find next tab stop
+	jsr gettab
+	beq tab1		; not yet !
+	sty pntr
+	rts
+; E381 Toggle tabulator
+tabtog: jsr gettab		; flip tab stop
+	eor bitmsk
+	sta tab,x
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E38B Skip to next line
 ; wrap to top if scroll disabled
@@ -1136,19 +1130,20 @@ nxln:	ldx tblx
 	lda sctop		; wrap to top
 	sta tblx
 	bcs nowhop		; always
+
 doscrl:	jsr scrup		; scroll it all
 	clc			; indicate scroll ok
 nxln1:	inc tblx
 nowhop:	jmp stupt		; set line base adr
 ; -------------------------------------------------------------------------------------------------
-; E3A5 
-nxt1:   jsr     fndend                          ; E3A5 20 F7 E4                  ..
-	inx                                     ; E3A8 E8                       .
-	jsr     clrbit                          ; E3A9 20 B6 E4                  ..
-	ldy     sclf                            ; E3AC A4 DE                    ..
-	sty     pntr                            ; E3AE 84 CB                    ..
-	jsr     nxln                            ; E3B0 20 8B E3                  ..
-	jmp     toqm                         ; E3B3 4C 72 E7                 Lr.
+; E3A5 A return or shift return
+nxt1:   jsr fndend		; find the end of the current line
+	inx
+	jsr clrbit		; set next line as non-continued
+	ldy sclf		; else point to start of next line
+	sty pntr
+	jsr nxln		; set up next line
+	jmp toqm		; turn off all modes
 
 ; -------------------------------------------------------------------------------------------------
 ; E3B6
@@ -1749,7 +1744,7 @@ sddn2:  lda sctop
 ;   expected to return zero
 ;**************************************
 ; E772 Reset modes: insert, reverse, quote
-toqm:	lda #$00
+toqm:	lda #0
 	sta insrt
 	sta rvs
 	sta qtsw
