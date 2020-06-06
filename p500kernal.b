@@ -13,13 +13,13 @@
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
-;STANDARD_FKEYS	= 1	; Standard F-keys
-;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
+STANDARD_FKEYS	= 1	; Standard F-keys
+FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+;BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank1 15!
-SYSPATCH	= 1	; patched Basic SYS command
+;SYSPATCH	= 1	; patched Basic SYS command
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -685,10 +685,10 @@ stu10:  ldy sclf		; left of the screen window
 ; E0DF Reset screen ptr to line begin
 stupt:	ldx tblx		; get curent line index
 ; E0F1 Set screen ptr to line X 
-scrset: lda ldtab2,x		; load start of screen line low
+scrset: lda ldtb2,x		; load start of screen line low
 	sta pnt			; and store to screen, color RAM ptr
 	sta user
-	lda ldtab1,x		; load high
+	lda ldtb1,x		; load high
 	sta pnt+1		; and store to char pointer
 	and #$03
 	ora #>clrram		; calc color RAM high and store to color RAM ptr
@@ -1147,130 +1147,157 @@ nxt1:   jsr fndend		; find the end of the current line
 	jmp toqm		; turn off all modes
 
 ; -------------------------------------------------------------------------------------------------
+; ****** scroll routines ******
 ; E3B6 Move one line
-movlin:	lda ldtab2,x
+movlin:	lda ldtb2,x		; set pointers to line address lo
 	sta sedeal
 	sta sedsal
-	lda ldtab1,x
-	sta sedsal+1
+	lda ldtb1,x
+	sta sedsal+1		; set pointer hi to vram
 	and #$03
-	ora #>clrram
+	ora #>clrram		; calc colorram hi and set second pointer
 	sta sedeal+1
+
 	jsr pagscr		; switch to screen ibank
+
 movl10: lda (sedsal),y
-	jsr jwrvrm
+	jsr jwrvrm		; copy vram
 	lda #$00
-	ora (sedeal),y
-	jsr jwrcrm
-	cpy scrt
+	ora (sedeal),y		; read from color ram (ora() always from kernal bank)
+	jsr jwrcrm		; write color ram
+	cpy scrt		; done a whole line ?
 	iny
-	bcc movl10
+	bcc movl10		; no
+
 	jmp pagres    		; restore indirect bank
 ; -------------------------------------------------------------------------------------------------
 ; E3DF ****** Scroll down ******
 scrdwn: ldx lsxp
-	bmi scd30
+	bmi scd30		; skip if new line flag already set
 	cpx tblx
-	bcc scd30
-	inc lsxp
-scd30:  ldx scbot
-scd10:  jsr scrset
+	bcc scd30		; skip if old line is below scroll area
+	inc lsxp		; else inc start line number
+
+scd30:  ldx scbot		; scroll down, start bottom
+
+scd10:  jsr scrset		; set pnt to line
 	ldy sclf
-	cpx tblx
-	beq scd20
-	dex
+	cpx tblx		; test if at destination line
+	beq scd20		; done if yes
+	dex			; point to previous line as source
 	jsr getbt1
 	inx
-	jsr putbt1
+	jsr putbt1		; move continuation byte
 	dex
-	jsr movlin
-	bcs scd10
-scd20:  jsr clrln
-	jmp setbit
+	jsr movlin		; move one line
+	bcs scd10		; always
+
+scd20:	jsr clrln		; set line to blanks
+	jmp setbit		; mark as continuation line
 ; -------------------------------------------------------------------------------------------------
 ; E408 ****** Scroll up ******
 scrup:  ldx sctop
 scru00: inx
-	jsr getbt1
+	jsr getbt1      ;find first non-continued line
 	bcc scru15
-	cpx scbot
-	bcc scru00
+	cpx scbot       ;is entire screen 1 line?
+	bcc scru00      ;do normal scroll if not
 	ldx sctop
 	inx
-	jsr clrbit
-scru15: dec tblx
+	jsr clrbit      ;clear to only scroll 1 line
+scru15
+	dec tblx
 	bit lsxp
-	bmi scru20
-	dec lsxp
-scru20: ldx sctop
+	bmi scru20      ;no change if already new line
+	dec lsxp        ;move input up one
+scru20
+	ldx sctop
 	cpx sedt2
 	bcs scru30
-	dec sedt2
-scru30: jsr scr10
+	dec sedt2       ;in case doing insert
+scru30
+	jsr scr10       ;scroll
 	ldx sctop
 	jsr getbt1
 	php
-	jsr clrbit
+	jsr clrbit      ;make sure top line is not continuation
 	plp
-	bcc scru10
-	bit logscr
-	bmi scrup
+	bcc scru10      ;done if top line off
+	bit logscr      ;logical scroll ?
+	bmi scrup	;yes - keep scrolling  ********** b128 v4: -> scru15
 scru10: rts
 ; E43F
-scr10:  jsr scrset
+scr10:	jsr scrset      ;point to start of line
 	ldy sclf
-	cpx scbot
-	bcs scr40
-	inx
+	cpx scbot       ;at last line ?
+	bcs scr40       ;yes
+	inx             ;point to next line
 	jsr getbt1
 	dex
-	jsr putbt1
+	jsr putbt1      ;move continuation byte
 	inx
-	jsr movlin
+	jsr movlin      ;move one line
 	bcs scr10
 ; E456 Test for slow scroll
-scr40:  jsr clrln
+scr40:  jsr clrln       ;make last line blank
 	ldx #$FF
-	ldy #$FE
-	jsr getlin
-	and #$20
-	bne scr80
+	ldy #$FE        ;allow only output line 0
+	jsr getlin      ;get input
+	and #$20        ;check if interrupt i5 = control
+	bne scr80       ;if not skip ahead - not slow scroll
 ; E464 Slow scroll delay loop
-scr60:  nop
+scr60:
+!ifndef CBMPATCH{	; ********** PATCH nop's are for 2MHz B-series, P is slow enough ;)
+			;            get an extra byte for the cbmii patch below!
+	nop		; yes - waste time
 	nop
+}
 	dex
 	bne scr60
 	dey
 	bne scr60
+
 scr70:  sty ndx
+
 scr75:  ldx #$7F
 	stx tpi2+pa
 	ldx #$FF
 	stx tpi2+pb
 	rts
 ; E479 Scroll stop
-scr80:  ldx #$F7
+scr80:  ldx #$F7		; allow only output line 11
 	ldy #$FF
-	jsr getlin
-	and #$10
-	bne scr75
-scr90:  jsr getlin
-	and #$10
-	beq scr90
-scr95:  ldy #$00
-	ldx #$00
-	jsr getlin
-	and #$3F
+	jsr getlin		; get input lines key
+	and #$10		; check for the commodore key
+	bne scr75		; exit if not - no stop scroll
+
+scr90:	jsr getlin		; get input lines
+	and #$10		; check for the commodore key
+	beq scr90		; wait until com.key not depressed
+
+scr95:	ldy #0
+	ldx #0			; allow all output lines
+	jsr getlin		; get inputs
+	and #$3F		; check for any input
 	eor #$3F
-	beq scr95
-	bne scr70
+	beq scr95		; wait
+	bne scr70		; always
 ; E49A Keyboard check for slow scroll
-getlin: sei
-	stx tpi2+pa
-	sty tpi2+pb
-	jsr getkey
+getlin: 
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+ 	php			; preserve the irq flag
+}
+	sei
+	stx tpi2+pa		; set port-a output
+	sty tpi2+pb		; set port-b outputs
+	jsr getkey		; get port-c inputs
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+	plp
+} else{
 	cli
+}
 	rts
+*= $E4A6
 ; -------------------------------------------------------------------------------------------------
 ; E4A6 Check for a double length line
 getbit: ldx tblx		; load current line
@@ -2382,12 +2409,12 @@ runtb:  !pet "d",$CC,$22        ; dL"
 ; -------------------------------------------------------------------------------------------------
 ;****** address of screen lines ******
 ; EC3A Start of screen lines, low bytes
-ldtab2: !byte $00,$28,$50,$78,$A0,$C8,$F0,$18
+ldtb2: !byte $00,$28,$50,$78,$A0,$C8,$F0,$18
 	!byte $40,$68,$90,$B8,$E0,$08,$30,$58
 	!byte $80,$A8,$D0,$F8,$20,$48,$70,$98
 	!byte $C0
 ; EC53 Start of screen lines, high bytes
-ldtab1: !byte $D0,$D0,$D0,$D0,$D0,$D0,$D0,$D1
+ldtb1: !byte $D0,$D0,$D0,$D0,$D0,$D0,$D0,$D1
 	!byte $D1,$D1,$D1,$D1,$D1,$D2,$D2,$D2
 	!byte $D2,$D2,$D2,$D2,$D3,$D3,$D3,$D3
 	!byte $D3
