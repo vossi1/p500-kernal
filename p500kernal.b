@@ -13,12 +13,13 @@
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
-STANDARD_FKEYS	= 1	; Standard F-keys
-FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-;BANK15_VIDEO	= 1	; Superfast Video if indirect bank is always bank 15 (basic)
-;SYSPATCH	= 1	; patched Basic SYS command
+;STANDARD_FKEYS	= 1	; Standard F-keys
+;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
+			;   with vram in bank 0 the kernal doesnt write the color in bank1 15!
+SYSPATCH	= 1	; patched Basic SYS command
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -1146,137 +1147,130 @@ nxt1:   jsr fndend		; find the end of the current line
 	jmp toqm		; turn off all modes
 
 ; -------------------------------------------------------------------------------------------------
-; E3B6
-movlin: lda     ldtab2,x                        ; E3B6 BD 3A EC                 .:.
-	sta     sedeal                          ; E3B9 85 C6                    ..
-	sta     sedsal                          ; E3BB 85 C4                    ..
-	lda     ldtab1,x                        ; E3BD BD 53 EC                 .S.
-	sta     sedsal+1                        ; E3C0 85 C5                    ..
-	and     #$03                            ; E3C2 29 03                    ).
-	ora     #$D4                            ; E3C4 09 D4                    ..
-	sta     sedeal+1                        ; E3C6 85 C7                    ..
-	jsr pagscr			; switch to screen ibank
-movl10: lda     (sedsal),y                      ; E3CB B1 C4                    ..
-	jsr     jwrvrm				; write char to screen
-	lda     #$00                            ; E3D0 A9 00                    ..
-	ora     (sedeal),y                      ; E3D2 11 C6                    ..
-	jsr     jwrcrm				; write color to color RAM
-	cpy     scrt                            ; E3D7 C4 DF                    ..
-	iny                                     ; E3D9 C8                       .
-	bcc     movl10                          ; E3DA 90 EF                    ..
-	jmp pagres    			; restore indirect bank
-
+; E3B6 Move one line
+movlin:	lda ldtab2,x
+	sta sedeal
+	sta sedsal
+	lda ldtab1,x
+	sta sedsal+1
+	and #$03
+	ora #>clrram
+	sta sedeal+1
+	jsr pagscr		; switch to screen ibank
+movl10: lda (sedsal),y
+	jsr jwrvrm
+	lda #$00
+	ora (sedeal),y
+	jsr jwrcrm
+	cpy scrt
+	iny
+	bcc movl10
+	jmp pagres    		; restore indirect bank
 ; -------------------------------------------------------------------------------------------------
-; E3DF Scroll down
-scrdwn: ldx     lsxp                            ; E3DF A6 CF                    ..
-	bmi     scd30                           ; E3E1 30 06                    0.
-	cpx     tblx                            ; E3E3 E4 CA                    ..
-	bcc     scd30                           ; E3E5 90 02                    ..
-	inc     lsxp                            ; E3E7 E6 CF                    ..
-scd30:  ldx     scbot                           ; E3E9 A6 DD                    ..
-scd10:  jsr     scrset                          ; E3EB 20 E1 E0                  ..
-	ldy     sclf                            ; E3EE A4 DE                    ..
-	cpx     tblx                            ; E3F0 E4 CA                    ..
-	beq     scd20                           ; E3F2 F0 0E                    ..
-	dex                                     ; E3F4 CA                       .
-	jsr     getbt1                          ; E3F5 20 A8 E4                  ..
-	inx                                     ; E3F8 E8                       .
-	jsr     putbt1                          ; E3F9 20 B4 E4                  ..
-	dex                                     ; E3FC CA                       .
-	jsr     movlin                          ; E3FD 20 B6 E3                  ..
-	bcs     scd10                           ; E400 B0 E9                    ..
-scd20:  jsr     clrln                          ; E402 20 24 E2                  $.
-	jmp     setbit                          ; E405 4C C3 E4                 L..
-
+; E3DF ****** Scroll down ******
+scrdwn: ldx lsxp
+	bmi scd30
+	cpx tblx
+	bcc scd30
+	inc lsxp
+scd30:  ldx scbot
+scd10:  jsr scrset
+	ldy sclf
+	cpx tblx
+	beq scd20
+	dex
+	jsr getbt1
+	inx
+	jsr putbt1
+	dex
+	jsr movlin
+	bcs scd10
+scd20:  jsr clrln
+	jmp setbit
 ; -------------------------------------------------------------------------------------------------
-; E408 Scroll up
-scrup:  ldx     sctop                           ; E408 A6 DC                    ..
-scru00: inx                                     ; E40A E8                       .
-	jsr     getbt1                          ; E40B 20 A8 E4                  ..
-	bcc     scru15                          ; E40E 90 0A                    ..
-	cpx     scbot                           ; E410 E4 DD                    ..
-	bcc     scru00                          ; E412 90 F6                    ..
-	ldx     sctop                           ; E414 A6 DC                    ..
-	inx                                     ; E416 E8                       .
-	jsr     clrbit                          ; E417 20 B6 E4                  ..
-scru15: dec     tblx                            ; E41A C6 CA                    ..
-	bit     lsxp                            ; E41C 24 CF                    $.
-	bmi     scru20                          ; E41E 30 02                    0.
-	dec     lsxp                            ; E420 C6 CF                    ..
-scru20: ldx     sctop                           ; E422 A6 DC                    ..
-	cpx     sedt2                           ; E424 E4 DA                    ..
-	bcs     scru30                          ; E426 B0 02                    ..
-	dec     sedt2                           ; E428 C6 DA                    ..
-scru30: jsr     scr10                           ; E42A 20 3F E4                  ?.
-	ldx     sctop                           ; E42D A6 DC                    ..
-	jsr     getbt1                          ; E42F 20 A8 E4                  ..
-	php                                     ; E432 08                       .
-	jsr     clrbit                          ; E433 20 B6 E4                  ..
-	plp                                     ; E436 28                       (
-	bcc     scru10                          ; E437 90 05                    ..
-	bit     logscr                          ; E439 2C 8A 03                 ,..
-	bmi     scrup                           ; E43C 30 CA                    0.
-scru10: rts                                     ; E43E 60                       `
-
-; -------------------------------------------------------------------------------------------------
+; E408 ****** Scroll up ******
+scrup:  ldx sctop
+scru00: inx
+	jsr getbt1
+	bcc scru15
+	cpx scbot
+	bcc scru00
+	ldx sctop
+	inx
+	jsr clrbit
+scru15: dec tblx
+	bit lsxp
+	bmi scru20
+	dec lsxp
+scru20: ldx sctop
+	cpx sedt2
+	bcs scru30
+	dec sedt2
+scru30: jsr scr10
+	ldx sctop
+	jsr getbt1
+	php
+	jsr clrbit
+	plp
+	bcc scru10
+	bit logscr
+	bmi scrup
+scru10: rts
 ; E43F
-scr10:  jsr     scrset                          ; E43F 20 E1 E0                  ..
-	ldy     sclf                            ; E442 A4 DE                    ..
-	cpx     scbot                           ; E444 E4 DD                    ..
-	bcs     scr40                           ; E446 B0 0E                    ..
-	inx                                     ; E448 E8                       .
-	jsr     getbt1                          ; E449 20 A8 E4                  ..
-	dex                                     ; E44C CA                       .
-	jsr     putbt1                          ; E44D 20 B4 E4                  ..
-	inx                                     ; E450 E8                       .
-	jsr     movlin                          ; E451 20 B6 E3                  ..
-	bcs     scr10                           ; E454 B0 E9                    ..
+scr10:  jsr scrset
+	ldy sclf
+	cpx scbot
+	bcs scr40
+	inx
+	jsr getbt1
+	dex
+	jsr putbt1
+	inx
+	jsr movlin
+	bcs scr10
 ; E456 Test for slow scroll
-scr40:  jsr     clrln                          ; E456 20 24 E2                  $.
-	ldx     #$FF                            ; E459 A2 FF                    ..
-	ldy     #$FE                            ; E45B A0 FE                    ..
-	jsr     getlin                          ; E45D 20 9A E4                  ..
-	and     #$20                            ; E460 29 20                    ) 
-	bne     scr80                           ; E462 D0 15                    ..
+scr40:  jsr clrln
+	ldx #$FF
+	ldy #$FE
+	jsr getlin
+	and #$20
+	bne scr80
 ; E464 Slow scroll delay loop
-scr60:  nop                                     ; E464 EA                       .
-	nop                                     ; E465 EA                       .
-	dex                                     ; E466 CA                       .
-	bne     scr60                           ; E467 D0 FB                    ..
-	dey                                     ; E469 88                       .
-	bne     scr60                           ; E46A D0 F8                    ..
-scr70:  sty     ndx                             ; E46C 84 D1                    ..
-scr75:  ldx     #$7F                            ; E46E A2 7F                    ..
-	stx     tpi2+pa                         ; E470 8E 00 DF                 ...
-	ldx     #$FF                            ; E473 A2 FF                    ..
-	stx     tpi2+pb                         ; E475 8E 01 DF                 ...
-	rts                                     ; E478 60                       `
-
-; -------------------------------------------------------------------------------------------------
+scr60:  nop
+	nop
+	dex
+	bne scr60
+	dey
+	bne scr60
+scr70:  sty ndx
+scr75:  ldx #$7F
+	stx tpi2+pa
+	ldx #$FF
+	stx tpi2+pb
+	rts
 ; E479 Scroll stop
-scr80:  ldx     #$F7                            ; E479 A2 F7                    ..
-	ldy     #$FF                            ; E47B A0 FF                    ..
-	jsr     getlin                          ; E47D 20 9A E4                  ..
-	and     #$10                            ; E480 29 10                    ).
-	bne     scr75                           ; E482 D0 EA                    ..
-scr90:  jsr     getlin                          ; E484 20 9A E4                  ..
-	and     #$10                            ; E487 29 10                    ).
-	beq     scr90                           ; E489 F0 F9                    ..
-scr95:  ldy     #$00                            ; E48B A0 00                    ..
-	ldx     #$00                            ; E48D A2 00                    ..
-	jsr     getlin                          ; E48F 20 9A E4                  ..
-	and     #$3F                            ; E492 29 3F                    )?
-	eor     #$3F                            ; E494 49 3F                    I?
-	beq     scr95                           ; E496 F0 F3                    ..
-	bne     scr70                           ; E498 D0 D2                    ..
+scr80:  ldx #$F7
+	ldy #$FF
+	jsr getlin
+	and #$10
+	bne scr75
+scr90:  jsr getlin
+	and #$10
+	beq scr90
+scr95:  ldy #$00
+	ldx #$00
+	jsr getlin
+	and #$3F
+	eor #$3F
+	beq scr95
+	bne scr70
 ; E49A Keyboard check for slow scroll
-getlin: sei                                     ; E49A 78                       x
-	stx     tpi2+pa                         ; E49B 8E 00 DF                 ...
-	sty     tpi2+pb                         ; E49E 8C 01 DF                 ...
-	jsr     getkey                          ; E4A1 20 EA E9                  ..
-	cli                                     ; E4A4 58                       X
-	rts                                     ; E4A5 60                       `
-
+getlin: sei
+	stx tpi2+pa
+	sty tpi2+pb
+	jsr getkey
+	cli
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E4A6 Check for a double length line
 getbit: ldx tblx		; load current line
