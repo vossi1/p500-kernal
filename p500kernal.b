@@ -10,6 +10,7 @@
 ; v1.7 moved tx-routines in the correct place = 100% identical to cbm2 04a kernal
 ; v1.8 basic SYS patched - now to selected bank -> Basic $8063 csys vector =  $EDDC-1: $DB, $ED
 ; v1.9 movchar single line screen, slow scroll preserve flags patches rev -03 kernal
+; v2.0 added complete rev -03 new patched key functions in the editor 
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -300,6 +301,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	insflg		= $0386		; Insert mode flag
 	scrdis		= $0387		; Scroll disable flag
 	bitmsk		= $0388		; Temorary bitmask
+	fktmp		= $0388		;   also used for function key temporary
 	keyidx		= $0389		; Index to programmables
 	logscr		= $038A		; Logical/physical scroll flag
 	bellmd		= $038B		; Bell on/off flag
@@ -313,6 +315,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	iunkwn1		= $03BB		; Vector: -> E039 nofunc
 	iunkwn2		= $03BD		; Vector: -> E039 nofunc
 	unknwn		= $03BF		; unknown from old editor (some flag like quote or insert?)
+	sedt3		= $03BF		;   another temp used during function key listing
 	; $03C0 - $3F7 Free absolute space
 	absend		= $03C0
 	; System warm start variables and vectors
@@ -1737,7 +1740,7 @@ dline:	jsr fistrt		; find start of line
 ; E71F Erase to end of line (esc-q)
 ;******************************
 etoeol: clc
-	!byte $24               ; skip next
+	!byte $24               ; skip next instruction
 ;******************************
 ; E721 Erase to start of line (esc-p)
 ;******************************
@@ -1763,25 +1766,25 @@ ets100:	jsr bakchr		; back up
 	bcc etstol		; always
 ; -------------------------------------------------------------------------------------------------
 ;*****************************
-; scroll up
+; E74A Scroll up (esc-v)
 ;*****************************
-; E74A Scroll upwards (esc-v)
 esuup:	clc
-	!byte $24               ; skips next instruction with bit $xx
-; E74C Scroll downwards (esc-w)
+	!byte $24               ; skips next instruction
+;*****************************
+; E74C Scroll down (esc-w)
+;*****************************
 esddn:	sec
 ; E74D Scroll screen depending on carry
 suup:	jsr savpos
-	bcs sddn
+	bcs sddn		; scroll down if C=1
+; Scroll up
 	txa
 	pha
 	jsr scrup
 	pla
 	sta sedt2
-	jmp etout
-;*****************************
-; scroll down
-;*****************************
+	jmp etout		; always
+; Scroll down
 sddn:   jsr getbit
 	bcs sddn2
 	sec
@@ -1790,7 +1793,7 @@ sddn2:  lda sctop
 	sta tblx		; scroll from screen top
 	jsr scrdwn
 	jsr clrbit		; make first line non-continued
-	jmp etout
+	jmp etout		; always
 ; -------------------------------------------------------------------------------------------------
 ;**************************************
 ; Turn off all modes
@@ -1807,143 +1810,377 @@ toqm:	lda #0
 	rts
 *= $E77F
 ; -------------------------------------------------------------------------------------------------
-; E77F Allow scrolling (esc-l)
-scrsw0: clc
+; E77F Enable scrolling (esc-l)
+scrsw0:	clc
 	bcc scrsw
-; E782 Disallow scrolling (esc-m)
-scrsw1:sec
-scrsw:  lda #$00
+; E782 Disable scrolling (esc-m)
+scrsw1:	sec
+; Scrolling enable/disable
+;           carry set = disable
+scrsw:	lda #0
 	ror
-	sta scrdis
+	sta scrdis		; store flag: $00 = enable, $80 = disable
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E78A Insert mode off
-insoff: clc                                     ; E78A 18                       .
-	bcc     inssw                           ; E78B 90 01                    ..
+insoff:	clc
+	bcc inssw
 ; E78D Insert mode on
-inson:  sec                                     ; E78D 38                       8
-inssw:  lda     #$00                            ; E78E A9 00                    ..
-	ror                                     ; E790 6A                       j
-	sta     insflg                          ; E791 8D 86 03                 ...
-	rts                                     ; E794 60                       `
+inson:	sec
+; Auto insert on/off
+;           carry set = on
+inssw:	lda #0
+	ror
+	sta insflg		; store flag: $00 = off, $80 = on
+	rts
 ; -------------------------------------------------------------------------------------------------
-; E795
-logoff: clc                                     ; E795 18                       .
-	bcc     logsw                           ; E796 90 01                    ..
-logon:  sec                                     ; E798 38                       8
-logsw:  lda     #$00                            ; E799 A9 00                    ..
-	ror                                     ; E79B 6A                       j
-	sta     logscr                          ; E79C 8D 8A 03                 ...
-	rts                                     ; E79F 60                       `
+; E795 Disable logical scroll (single line scroll)
+logoff:	clc 
+	bcc logsw
+; Enable logical scroll (scroll a set of lines)
+logon:	sec
+; Logical scroll enable/disable
+;              carry set = enable
+logsw:	lda #0
+	ror
+	sta logscr		; store flag: $00 = disable, $80 = enable
+	rts
+; -------------------------------------------------------------------------------------------------
+; E7A0
+!ifdef CBMPATCH{
+keyfun
+	sei             ;prevent fight over variables with keyscan...
+	dey
+	bmi listky      ;do list if no parameters given
+	jmp addkey      ;- else go add a new key definition
+;
+;   list key defintions
+;
+listky	ldy #0          ;initialize key counter
+;
+listlp
+	iny
+	sty sedt3
+	dey             ;minus 1 for indexing
+	lda keysiz,y    ;get key length
+	beq nodefn      ;no listing if no defintion
+	sta keyidx      ;save key length
+	jsr findky      ;get buffer start addr for function key
+	sta keypnt
+	stx keypnt+1    ;save 2 byte address in temp loc
+	ldx #3
+;
+preamb	lda keword,x    ;print 'key ' preamble
+	jsr bsout
+	dex
+	bpl preamb
+;
+	ldx #$2f
+	lda sedt3       ;get key number
+	sec
+ky2asc	inx             ;convert to 1 or 2 digit ascii
+	sbc #10
+	bcs ky2asc
+	adc #$3a        ;add 10 & make ascii
+	cpx #$30
+	beq nosec       ;skip 2nd digit print
+	pha             ;save first digit-10
+	txa
+	jsr bsout       ;print second digit
+	pla             ;restore first digit-10
+;
+nosec
+	jsr bsout       ;print first digit
+	ldy #0          ;init string position counter
+	lda #','        ;for comma print
+lstk20	jsr bsout       ;print char - comma or plus-sign
+	ldx #7          ;for chr$ printing - no plus-sign or quote to preceed
+txtprt
+	jsr pagkey      ;make sure function key ram page
+	lda (keypnt),y  ;get byte
+	jsr pagres
+	cmp #13
+	beq lstkcr      ;print chr$(13) for return
+	cmp #141
+	beq lstksc      ;print chr$(141) for return
+	cmp #34
+	beq lstkqt      ;print chr$(34) for quote
+	cpx #9          ;was a normal char printed last time
+	beq lstk10      ;yes - skip ahead
+	pha             ;save char
+	lda #$22
+	jsr bsout       ;print a quote
+	pla             ;restore the char
+;
+lstk10	jsr bsout       ;print the char
+	ldx #9          ;for chr$ - print quote and plus next time
+	iny
+	cpy keyidx
+	bne txtprt      ;loop to end of string
+;
+	lda #$22
+	jsr bsout       ;print ending quote
+;
+lstk30
+	lda #$0d
+	jsr bsout       ;do a return
+nodefn
+	ldy sedt3       ;get key number
+	cpy #pgmkys
+	bne listlp      ;loop til all keys checked
+	cli             ;all done...clear the keyscan holdoff
+	clc             ;okay return always
+	rts
+;
+lstkcr	ldx #qtword-cdword-1 ;index for return
+	!byte $2c        ;skip 2
+lstksc	ldx #addkey-cdword-1 ;index for shifted-return
+	!byte $2c        ;skip 2
+lstkqt	ldx #scword-cdword-1 ;index for quote
+;
+lstk	txa             ;save value index....
+	pha             ;save .x
+	ldx #crword-cdword-1 ;print chr$(
+lstklp	lda cdword,x    ;print loop
+	beq lstk40      ;zero is end...
+	jsr bsout       ;
+	dex
+	bpl lstklp
+	pla             ;move number and repeat
+	tax
+	bne lstklp
+;
+lstk40	iny
+	cpy keyidx
+	beq lstk30      ;exit if all string printed
+	lda #'+'         ;set to print plus sign
+	bne lstk20      ;return to routine
+;
+;
+keword	!pet " yek"
+cdword	!pet "($rhc+",$22
+crword	!pet 0,")31"
+qtword	!pet 0,")43"
+scword	!pet 0,")141"
+
+;   insert a new key defintion
+addkey
+	pha             ;save zero page address of params
+	tax
+	sty sedt1       ;save key number in temp loc
+	lda $0,x        ;get new string length
+	sec
+	sbc keysiz,y    ;subtract old length
+	sta sedt2       ;save difference in temp location
+	ror fktmp       ;save the carry
+	iny
+	jsr findky      ;find start addr of next function key
+	sta sedsal
+	stx sedsal+1    ;save 2 byte address in temp loc
+	ldy #pgmkys
+	jsr findky      ;find end of last function key
+	sta sedeal
+	stx sedeal+1    ;save next free byte addr in temp loc
+	ldy fktmp       ;check if new string is longer or shorter
+	bpl keysho      ;skip ahead if shorter
+	clc
+	sbc pkyend      ;subtract last available adress
+	tay
+	txa
+	sbc pkyend+1
+	tax
+	tya
+	clc
+	adc sedt2       ;add difference
+	txa
+	adc #0
+	bcs kyxit       ;skip if memory not full
+
+; expand or contract key area to make room for new
+;   key definition.
+keysho
+	jsr pagkey      ;set up function key ram page
+kymove
+	lda sedeal
+	clc             ;check if entire area expanded or contracted
+	sbc sedsal
+	lda sedeal+1
+	sbc sedsal+1
+	bcc keyins      ;go insert new key defintion if yes
+	ldy #0
+	lda fktmp       ;check if expand or contract
+	bpl kshort      ;skip if needs to be contracted
+	lda sedeal
+	bne newky4      ;dec 1 from source addr
+	dec sedeal+1    ;sub 1 for borrow
+newky4
+	dec sedeal
+	lda (sedeal),y  ;move 1 byte up to expand
+	ldy sedt2       ;get offset = difference
+	sta (sedeal),y  ;move byte up
+	jmp kymove      ;loop until all bytes moved
+kshort
+	lda (sedsal),y  ;get source byte
+	ldy sedt2       ;get offset = difference
+	dec sedsal+1    ;sub 1 to move down
+	sta (sedsal),y  ;move the byte down
+	inc sedsal+1
+	inc sedsal      ;move source up 1 byte
+	bne kymove
+	inc sedsal+1    ;add 1 for carry
+	bne kymove      ;always
+;
+;  insert the new string defintion
+;
+keyins
+	ldy sedt1       ;get the key index
+	jsr findky      ;find buffer start address for this key
+	sta sedsal
+	stx sedsal+1    ;save 2 byte address in temp loc
+	ldy sedt1
+	pla
+	pha
+	tax             ;get zero page addr of params
+	lda $0,x
+	sta keysiz,y    ;save key length
+	tay
+	beq kyinok      ;equal to zero no keys...exit
+	lda $1,x        ;get & save low byte of string address
+	sta sedeal
+	lda $2,x        ;get & save high byte of string address
+	sta sedeal+1
+kyinlp
+	dey
+	lda $3,x        ;get string ram page
+	sta i6509
+	lda (sedeal),y  ;get byte
+	jsr pagres      ;restore original ram page
+	jsr pagkey      ;set up function key ram page
+	sta (sedsal),y  ;store into buffer
+	tya             ;.y flags...end?
+	bne kyinlp      ;no... loop
+kyinok
+	jsr pagres
+;	clc             ;for good exit carry clear - NOT USED - removed to get one byte free!
+kyxit	pla             ;pop zero page address for params
+	cli             ;all done...release keyscan
+; only RTS used for: 'unused' - removed in patch 3
+unused:	rts             ; c-set is memory full error
+} else{
 ; -------------------------------------------------------------------------------------------------
 ; E7A0 Not used - removed in patch 3
-unused:	lda     unknwn                           ; E7A0 AD BF 03                 ...
-	eor     #$C0                            ; E7A3 49 C0                    I.
-	sta     unknwn                           ; E7A5 8D BF 03                 ...
-	rts                                     ; E7A8 60                       `
+unused:	lda unknwn		; ($03BF)
+	eor #$C0
+	sta unknwn
+	rts
 ; -------------------------------------------------------------------------------------------------
-; E7A9 Get/set/list function keys
-keyfun: dey                                     ; E7A9 88                       .
-	bmi     listkey                         ; E7AA 30 03                    0.
-	jmp     addkey                          ; E7AC 4C 6C E8                 Ll.
+;******************************************
+; E7A9 Programmable key functions
+;******************************************
+keyfun:	dey
+	bmi listky		; do list if no parameters given
+	jmp addkey		; - else go add a new key definition
+; List function keys
+listky:	ldy #0
 
-; -------------------------------------------------------------------------------------------------
-; E7AF List function keys
-listkey:ldy     #$00                            ; E7AF A0 00                    ..
-listlp: iny                                     ; E7B1 C8                       .
-	sty     sedt1                           ; E7B2 84 D9                    ..
-	dey                                     ; E7B4 88                       .
-	lda     keysiz,y                        ; E7B5 B9 8D 03                 ...
-	beq     nodefn                          ; E7B8 F0 77                    .w
-	sta     keyidx                          ; E7BA 8D 89 03                 ...
-	jsr     findky                          ; E7BD 20 15 EA                  ..
-	sta     keypnt                          ; E7C0 85 C2                    ..
-	stx     keypnt+1                        ; E7C2 86 C3                    ..
-	ldx     #$03                            ; E7C4 A2 03                    ..
-preamb: lda     keword,x                        ; E7C6 BD 56 E8                 .V.
-	jsr     jbsout                          ; E7C9 20 53 E8                  S.
-	dex                                     ; E7CC CA                       .
-	bpl     preamb                          ; E7CD 10 F7                    ..
-	ldx     #$2F                            ; E7CF A2 2F                    ./
-	lda     sedt1                           ; E7D1 A5 D9                    ..
-	sec                                     ; E7D3 38                       8
-ky2asc: inx                                     ; E7D4 E8                       .
-	sbc     #$0A                            ; E7D5 E9 0A                    ..
-	bcs     ky2asc                          ; E7D7 B0 FB                    ..
-	adc     #$3A                            ; E7D9 69 3A                    i:
-	cpx     #$30                            ; E7DB E0 30                    .0
-	beq     nosec                           ; E7DD F0 06                    ..
-	pha                                     ; E7DF 48                       H
-	txa                                     ; E7E0 8A                       .
-	jsr     jbsout                          ; E7E1 20 53 E8                  S.
-	pla                                     ; E7E4 68                       h
-nosec:  jsr     jbsout                          ; E7E5 20 53 E8                  S.
-	ldy     #$00                            ; E7E8 A0 00                    ..
-	lda     #$2C                            ; E7EA A9 2C                    .,
-	ldx     #$06                            ; E7EC A2 06                    ..
-LE7EE:  cpx     #$08                            ; E7EE E0 08                    ..
-	beq     LE7F5                           ; E7F0 F0 03                    ..
-	jsr     jbsout                          ; E7F2 20 53 E8                  S.
-LE7F5:  php                                     ; E7F5 08                       .
-	jsr pagkey				; switch to indirect bank with key buffer
-	lda     (keypnt),y                      ; E7F9 B1 C2                    ..
-	jsr pagres    			; restore indirect bank
-	plp                                     ; E7FE 28                       (
-	cmp     #$0D                            ; E7FF C9 0D                    ..
-	beq     LE83C                           ; E801 F0 39                    .9
-	cmp     #$8D                            ; E803 C9 8D                    ..
-	beq     LE83C                           ; E805 F0 35                    .5
-	cmp     #$22                            ; E807 C9 22                    ."
-	beq     LE840                           ; E809 F0 35                    .5
-	cpx     #$08                            ; E80B E0 08                    ..
-	beq     lstk10                          ; E80D F0 09                    ..
-	pha                                     ; E80F 48                       H
-	lda     #$22                            ; E810 A9 22                    ."
-	jsr     jbsout                          ; E812 20 53 E8                  S.
-	pla                                     ; E815 68                       h
-	ldx     #$08                            ; E816 A2 08                    ..
-lstk10: jsr     jbsout                          ; E818 20 53 E8                  S.
-	lda     #$2B                            ; E81B A9 2B                    .+
-	iny                                     ; E81D C8                       .
-	cpy     keyidx                          ; E81E CC 89 03                 ...
-	bne     LE7EE                           ; E821 D0 CB                    ..
-	cpx     #$06                            ; E823 E0 06                    ..
-	beq     lstk30                          ; E825 F0 05                    ..
-	lda     #$22                            ; E827 A9 22                    ."
-	jsr     jbsout                          ; E829 20 53 E8                  S.
-lstk30: lda     #$0D                            ; E82C A9 0D                    ..
-	jsr     jbsout                          ; E82E 20 53 E8                  S.
-nodefn: ldy     sedt1                           ; E831 A4 D9                    ..
-	cpy     #$14                            ; E833 C0 14                    ..
-	beq     LE83A                           ; E835 F0 03                    ..
-	jmp     listlp                          ; E837 4C B1 E7                 L..
+listlp: iny
+	sty sedt1
+	dey			; minus 1 for indexing
+	lda keysiz,y		; get key length
+	beq nodefn		; no listing if no defintion
+	sta keyidx		; save key length
+	jsr findky		; get buffer start addr for function key
+	sta keypnt
+	stx keypnt+1		; save 2 byte address in temp loc
+	ldx #3
 
-LE83A:  clc                                     ; E83A 18                       .
-	rts                                     ; E83B 60                       `
-; -------------------------------------------------------------------------------------------------
+preamb: lda keword,x		; print 'key ' preamble
+	jsr jbsout
+	dex
+	bpl preamb
+	ldx #$2F
+	lda sedt1		; get key number
+	sec
+ky2asc: inx			; convert to 1 or 2 digit ascii
+	sbc #10
+	bcs ky2asc
+	adc #$3a		; add 10 & make ascii
+	cpx #$30
+	beq nosec		; skip 2nd digit print
+	pha			; save first digit-10
+	txa
+	jsr jbsout		; print second digit
+	pla			; restore first digit-10
+
+nosec:  jsr jbsout		; print first digit
+	ldy #0			; init string position counter
+	lda #','		; for comma print
+	ldx #$06
+txtprt:	cpx #$08
+	beq LE7F5
+	jsr jbsout		; print char - comma or plus-sign
+LE7F5:  php
+	jsr pagkey		; switch to indirect bank with key buffer
+	lda (keypnt),y		; get byte
+	jsr pagres    		; restore indirect bank
+	plp
+	cmp #$0D
+	beq lstkcr		; print chr$(13) for return
+	cmp #$8D
+	beq lstkcr		; print chr$(13) for shift-return
+	cmp #$22
+	beq lstkqt		; print chr$(34) for quote
+	cpx #$08		; was a normal char printed last time
+	beq lstk10		; yes - skip ahead
+	pha			; save char
+	lda #$22
+	jsr jbsout		; print a quote
+	pla
+	ldx #$08		; for chr$ - print quote and plus next time
+lstk10: jsr jbsout
+	lda #'+'
+	iny
+	cpy keyidx
+	bne txtprt		; loop to end of string
+
+	cpx #$06
+	beq lstk30
+	lda #$22
+	jsr jbsout		; print ending quote
+
+lstk30: lda #$0D
+	jsr jbsout		; do a return
+
+nodefn: ldy sedt1		; get key number
+	cpy #pgmkys
+	beq listx
+	jmp listlp
+
+listx:	clc
+	rts
 ; E83C
-LE83C:  clc                                     ; E83C 18                       .
-LE83D:  lda     crword,x                        ; E83D BD 5A E8                 .Z.
-LE840:  bcc     LE845                           ; E840 90 03                    ..
-	lda     qtword,x                        ; E842 BD 63 E8                 .c.
-LE845:  php                                     ; E845 08                       .
-	jsr     jbsout                          ; E846 20 53 E8                  S.
-	plp                                     ; E849 28                       (
-	dex                                     ; E84A CA                       .
-	bpl     LE83D                           ; E84B 10 F0                    ..
-	lda     #$29                            ; E84D A9 29                    .)
-	ldx     #$06                            ; E84F A2 06                    ..
-	bne     lstk10                          ; E851 D0 C5                    ..
-; Jump vector: BSOUT via indirect vector
-jbsout: jmp     (ibsout)                        ; E853 6C 12 03                 l..
+lstkcr:	clc
+lstklp:	lda crword,x
+lstkqt:	bcc lstk40
+	lda qtword,x
+lstk40:	php
+	jsr jbsout
+	plp
+	dex
+	bpl lstklp
 
+	lda #')'
+	ldx #$06
+	bne lstk10
+; Jump vector: BSOUT via indirect vector
+jbsout:	jmp (ibsout)
 ; -------------------------------------------------------------------------------------------------
 ; E856 
-keword: !pet   " yek"                           ; E856 20 59 45 4B               YEK
-crword: !pet   "31($rhc+"                       ; E85A 33 31 28 24 52 48 43 2B  31($RHC+
-	!byte   $22                                     ; E862 22                       "
-qtword: !pet   "43($rhc+"                       ; E863 34 33 28 24 52 48 43 2B  43($RHC+
-	!byte   $22                                     ; E86B 22                       "
+keword: !pet " yek"
+crword: !pet "31($rhc+"
+	!byte $22
+qtword: !pet "43($rhc+"
+	!byte $22
 ; -------------------------------------------------------------------------------------------------
 ; E86C Get/set a function key
 addkey: pha                                     ; E86C 48                       H
@@ -1977,7 +2214,6 @@ addkey: pha                                     ; E86C 48                       
 	bcc     keysho                          ; E89E 90 02                    ..
 	pla                                     ; E8A0 68                       h
 	rts                                     ; E8A1 60                       `
-
 ; -------------------------------------------------------------------------------------------------
 ; E8A2
 keysho: jsr pagkey				; switch to indirect bank with key buffer
@@ -2034,7 +2270,7 @@ kyinlp: dey                                     ; E8F3 88                       
 kyinok: jsr pagres    			; restore indirect bank
 	clc                                     ; E90A 18                       .
 	rts                                     ; E90B 60                       `
-
+}
 ; -------------------------------------------------------------------------------------------------
 ; E90C Keyboard scan
 scnkey: jsr     junkwn2		; vector -> nofunc (rts)
@@ -2808,7 +3044,7 @@ setr:   lda     #<flgs                          ; EF04 A9 B0                    
 altrit: pha                                     ; EF13 48                       H
 	jsr     crlf                            ; EF14 20 21 EF                  !.
 	pla                                     ; EF17 68                       h
-	jsr     kbsout                          ; EF18 20 D2 FF                  ..
+	jsr     bsout                          ; EF18 20 D2 FF                  ..
 ; Print ' '
 space:  lda     #$20                            ; EF1B A9 20                    . 
 !byte   $2C                                     ; EF1D 2C                       ,
@@ -2817,7 +3053,7 @@ outqst: lda     #$3F                            ; EF1E A9 3F                    
 !byte   $2C                                     ; EF20 2C                       ,
 ; Print CR + '.'
 crlf:   lda     #$0D                            ; EF21 A9 0D                    ..
-	jmp     kbsout                          ; EF23 4C D2 FF                 L..
+	jmp     bsout                          ; EF23 4C D2 FF                 L..
 
 ; -------------------------------------------------------------------------------------------------
 ; EF26 Header for 'r' command
@@ -2828,7 +3064,7 @@ reghead:
 ; EF41 Monitor command 'r' (regs)
 mregs:  ldx     #$00                            ; EF41 A2 00                    ..
 LEF43:  lda     reghead,x                       ; EF43 BD 26 EF                 .&.
-	jsr     kbsout                          ; EF46 20 D2 FF                  ..
+	jsr     bsout                          ; EF46 20 D2 FF                  ..
 	inx                                     ; EF49 E8                       .
 	cpx     #$1B                            ; EF4A E0 1B                    ..
 	bne     LEF43                           ; EF4C D0 F5                    ..
@@ -3075,7 +3311,7 @@ hex1:   clc                                     ; F10A 18                       
 	bcc     LF111                           ; F10D 90 02                    ..
 	adc     #$06                            ; F10F 69 06                    i.
 LF111:  adc     #$3A                            ; F111 69 3A                    i:
-	jmp     kbsout                          ; F113 4C D2 FF                 L..
+	jmp     bsout                          ; F113 4C D2 FF                 L..
 
 ; -------------------------------------------------------------------------------------------------
 ; F116 Exchange tmp0 and invl
@@ -3157,7 +3393,7 @@ mdisk:  lda     #$00                            ; F168 A9 00                    
 LF18B:  jsr     basin                          ; F18B 20 CF FF                  ..
 LF18E:  cmp     #$0D                            ; F18E C9 0D                    ..
 	php                                     ; F190 08                       .
-	jsr     kbsout                          ; F191 20 D2 FF                  ..
+	jsr     bsout                          ; F191 20 D2 FF                  ..
 	lda     status                          ; F194 A5 9C                    ..
 	bne     LF1BB                           ; F196 D0 23                    .#
 	plp                                     ; F198 28                       (
@@ -3170,7 +3406,7 @@ LF19D:  jsr     crlf                            ; F19D 20 21 EF                 
 LF1A7:  jsr     basin                          ; F1A7 20 CF FF                  ..
 	cmp     #$0D                            ; F1AA C9 0D                    ..
 	php                                     ; F1AC 08                       .
-	jsr     kbsout                          ; F1AD 20 D2 FF                  ..
+	jsr     bsout                          ; F1AD 20 D2 FF                  ..
 	lda     status                          ; F1B0 A5 9C                    ..
 	and     #$BF                            ; F1B2 29 BF                    ).
 	bne     LF1BB                           ; F1B4 D0 05                    ..
@@ -3222,7 +3458,7 @@ spmsg:  bit     msgflg                          ; F223 2C 61 03                 
 msg:    lda     kmsgtab,y                       ; F228 B9 CA F1                 ...
 	php                                     ; F22B 08                       .
 	and     #$7F                            ; F22C 29 7F                    ).
-	jsr     kbsout                          ; F22E 20 D2 FF                  ..
+	jsr     bsout                          ; F22E 20 D2 FF                  ..
 	iny                                     ; F231 C8                       .
 	plp                                     ; F232 28                       (
 	bpl     msg                             ; F233 10 F3                    ..
@@ -4365,7 +4601,7 @@ outfn:  ldy     fnlen                           ; F835 A4 9D                    
 	beq     LF846                           ; F837 F0 0D                    ..
 	ldy     #$00                            ; F839 A0 00                    ..
 LF83B:  jsr     fnadry                          ; F83B 20 A0 FE                  ..
-	jsr     kbsout                          ; F83E 20 D2 FF                  ..
+	jsr     bsout                          ; F83E 20 D2 FF                  ..
 	iny                                     ; F841 C8                       .
 	cpy     fnlen                           ; F842 C4 9D                    ..
 	bne     LF83B                           ; F844 D0 F5                    ..
@@ -4587,7 +4823,7 @@ errorx: pha                                     ; F95A 48                       
 	pla                                     ; F968 68                       h
 	pha                                     ; F969 48                       H
 	ora     #$30                            ; F96A 09 30                    .0
-	jsr     kbsout                          ; F96C 20 D2 FF                  ..
+	jsr     bsout                          ; F96C 20 D2 FF                  ..
 LF96F:  pla                                     ; F96F 68                       h
 	sec                                     ; F970 38                       8
 	rts                                     ; F971 60                       `
@@ -5654,7 +5890,7 @@ chkin:	jmp (ichkin)		; Open channel in
 ckout:	jmp (ickout)		; Open channel out
 clrch:	jmp (iclrch)		; Close I/O channel
 basin:	jmp (ibasin)		; Input from channel
-kbsout:	jmp (ibsout)		; Output to channel
+bsout:	jmp (ibsout)		; Output to channel
 load:	jmp (iload)		; Load from file
 save:	jmp (isave)		; Save to file
 	jmp settim		; Set internal clock
