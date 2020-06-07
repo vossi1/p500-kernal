@@ -1733,29 +1733,35 @@ dline:	jsr fistrt		; find start of line
 	ror lsxp		; set flag - new line
 	jmp stu10		; make this line the current one
 ; -------------------------------------------------------------------------------------------------
+;******************************
 ; E71F Erase to end of line (esc-q)
+;******************************
 etoeol: clc
-	!byte $24               ; skips next instruction with bit $xx
+	!byte $24               ; skip next
+;******************************
 ; E721 Erase to start of line (esc-p)
+;******************************
 etosol: sec
-	jsr savpos                          ; E722 20 52 E5                  R.
-	bcs LE739                           ; E725 B0 12                    ..
-LE727:  jsr clrprt                          ; E727 20 29 E2                  ).
-	inc tblx                            ; E72A E6 CA                    ..
-	jsr stupt                          ; E72C 20 DF E0                  ..
-	ldy sclf                            ; E72F A4 DE                    ..
-	jsr getbit                          ; E731 20 A6 E4                  ..
-	bcs LE727                           ; E734 B0 F1                    ..
-etout:  jmp delout                          ; E736 4C 74 E5                 Lt.
+	jsr savpos
+	bcs etstol
+; Erase to end of line
+etol:	jsr clrprt		; blank rest of line
+	inc tblx		; move to next line
+	jsr stupt
+	ldy sclf
+	jsr getbit		; check if next is wrapped line
+	bcs etol		; yes - blank next line
+
+etout:	jmp delout		; exit and restore original position
+; Erase to start of line
+etstol:	jsr doblnk		; do a blank
+	cpy sclf		; done a line ?
+	bne ets100		; no
+	jsr getbit		; at top of line
+	bcc etout		; yes - exit
+ets100:	jsr bakchr		; back up
+	bcc etstol		; always
 ; -------------------------------------------------------------------------------------------------
-; E739
-LE739:  jsr doblnk                          ; E739 20 07 E2                  ..
-	cpy sclf                            ; E73C C4 DE                    ..
-	bne LE745                           ; E73E D0 05                    ..
-	jsr getbit                          ; E740 20 A6 E4                  ..
-	bcc etout                           ; E743 90 F1                    ..
-LE745:  jsr bakchr                          ; E745 20 34 E5                  4.
-	bcc LE739                           ; E748 90 EF                    ..
 ;*****************************
 ; scroll up
 ;*****************************
