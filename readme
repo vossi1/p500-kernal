@@ -6,3 +6,8 @@ v1.1 special f-keys
 v1.2 full ramtest selection (fast test checks only byte $0002 in each page)
 v1.3 all patches selectable
 v1.4 new f-keys for petsd
+v1.5 superfast video if always in indirect bank 15
+v1.6 add txjmp routine from b-series rev -03 kernal (diagtest detects too much RAM - only vice!)
+v1.7 moved tx-routines in the correct place = 100% identical to cbm2 04a kernal
+v1.8 basic SYS patched - now to selected bank -> Basic $8063 csys vector =  $EDDC-1: $DB, $ED
+v1.9 movchar single line screen, slow scroll preserve flags patches rev -03 kernal

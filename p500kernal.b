@@ -6,9 +6,10 @@
 ; v1.3 all patches selectable
 ; v1.4 new F-keys for petsd+
 ; v1.5 superfast video if always in indirect bank 15
-; v1.6 add txjmp routine from b-series rev -03 kernal (diag test detects too much RAM banks?)
+; v1.6 add txjmp routine from b-series rev -03 kernal (diagtest detects too much RAM - only vice!)
 ; v1.7 moved tx-routines in the correct place = 100% identical to cbm2 04a kernal
 ; v1.8 basic SYS patched - now to selected bank -> Basic $8063 csys vector =  $EDDC-1: $DB, $ED
+; v1.9 movchar single line screen, slow scroll preserve flags patches rev -03 kernal
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -610,6 +611,7 @@ cint:   lda #$00
 cloop1: sta keypnt,x		; clear page 0 variables
 	dex
 	bpl cloop1
+
 	ldx #absend-rvs-1	; $38D-$3C9
 cloop2: sta keysiz,x		; clear absolute variables but fkey alocatations
 	dex
@@ -645,6 +647,7 @@ kyset1: lda keydef-1,y
 	dey
 	sta (pkybuf),y		; copy key texts to buffer
 	bne kyset1
+
 	jsr pagres    		; restore indirect bank
 	ldy #$0A		; 10 F-key length bytes
 kyset2: lda keylen-1,y
@@ -661,11 +664,13 @@ vicint:	lda tvic-1,x
 	dex
 	bne vicint
 	jsr txcrt		; set text mode
+
 	ldx #$0A
 edvecl: lda edvect-1,x		; copy extended editor vector table to $3B5
 	sta funvec-1,x
 	dex
 	bne edvecl
+
 	lda #TEXTCOL
 	sta color		; init color
 ; E0C8 Clear screen, cursor home
@@ -896,6 +901,7 @@ clr10:	iny
 	jsr doblnk		; print a blank
 	cpy scrt		; line completely blank?
 	bne clr10		; branch if not
+
 	pla
 	sta pntr
 	pla
@@ -1145,7 +1151,6 @@ nxt1:   jsr fndend		; find the end of the current line
 	sty pntr
 	jsr nxln		; set up next line
 	jmp toqm		; turn off all modes
-
 ; -------------------------------------------------------------------------------------------------
 ; ****** scroll routines ******
 ; E3B6 Move one line
@@ -1159,7 +1164,6 @@ movlin:	lda ldtb2,x		; set pointers to line address lo
 	sta sedeal+1
 
 	jsr pagscr		; switch to screen ibank
-
 movl10: lda (sedsal),y
 	jsr jwrvrm		; copy vram
 	lda #$00
@@ -1177,7 +1181,6 @@ scrdwn: ldx lsxp
 	cpx tblx
 	bcc scd30		; skip if old line is below scroll area
 	inc lsxp		; else inc start line number
-
 scd30:  ldx scbot		; scroll down, start bottom
 
 scd10:  jsr scrset		; set pnt to line
@@ -1198,58 +1201,57 @@ scd20:	jsr clrln		; set line to blanks
 ; E408 ****** Scroll up ******
 scrup:  ldx sctop
 scru00: inx
-	jsr getbt1      ;find first non-continued line
+	jsr getbt1		; find first non-continued line
 	bcc scru15
-	cpx scbot       ;is entire screen 1 line?
-	bcc scru00      ;do normal scroll if not
+	cpx scbot		; is entire screen 1 line?
+	bcc scru00		; do normal scroll if not
+
 	ldx sctop
 	inx
-	jsr clrbit      ;clear to only scroll 1 line
-scru15
-	dec tblx
+	jsr clrbit		; clear to only scroll 1 line
+
+scru15:	dec tblx
 	bit lsxp
-	bmi scru20      ;no change if already new line
-	dec lsxp        ;move input up one
-scru20
-	ldx sctop
+	bmi scru20		; no change if already new line
+	dec lsxp		; move input up one
+scru20:	ldx sctop
 	cpx sedt2
 	bcs scru30
-	dec sedt2       ;in case doing insert
-scru30
-	jsr scr10       ;scroll
+	dec sedt2		; in case doing insert
+scru30:	jsr scr10		; scroll
 	ldx sctop
 	jsr getbt1
 	php
-	jsr clrbit      ;make sure top line is not continuation
+	jsr clrbit		; make sure top line is not continuation
 	plp
-	bcc scru10      ;done if top line off
-	bit logscr      ;logical scroll ?
-	bmi scrup	;yes - keep scrolling  ********** b128 v4: -> scru15
+	bcc scru10		; done if top line off
+	bit logscr		; logical scroll ?
+	bmi scrup		; yes - keep scrolling  ********** b128 v4: -> scru15
 scru10: rts
 ; E43F
-scr10:	jsr scrset      ;point to start of line
+scr10:	jsr scrset		; point to start of line
 	ldy sclf
-	cpx scbot       ;at last line ?
-	bcs scr40       ;yes
-	inx             ;point to next line
+	cpx scbot		; at last line ?
+	bcs scr40		; yes
+	inx			; point to next line
 	jsr getbt1
 	dex
-	jsr putbt1      ;move continuation byte
+	jsr putbt1		; move continuation byte
 	inx
-	jsr movlin      ;move one line
+	jsr movlin		; move one line
 	bcs scr10
 ; E456 Test for slow scroll
-scr40:  jsr clrln       ;make last line blank
+scr40:  jsr clrln		; make last line blank
 	ldx #$FF
-	ldy #$FE        ;allow only output line 0
-	jsr getlin      ;get input
-	and #$20        ;check if interrupt i5 = control
-	bne scr80       ;if not skip ahead - not slow scroll
+	ldy #$FE		; allow only output line 0
+	jsr getlin		; get input
+	and #$20		; check if interrupt i5 = control
+	bne scr80		; if not skip ahead - not slow scroll
 ; E464 Slow scroll delay loop
 scr60:
-!ifndef CBMPATCH{	; ********** PATCH nop's are for 2MHz B-series, P is slow enough ;)
-			;            get an extra byte for the cbmii patch below!
-	nop		; yes - waste time
+!ifndef CBMPATCH{		; ********** PATCH nop's are for 2MHz B-series, P is slow enough ;)
+				;            get an extra byte for the cbmii patch below!
+	nop			; yes - waste time
 	nop
 }
 	dex
@@ -1258,7 +1260,6 @@ scr60:
 	bne scr60
 
 scr70:  sty ndx
-
 scr75:  ldx #$7F
 	stx tpi2+pa
 	ldx #$FF
@@ -1340,7 +1341,7 @@ bitpos: stx bitmsk		; remember line
 	pla			; return bit value in A
 	rts
 ; -------------------------------------------------------------------------------------------------
-;**********************************
+; **********************************
 ; ***** Move to start of line
 ;
 ; E4E2 Find line start/end
@@ -1377,6 +1378,7 @@ eloup2: jsr get1ch		; get char from screen
 	bne eloup1		; branch if not
 	jsr getbit		; if we're on a wraped line
 	bcs eloup1		; always scan the above line
+
 endbye: sty indx		; remember this
 	rts
 ; -------------------------------------------------------------------------------------------------
@@ -1416,132 +1418,141 @@ bakout: sty pntr
 	clc			; always clear
 bakot2: rts
 ; -------------------------------------------------------------------------------------------------
-; E552
-savpos: ldy     pntr                            ; E552 A4 CB                    ..
-	sty     sedt1                           ; E554 84 D9                    ..
-	ldx     tblx                            ; E556 A6 CA                    ..
-	stx     sedt2                           ; E558 86 DA                    ..
-	rts                                     ; E55A 60                       `
-
+; E552 savpos - Save row & column position
+savpos: ldy pntr
+	sty sedt1
+	ldx tblx
+	stx sedt2
+	rts
 ; -------------------------------------------------------------------------------------------------
-; E55B
-delins: bcs     insert                          ; E55B B0 34                    .4
-delete: jsr     cleft                           ; E55D 20 4A E3                  J.
-	jsr     savpos                          ; E560 20 52 E5                  R.
-	bcs     delout                          ; E563 B0 0F                    ..
-deloop: cpy     scrt                            ; E565 C4 DF                    ..
-	bcc     delop1                          ; E567 90 16                    ..
-	ldx     tblx                            ; E569 A6 CA                    ..
-	inx                                     ; E56B E8                       .
-	jsr     getbt1                          ; E56C 20 A8 E4                  ..
-	bcs     delop1                          ; E56F B0 0E                    ..
-	jsr     doblnk                          ; E571 20 07 E2                  ..
-delout: lda     sedt1                           ; E574 A5 D9                    ..
-	sta     pntr                            ; E576 85 CB                    ..
-	lda     sedt2                           ; E578 A5 DA                    ..
-	sta     tblx                            ; E57A 85 CA                    ..
-	jmp     stupt                          ; E57C 4C DF E0                 L..
+; E55B Delete or insert a character
+delins: bcs insert		; C=1 is insert
+; delete a character
+delete: jsr cleft		; move back 1 position
+	jsr savpos		; save column & row positions
+	bcs delout		; abort if at top left corner
 
-; -------------------------------------------------------------------------------------------------
+deloop: cpy scrt		; at right margin?
+	bcc delop1		; no - skip ahaed
+	ldx tblx
+	inx
+	jsr getbt1		; is next line a wrapped line?
+	bcs delop1		; yes - continue with delete
+	jsr doblnk		; no - blank last character
+
+delout: lda sedt1		; restore column and row positions
+	sta pntr
+	lda sedt2
+	sta tblx
+	jmp stupt		; restore pnt and exit
 ; E57F
-delop1: jsr     nxtchr                         ; E57F 20 21 E5                  !.
-	jsr     get1ch                          ; E582 20 3F E2                  ?.
-	jsr     bakchr                          ; E585 20 34 E5                  4.
-	jsr     dsptco                           ; E588 20 0D E2                  ..
-	jsr     nxtchr                         ; E58B 20 21 E5                  !.
-	jmp     deloop                          ; E58E 4C 65 E5                 Le.
+delop1: jsr nxtchr
+	jsr get1ch		; get next character
+	jsr bakchr
+	jsr dsptco		; move it back 1 position
+	jsr nxtchr		; move up 1 position
+	jmp deloop		; loop until at end of line
+; E591 Insert a character 
+insert: jsr savpos		; save column & row positions
+	jsr fndend		; move to last char on the line
+	cpx sedt2		; last row equal to starting row?
+	bne ins10		; no - skip ahead
+	cpy sedt1		; is last position before starting position?
+ins10:	bcc ins50		; yes - no need to move anything
+	jsr movchr		; move to next char position
+	bcs insout		; abort if scroll needed but disabled
 
-; -------------------------------------------------------------------------------------------------
-; E591
-insert: jsr     savpos                          ; E591 20 52 E5                  R.
-	jsr     fndend                          ; E594 20 F7 E4                  ..
-	cpx     sedt2                           ; E597 E4 DA                    ..
-	bne     ins10                           ; E599 D0 02                    ..
-	cpy     sedt1                           ; E59B C4 D9                    ..
-ins10:  bcc     ins50                           ; E59D 90 21                    .!
-	jsr     movchr                          ; E59F 20 DB E5                  ..
-	bcs     insout                          ; E5A2 B0 22                    ."
-ins30:  jsr     bakchr                          ; E5A4 20 34 E5                  4.
-	jsr     get1ch                          ; E5A7 20 3F E2                  ?.
-	jsr     nxtchr                         ; E5AA 20 21 E5                  !.
-	jsr     dsptco                           ; E5AD 20 0D E2                  ..
-	jsr     bakchr                          ; E5B0 20 34 E5                  4.
-	ldx     tblx                            ; E5B3 A6 CA                    ..
-	cpx     sedt2                           ; E5B5 E4 DA                    ..
-	bne     ins30                           ; E5B7 D0 EB                    ..
-	cpy     sedt1                           ; E5B9 C4 D9                    ..
-	bne     ins30                           ; E5BB D0 E7                    ..
-	jsr     doblnk                          ; E5BD 20 07 E2                  ..
-ins50:  inc     insrt                           ; E5C0 E6 D3                    ..
-	bne     insout                          ; E5C2 D0 02                    ..
-	dec     insrt                           ; E5C4 C6 D3                    ..
-insout: jmp     delout                          ; E5C6 4C 74 E5                 Lt.
+ins30:	jsr bakchr
+	jsr get1ch		; move char forward 1 position
+	jsr nxtchr
+	jsr dsptco
+	jsr bakchr
+	ldx tblx
+	cpx sedt2		; at original position
+	bne ins30
+	cpy sedt1
+	bne ins30		; no - loop till we are
 
+	jsr doblnk		; insert a blank
+ins50:	inc insrt		; inc insert count
+	bne insout		; only allow up to 255
+	dec insrt
+insout:	jmp delout		; restore original position
 ; -------------------------------------------------------------------------------------------------
-; E5C9
-stprun: bcc     runrts                          ; E5C9 90 0F                    ..
-	sei                                     ; E5CB 78                       x
-	ldx     #$09                            ; E5CC A2 09                    ..
-	stx     ndx                             ; E5CE 86 D1                    ..
-runlop: lda     runtb-1,x
-	sta     tab+9,x                         ; E5D3 9D AA 03                 ...
-	dex                                     ; E5D6 CA                       .
-	bne     runlop                          ; E5D7 D0 F7                    ..
-	cli                                     ; E5D9 58                       X
-runrts: rts                                     ; E5DA 60                       `
+; E5C9 Stop/run
+stprun: bcc runrts		; exit if a stop code
+	sei			; disable interrupts
+	ldx #9
+	stx ndx			; set keyboard queue size
+runlop:	lda runtb-1,x
+	sta keyd-1,x		; load run character sequence into kybd queue
+	dex
+	bne runlop
 
+	cli			; enable interrupts
+runrts: rts
 ; -------------------------------------------------------------------------------------------------
-; E5DB
-movchr: cpy     scrt                            ; E5DB C4 DF                    ..
-	bcc     movc10                          ; E5DD 90 0B                    ..
-	ldx     tblx                            ; E5DF A6 CA                    ..
-	cpx     scbot                           ; E5E1 E4 DD                    ..
-	bcc     movc10                          ; E5E3 90 05                    ..
-	bit     scrdis                          ; E5E5 2C 87 03                 ,..
-	bmi     movc30                          ; E5E8 30 17                    0.
-movc10: jsr     stupt                          ; E5EA 20 DF E0                  ..
-	jsr     nxtchr                         ; E5ED 20 21 E5                  !.
-	bcc     movc30                          ; E5F0 90 0F                    ..
-	jsr     getbit                          ; E5F2 20 A6 E4                  ..
-	bcs     movc20                          ; E5F5 B0 09                    ..
-	sec                                     ; E5F7 38                       8
-	bit     scrdis                          ; E5F8 2C 87 03                 ,..
-	bvs     movc30                          ; E5FB 70 04                    p.
-	jsr     scrdwn                          ; E5FD 20 DF E3                  ..
-movc20: clc                                     ; E600 18                       .
-movc30: rts                                     ; E601 60                       `
+; E5DB movchr  -  Move to next char position
+; insert blank line if at end of line
+; y = column position
+; on exit - carry set = abort - scroll disabled
+movchr: cpy scrt
+	bcc movc10		; easy if not at end of line
+	ldx tblx
+	cpx scbot
+	bcc movc10		; skip if not last line of screen
+	bit scrdis
+	bmi movc30		; abort if scrolling disabled
 
+movc10:	jsr stupt		; set pnt address
+	jsr nxtchr		; move to next char position
+	bcc movc30		; done if not move to new line
+	jsr getbit		; check if on a continued line
+	bcs movc20		; skip ahead if not
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+	jsr patch1		; patch in a check for single line screen
+	sec			; prep for abort...
+} else{
+	sec			; prep for abort...
+	bit scrdis
+}
+	bvs movc30
+	jsr scrdwn		; else insert a blank line
+
+movc20:	clc			; for clean exit
+movc30: rts
 ; -------------------------------------------------------------------------------------------------
-; E602 
-chkcol:	ldy #$10		; there's 16 colors
+; E602 Change color
+chkcol:	ldy #16			; there's 16 colors
 chk1a:	dey
 	bmi chk1b
 	cmp coltab,y
 	bne chk1a
 	sty color		; change the color
 	rts
+
 chk1b:	jmp cuser
 ; -------------------------------------------------------------------------------------------------
 ; E612 Write a byte to the VIC chip
-!ifdef STANDARD_VIDEO{          ; ********** Standard video **********
-wrtvic: sta saver               ; remember value
+!ifdef STANDARD_VIDEO{		; ********** Standard video **********
+wrtvic: sta saver		; remember value
 wrtvrpt:lda saver
-	sta vic,y               ; store value to VIC register
-	eor vic,y               ; check stored value
-	beq wrtvok              ; jump to end if success
+	sta vic,y		; store value to VIC register
+	eor vic,y		; check stored value
+	beq wrtvok		; jump to end if success
 	cpy #$20
-	bcs wrtvg20             ; jump if reg >= $20
+	bcs wrtvg20		; jump if reg >= $20
 	cpy #$11
-	bcc wrtvrpt             ; write again if register < $10 is different
-	and wrtvtbl - $11,y     ; clear unused bits with register mask table 
-	bne wrtvrpt             ; write register again if different
-wrtvg20:and #$0F                ; clear upper nibble because only bit#0-3 used
-	bne wrtvrpt             ; write register again if different
+	bcc wrtvrpt		; write again if register < $10 is different
+	and wrtvtbl - $11,y	; clear unused bits with register mask table 
+	bne wrtvrpt		; write register again if different
+wrtvg20:and #$0F		; clear upper nibble because only bit#0-3 used
+	bne wrtvrpt		; write register again if different
 wrtvok: lda saver
 	rts
 wrtvtbl:!byte $7F,$00,$00,$00,$FF,$3F,$FF,$FE
 	!byte $00,$0F,$FF,$FF,$FF,$FF,$FF
-} else{                         ; ********** Fast video PATCH **********
+} else{				; ********** Fast video PATCH **********
 wrtvic: sta vic,y
 	rts
 }
@@ -1555,6 +1566,7 @@ wrtrrpt:lda saver
 	lda (pnt),y		; load from screen
 	eor saver		; check if same
 	bne wrtrrpt		; repeat store if not equal
+
 	lda saver
 	rts
 } else{                         ; ********** Fast video PATCH **********
@@ -1575,6 +1587,7 @@ wrtcrpt:lda saver
 	eor (user),y		; check if same
 	and #$0F		; load and isolate low nibble
 	bne wrtcrpt		; repeat if not equal
+
 	pla
 	sta i6509		; restore ibank
 	lda saver
@@ -2527,6 +2540,20 @@ coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ; -------------------------------------------------------------------------------------------------
 ; ED22 Unused space
 	!byte $00
+!ifdef CBMPATCH{
+;**************************************************
+; patch1 - checks for a single line window
+;          aborts if so...
+;**************************************************
+patch1:	ldx scbot		; check
+	cpx sctop
+	bne patcha		; no...pass through old code
+	pla			; abort
+	pla
+patcha:	bit scrdis		; restore patched area (test for scrolling mode)
+	rts
+}
+
 !ifdef SYSPATCH{
 poker	= $1B
 dfbank	= $0257
@@ -2536,7 +2563,7 @@ csys:	jsr getpin      ; get positive integer
 	lda i6509
 	pha
 	lda dfbank 	; current bank
-	cmp #$f
+	cmp #$F
 	beq fligm
 	ldx poker
 	ldy poker+1
