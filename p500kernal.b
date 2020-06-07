@@ -995,7 +995,7 @@ njt1:	ldx insrt		; test if in insert mode
 njt2:	ldx lstchr		; was last char an esc
 	cpx #$1B
 	bne njt10
-	jsr escseq
+	jsr sequen
 	jmp loop2
 njt10:	and #$3F		; no - make a screen char
 njt20:	bit data
@@ -1428,7 +1428,7 @@ savpos: ldy pntr
 ; E55B Delete or insert a character
 delins: bcs insert		; C=1 is insert
 ; delete a character
-delete: jsr cleft		; move back 1 position
+deleet: jsr cleft		; move back 1 position
 	jsr savpos		; save column & row positions
 	bcs delout		; abort if at top left corner
 
@@ -1648,42 +1648,48 @@ bell10:	iny
 	stx sid+osc1+oscctl	; gate off
 bellgo: rts
 ; -------------------------------------------------------------------------------------------------
-; E6A3 Clear last input number
-ce:     lda     pntr                            ; E6A3 A5 CB                    ..
-	pha                                     ; E6A5 48                       H
-LE6A6:  ldy     pntr                            ; E6A6 A4 CB                    ..
-	dey                                     ; E6A8 88                       .
-	jsr     getych                          ; E6A9 20 41 E2                  A.
-	cmp     #$2B                            ; E6AC C9 2B                    .+
-	beq     LE6B4                           ; E6AE F0 04                    ..
-	cmp     #$2D                            ; E6B0 C9 2D                    .-
-	bne     LE6BC                           ; E6B2 D0 08                    ..
-LE6B4:  dey                                     ; E6B4 88                       .
-	jsr     getych                          ; E6B5 20 41 E2                  A.
-	cmp     #$05                            ; E6B8 C9 05                    ..
-	bne     LE6D6                           ; E6BA D0 1A                    ..
-LE6BC:  cmp     #$05                            ; E6BC C9 05                    ..
-	bne     LE6C4                           ; E6BE D0 04                    ..
-	dey                                     ; E6C0 88                       .
-	jsr     getych                          ; E6C1 20 41 E2                  A.
-LE6C4:  cmp     #$2E                            ; E6C4 C9 2E                    ..
-	bcc     LE6D6                           ; E6C6 90 0E                    ..
-	cmp     #$2F                            ; E6C8 C9 2F                    ./
-	beq     LE6D6                           ; E6CA F0 0A                    ..
-	cmp     #$3A                            ; E6CC C9 3A                    .:
-	bcs     LE6D6                           ; E6CE B0 06                    ..
-	jsr     delete                          ; E6D0 20 5D E5                  ].
-	jmp     LE6A6                           ; E6D3 4C A6 E6                 L..
+; E6A3 ce - Clear entry
+;   always deletes last character entered
+;   will delete all <#>s. (0 1 2 3 4 5 6 7 8 9 .)
+;   will delete if (<#>e<+/->)
+;   cursor must be next posistion beyond entry being deleted.
+ce:	lda pntr		; get index on line
+	pha			; save for final delete if necessary
+cet0:	ldy pntr
+	dey
+	jsr getych		; get previous character
+	cmp #'+'		; (+)
+	beq cet1
+	cmp #'-'		; (-)
+	bne cet2
 
-LE6D6:  pla                                     ; E6D6 68                       h
-	cmp     pntr                            ; E6D7 C5 CB                    ..
-	bne     LE6A2                           ; E6D9 D0 C7                    ..
-	jmp     delete                          ; E6DB 4C 5D E5                 L].
+cet1:	dey			; try for an <#>e
+	jsr getych
+	cmp #5			; (e)
+	bne cet4		; exit if not...it can only be an <#>e
 
+cet2:	cmp #5			; (e)
+	bne cet3
+	dey
+	jsr getych
+
+cet3:	cmp #'.'		; try for a <#>
+	bcc cet4		; (.)
+	cmp #'0'-1
+	beq cet4
+	cmp #'9'+1		; (0-9)
+	bcs cet4
+
+	jsr deleet
+	jmp cet0
+
+cet4:	pla		; check if any deletes occured
+	cmp pntr
+	bne bellgo	; yes...exit
+	jmp deleet	; else... go delete a character
 ; -------------------------------------------------------------------------------------------------
-; E6DE Handle an escape sequence
-escseq: jmp (escvec)
-
+; E6DE Escape sequence vector
+sequen:	jmp (escvec)		; escape indirect
 ; -------------------------------------------------------------------------------------------------
 ; E6E1 Insert a line (esc-i)
 iline:  jsr scrdwn
