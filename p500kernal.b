@@ -1683,48 +1683,55 @@ cet3:	cmp #'.'		; try for a <#>
 	jsr deleet
 	jmp cet0
 
-cet4:	pla		; check if any deletes occured
+cet4:	pla			; check if any deletes occured
 	cmp pntr
-	bne bellgo	; yes...exit
-	jmp deleet	; else... go delete a character
+	bne bellgo		; yes...exit
+	jmp deleet		; else... go delete a character
 ; -------------------------------------------------------------------------------------------------
 ; E6DE Escape sequence vector
 sequen:	jmp (escvec)		; escape indirect
 ; -------------------------------------------------------------------------------------------------
-; E6E1 Insert a line (esc-i)
-iline:  jsr scrdwn
-	jsr stu10
+;******************************
+; E6E1 Insert line (esc-i)
+;*****************************
+iline:	jsr scrdwn		; insert a blank line
+	jsr stu10		; move to start of line
 	inx
 	jsr getbt1
 	php
-	jsr putbit
+	jsr putbit		; set continuation same as in previous line
 	plp
-	bcs linrts
+	bcs linrts		; skip if was wrapped
 	sec
-	ror lsxp
+	ror lsxp  		; set flag - new line
+
 linrts: rts
 ; -------------------------------------------------------------------------------------------------
-	bcs iline
-; E6F8 Delete a line (esc-d)
-dline:  jsr fistrt
-	lda sctop
+;**************************
+; Delete line (esc-d)
+;**************************
+; E6F8 Insert or delete a line
+	bcs iline		; insert if C=1
+
+dline:	jsr fistrt		; find start of line
+	lda sctop		; save current of window
 	pha
-	lda tblx
+	lda tblx		; make 1st display line top of window
 	sta sctop
-	lda logscr
+	lda logscr		; make sure logical scrl is off
 	pha
 	lda #$80
 	sta logscr
-	jsr scru15
+	jsr scru15		; scroll the top line away
 	pla
 	sta logscr
-	lda sctop
+	lda sctop		; make old 1st line of this 1 current
 	sta tblx
 	pla
 	sta sctop
 	sec
-	ror lsxp
-	jmp stu10
+	ror lsxp		; set flag - new line
+	jmp stu10		; make this line the current one
 ; -------------------------------------------------------------------------------------------------
 ; E71F Erase to end of line (esc-q)
 etoeol: clc
