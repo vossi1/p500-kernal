@@ -1612,41 +1612,41 @@ wrcram:	sta saver		; remember value
 }
 *= $E669
 ; -------------------------------------------------------------------------------------------------
-; E669
+; E669 Vector unused
 junkwn1:jmp (iunkwn1)		; vector -> nofunc (rts)
 ; -------------------------------------------------------------------------------------------------
-; E66C
+; E66C Vector unused
 junkwn2:jmp (iunkwn2)		; vector -> nofunc (rts)
 ; -------------------------------------------------------------------------------------------------
 ; E66F Jump vector: Write char to screen
-jwrvrm:jmp     (iwrtvrm)		; -> $03B7 -> $E641
+jwrvrm:	jmp (iwrtvrm)		; -> $03B7 -> $E641
 ; -------------------------------------------------------------------------------------------------
 ; E672 Jump vector: Write color to color RAM
-jwrcrm:jmp     (iwrtcrm)		; -> $03B9 -> $E650
+jwrcrm:	jmp (iwrtcrm)		; -> $03B9 -> $E650
 ; -------------------------------------------------------------------------------------------------
-; E675 Ring the bell
-bell:   lda     bellmd                          ; E675 AD 8B 03                 ...
-	bne     LE6A2                           ; E678 D0 28                    .(
-	lda     #$0F                            ; E67A A9 0F                    ..
-	sta     sid+volume                      ; E67C 8D 18 DA                 ...
-	lda     #$00                            ; E67F A9 00                    ..
-	sta     sid+osc1+atkdcy                        ; E681 8D 05 DA                 ...
-	lda     #$F8                            ; E684 A9 F8                    ..
-	sta     sid+osc1+susrel                        ; E686 8D 06 DA                 ...
-	lda     #$40                            ; E689 A9 40                    .@
-	sta     sid+osc1+freqhi                    ; E68B 8D 01 DA                 ...
-	lda     #$80                            ; E68E A9 80                    ..
-	sta     sid+osc3+freqhi                    ; E690 8D 0F DA                 ...
-	ldx     #$15                            ; E693 A2 15                    ..
-	stx     sid+osc1+oscctl                       ; E695 8E 04 DA                 ...
-	ldy     #$00                            ; E698 A0 00                    ..
-LE69A:  iny                                     ; E69A C8                       .
-	nop                                     ; E69B EA                       .
-	bne     LE69A                           ; E69C D0 FC                    ..
-	dex                                     ; E69E CA                       .
-	stx     sid+osc1+oscctl                       ; E69F 8E 04 DA                 ...
-LE6A2:  rts                                     ; E6A2 60                       `
+; E675 Ring the bell, if enabled
+bell:   lda bellmd
+	bne bellgo
+	lda #$0F
+	sta sid+volume		; turn up volume
+	lda #$00
+	sta sid+osc1+atkdcy	; attack=0, decay=0
+	lda #$F8
+	sta sid+osc1+susrel	; sustain=15, release=8
+	lda #$40
+	sta sid+osc1+freqhi	; voice 1 freq.
+	lda #$80
+	sta sid+osc3+freqhi	; voice 3 freq.
+	ldx #$15
+	stx sid+osc1+oscctl	; voice 1 gate on, triangle, ring mod. 
+	ldy #$00
+bell10:	iny
+	nop			; wait to reach sustain level
+	bne bell10
 
+	dex
+	stx sid+osc1+oscctl	; gate off
+bellgo: rts
 ; -------------------------------------------------------------------------------------------------
 ; E6A3 Clear last input number
 ce:     lda     pntr                            ; E6A3 A5 CB                    ..
