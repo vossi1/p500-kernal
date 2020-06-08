@@ -315,7 +315,6 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	iunkwn1		= $03BB		; Vector: -> E039 nofunc
 	iunkwn2		= $03BD		; Vector: -> E039 nofunc
 	unknwn		= $03BF		; unknown from old editor (some flag like quote or insert?)
-	sedt3		= $03BF		;   another temp used during function key listing
 	; $03C0 - $3F7 Free absolute space
 	absend		= $03C0
 	; System warm start variables and vectors
@@ -1846,8 +1845,11 @@ logsw:	lda #0
 	sta logscr		; store flag: $00 = disable, $80 = enable
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E7A0
 !ifdef CBMPATCH{
+; E7A0 Not used - removed in patch 3
+unused:	rts		; something related to $03BF
+			;   code removed to free space for new f-key functions below
+; -------------------------------------------------------------------------------------------------
 keyfun
 	sei             ;prevent fight over variables with keyscan...
 	dey
@@ -1860,7 +1862,7 @@ listky	ldy #0          ;initialize key counter
 ;
 listlp
 	iny
-	sty sedt3
+	sty sedt1
 	dey             ;minus 1 for indexing
 	lda keysiz,y    ;get key length
 	beq nodefn      ;no listing if no defintion
@@ -1876,7 +1878,7 @@ preamb	lda keword,x    ;print 'key ' preamble
 	bpl preamb
 ;
 	ldx #$2f
-	lda sedt3       ;get key number
+	lda sedt1       ;get key number
 	sec
 ky2asc	inx             ;convert to 1 or 2 digit ascii
 	sbc #10
@@ -1925,7 +1927,7 @@ lstk30
 	lda #$0d
 	jsr bsout       ;do a return
 nodefn
-	ldy sedt3       ;get key number
+	ldy sedt1       ;get key number
 	cpy #pgmkys
 	bne listlp      ;loop til all keys checked
 	cli             ;all done...clear the keyscan holdoff
@@ -2061,12 +2063,12 @@ kyinlp
 	bne kyinlp      ;no... loop
 kyinok
 	jsr pagres
-;	clc             ;for good exit carry clear - NOT USED - removed to get one byte free!
+	clc             ;for good exit carry clear
 kyxit	pla             ;pop zero page address for params
 	cli             ;all done...release keyscan
 ; only RTS used for: 'unused' - removed in patch 3
-unused:	rts             ; c-set is memory full error
-} else{
+	rts             ; c-set is memory full error
+} else{			; ********* OLD version without chr$(141) and sei/cli
 ; -------------------------------------------------------------------------------------------------
 ; E7A0 Not used - removed in patch 3
 unused:	lda unknwn		; ($03BF)
@@ -2081,7 +2083,7 @@ keyfun:	dey
 	bmi listky		; do list if no parameters given
 	jmp addkey		; - else go add a new key definition
 ; List function keys
-listky:	ldy #0
+listky:	ldy #0			; initialize key counter
 
 listlp: iny
 	sty sedt1
@@ -2093,33 +2095,34 @@ listlp: iny
 	sta keypnt
 	stx keypnt+1		; save 2 byte address in temp loc
 	ldx #3
-
-preamb: lda keword,x		; print 'key ' preamble
+; print 'key ' preamble
+preamb: lda keword,x
 	jsr jbsout
 	dex
 	bpl preamb
+; convert to 1 or 2 digit ascii
 	ldx #$2F
 	lda sedt1		; get key number
 	sec
-ky2asc: inx			; convert to 1 or 2 digit ascii
+ky2asc: inx			; .x=$30, if two digits it will inc to $31
 	sbc #10
-	bcs ky2asc
-	adc #$3a		; add 10 & make ascii
-	cpx #$30
+	bcs ky2asc		; repeat if >9
+	adc #$3A		; add 10 & make ascii
+	cpx #'0'
 	beq nosec		; skip 2nd digit print
 	pha			; save first digit-10
 	txa
-	jsr jbsout		; print second digit
+	jsr jbsout		; print second digit '1'
 	pla			; restore first digit-10
 
 nosec:  jsr jbsout		; print first digit
 	ldy #0			; init string position counter
 	lda #','		; for comma print
-	ldx #$06
-txtprt:	cpx #$08
-	beq LE7F5
+	ldx #6
+txtprt:	cpx #8
+	beq lstk00		; skip if normal char last time
 	jsr jbsout		; print char - comma or plus-sign
-LE7F5:  php
+lstk00:	php
 	jsr pagkey		; switch to indirect bank with key buffer
 	lda (keypnt),y		; get byte
 	jsr pagres    		; restore indirect bank
@@ -2130,20 +2133,20 @@ LE7F5:  php
 	beq lstkcr		; print chr$(13) for shift-return
 	cmp #$22
 	beq lstkqt		; print chr$(34) for quote
-	cpx #$08		; was a normal char printed last time
+	cpx #8			; was a normal char printed last time
 	beq lstk10		; yes - skip ahead
 	pha			; save char
 	lda #$22
 	jsr jbsout		; print a quote
 	pla
-	ldx #$08		; for chr$ - print quote and plus next time
-lstk10: jsr jbsout
+	ldx #8			; skip next print at loop start
+lstk10: jsr jbsout		; print char
 	lda #'+'
 	iny
 	cpy keyidx
 	bne txtprt		; loop to end of string
 
-	cpx #$06
+	cpx #6
 	beq lstk30
 	lda #$22
 	jsr jbsout		; print ending quote
@@ -2153,124 +2156,126 @@ lstk30: lda #$0D
 
 nodefn: ldy sedt1		; get key number
 	cpy #pgmkys
-	beq listx
-	jmp listlp
+	beq listx		; exit if finished list
+	jmp listlp		; print next key definition
 
 listx:	clc
 	rts
 ; E83C
 lstkcr:	clc
-lstklp:	lda crword,x
+lstklp:	lda crword,x		; load chr$(13 string
 lstkqt:	bcc lstk40
-	lda qtword,x
-lstk40:	php
+	lda qtword,x		; load chr$(34 string
+lstk40:	php			; preserce carry flag for string selection
 	jsr jbsout
 	plp
 	dex
-	bpl lstklp
+	bpl lstklp		; next char
 
-	lda #')'
-	ldx #$06
+	lda #')' 
+	ldx #6			; mark to print ')' at loop start
 	bne lstk10
-; Jump vector: BSOUT via indirect vector
+; Jump vector: bsout via indirect vector
 jbsout:	jmp (ibsout)
 ; -------------------------------------------------------------------------------------------------
 ; E856 
-keword: !pet " yek"
-crword: !pet "31($rhc+"
-	!byte $22
-qtword: !pet "43($rhc+"
-	!byte $22
+keword: !pet " yek"		; 'key '
+crword: !pet "31($rhc+", $22	; "+chr$(13
+qtword: !pet "43($rhc+", $22	; "+chr$(34
 ; -------------------------------------------------------------------------------------------------
-; E86C Get/set a function key
-addkey: pha                                     ; E86C 48                       H
-	tax                                     ; E86D AA                       .
-	sty     sedt1                           ; E86E 84 D9                    ..
-	lda     e6509,x                         ; E870 B5 00                    ..
-	sec                                     ; E872 38                       8
-	sbc     keysiz,y                        ; E873 F9 8D 03                 ...
-	sta     sedt2                           ; E876 85 DA                    ..
-	iny                                     ; E878 C8                       .
-	jsr     findky                          ; E879 20 15 EA                  ..
-	sta     sedsal                          ; E87C 85 C4                    ..
-	stx     sedsal+1                        ; E87E 86 C5                    ..
-	ldy     #$14                            ; E880 A0 14                    ..
-	jsr     findky                          ; E882 20 15 EA                  ..
-	sta     sedeal                          ; E885 85 C6                    ..
-	stx     sedeal+1                        ; E887 86 C7                    ..
-	ldy     sedt2                           ; E889 A4 DA                    ..
-	bmi     keysho                          ; E88B 30 15                    0.
-	clc                                     ; E88D 18                       .
-	sbc     pkyend                          ; E88E ED 80 03                 ...
-	tay                                     ; E891 A8                       .
-	txa                                     ; E892 8A                       .
-	sbc     pkyend+1                        ; E893 ED 81 03                 ...
-	tax                                     ; E896 AA                       .
-	tya                                     ; E897 98                       .
-	clc                                     ; E898 18                       .
-	adc     sedt2                           ; E899 65 DA                    e.
-	txa                                     ; E89B 8A                       .
-	adc     #$00                            ; E89C 69 00                    i.
-	bcc     keysho                          ; E89E 90 02                    ..
-	pla                                     ; E8A0 68                       h
-	rts                                     ; E8A1 60                       `
-; -------------------------------------------------------------------------------------------------
-; E8A2
-keysho: jsr pagkey				; switch to indirect bank with key buffer
-kymove: lda     sedeal                          ; E8A5 A5 C6                    ..
-	clc                                     ; E8A7 18                       .
-	sbc     sedsal                          ; E8A8 E5 C4                    ..
-	lda     sedeal+1                        ; E8AA A5 C7                    ..
-	sbc     sedsal+1                        ; E8AC E5 C5                    ..
-	bcc     keyins                          ; E8AE 90 28                    .(
-	ldy     #$00                            ; E8B0 A0 00                    ..
-	lda     sedt2                           ; E8B2 A5 DA                    ..
-	bmi     kshort                          ; E8B4 30 10                    0.
-	lda     sedeal                          ; E8B6 A5 C6                    ..
-	bne     newky4                          ; E8B8 D0 02                    ..
-	dec     sedeal+1                        ; E8BA C6 C7                    ..
-newky4: dec     sedeal                          ; E8BC C6 C6                    ..
-	lda     (sedeal),y                      ; E8BE B1 C6                    ..
-	ldy     sedt2                           ; E8C0 A4 DA                    ..
-	sta     (sedeal),y                      ; E8C2 91 C6                    ..
-	bpl     kymove                          ; E8C4 10 DF                    ..
-kshort: lda     (sedsal),y                      ; E8C6 B1 C4                    ..
-	ldy     sedt2                           ; E8C8 A4 DA                    ..
-	dec     sedsal+1                        ; E8CA C6 C5                    ..
-	sta     (sedsal),y                      ; E8CC 91 C4                    ..
-	inc     sedsal+1                        ; E8CE E6 C5                    ..
-	inc     sedsal                          ; E8D0 E6 C4                    ..
-	bne     kymove                          ; E8D2 D0 D1                    ..
-	inc     sedsal+1                        ; E8D4 E6 C5                    ..
-	bne     kymove                          ; E8D6 D0 CD                    ..
-keyins: ldy     sedt1                           ; E8D8 A4 D9                    ..
-	jsr     findky                          ; E8DA 20 15 EA                  ..
-	sta     sedsal                          ; E8DD 85 C4                    ..
-	stx     sedsal+1                        ; E8DF 86 C5                    ..
-	ldy     sedt1                           ; E8E1 A4 D9                    ..
-	pla                                     ; E8E3 68                       h
-	tax                                     ; E8E4 AA                       .
-	lda     e6509,x                         ; E8E5 B5 00                    ..
-	sta     keysiz,y                        ; E8E7 99 8D 03                 ...
-	tay                                     ; E8EA A8                       .
-	lda     i6509,x                         ; E8EB B5 01                    ..
-	sta     sedeal                          ; E8ED 85 C6                    ..
-	lda     $02,x                           ; E8EF B5 02                    ..
-	sta     sedeal+1                        ; E8F1 85 C7                    ..
-kyinlp: dey                                     ; E8F3 88                       .
-	bmi     kyinok                          ; E8F4 30 11                    0.
-	lda     $03,x                           ; E8F6 B5 03                    ..
-	sta     i6509                           ; E8F8 85 01                    ..
-	lda     (sedeal),y                      ; E8FA B1 C6                    ..
-	jsr pagres    			; restore indirect bank
-	jsr pagkey				; switch to indirect bank with key buffer
-	sta     (sedsal),y                      ; E902 91 C4                    ..
-	jmp     kyinlp                          ; E904 4C F3 E8                 L..
+; E86C Insert a new key defintion
+addkey: pha			; save zero page address of params
+	tax
+	sty sedt1		; save key number in temp loc
+	lda $00,x		; get new string length
+	sec
+	sbc keysiz,y		; subtract old length
+	sta sedt2		; save difference in temp location
+	iny
+	jsr findky		; find start addr of next function key
+	sta sedsal
+	stx sedsal+1		; save 2 byte address in temp loc
+	ldy #pgmkys
+	jsr findky		; find end of last function key
+	sta sedeal
+	stx sedeal+1		; save next free byte addr in temp loc
+	ldy sedt2		; load difference
+	bmi keysho		; skip ahead if old key shorter
+	clc
+	sbc pkyend		; subtract last available adress
+	tay
+	txa
+	sbc pkyend+1
+	tax
+	tya
+	clc
+	adc sedt2		; add difference
+	txa
+	adc #0			; add carry
+	bcc keysho		; make room for definition
+	pla
+	rts			; exit if no room
+; E8A2 expand or contract key area to make room for new key definition.
+keysho: jsr pagkey		; switch to indirect bank with key buffer
+kymove: lda sedeal
+	clc 			; check if entire area expanded or contracted
+	sbc sedsal
+	lda sedeal+1
+	sbc sedsal+1
+	bcc keyins		; go insert new key defintion if yes
+	ldy #0
+	lda sedt2		; check if expand or contract
+	bmi kshort		; skip if needs to be contracted
 
-kyinok: jsr pagres    			; restore indirect bank
-	clc                                     ; E90A 18                       .
-	rts                                     ; E90B 60                       `
+	lda sedeal
+	bne newky4		; dec 1 from source addr
+	dec sedeal+1		; sub 1 for borrow
+newky4: dec sedeal
+	lda (sedeal),y		; move 1 byte up to expand
+	ldy sedt2		; get offset = difference
+	sta (sedeal),y		; move byte up
+	bpl kymove		; loop until all bytes moved
+
+kshort:	lda (sedsal),y		; get source byte
+	ldy sedt2		; get offset = difference
+	dec sedsal+1		; sub 1 to move down
+	sta (sedsal),y		; move the byte down
+	inc sedsal+1
+	inc sedsal		; move source up 1 byte
+	bne kymove
+	inc sedsal+1		; add 1 for carry
+	bne kymove		; always
+;  insert the new string defintion
+keyins: ldy sedt1		; get the key index
+	jsr findky		; find buffer start address for this key
+	sta sedsal
+	stx sedsal+1		; save 2 byte address in temp loc
+	ldy sedt1
+	pla
+	tax			; get zero page addr of params
+	lda $00,x
+	sta keysiz,y		; save key length
+	tay
+	lda $01,x		; get & save low byte of string address
+	sta sedeal
+	lda $02,x		; get & save high byte of string address
+	sta sedeal+1
+
+kyinlp: dey 
+	bmi kyinok
+	lda $03,x		; get string ram bank
+	sta i6509
+	lda (sedeal),y		; get byte
+	jsr pagres    		; restore indirect bank
+	jsr pagkey		; switch to indirect bank with key buffer
+	sta (sedsal),y		; store into buffer
+	jmp kyinlp		; next 
+
+kyinok: jsr pagres    		; restore indirect bank
+	clc 			; for good exit carry clear
+	rts
 }
+*= $E90C
 ; -------------------------------------------------------------------------------------------------
 ; E90C Keyboard scan
 scnkey: jsr     junkwn2		; vector -> nofunc (rts)
