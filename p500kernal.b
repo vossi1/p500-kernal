@@ -15,13 +15,14 @@
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
-STANDARD_FKEYS	= 1	; Standard F-keys
-FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-;BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
+;STANDARD_FKEYS	= 1	; Standard F-keys
+;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank1 15!
-;SYSPATCH	= 1	; patched Basic SYS command
+SYSPATCH	= 1	; patched Basic SYS command
+SOLID_CURSOR	= 1
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -2272,6 +2273,14 @@ kyinok: jsr pagres    		; restore indirect bank
 scnkey: jsr junkwn2		; vector -> nofunc (rts)
 	lda blnon
 	bne key			; skip if blinking cursor is off (run mode)
+!ifdef SOLID_CURSOR{
+	lda blnsw
+	bne key			; skip if cursor already visible
+	
+	inc blnsw		; set visibility switch
+	jsr get1ch		; get char and color under cursor
+	ldx gdcol
+} else{
 	dec blncnt
 	bne key			; skip if blink counter not zero
 	lda #20
@@ -2281,13 +2290,14 @@ scnkey: jsr junkwn2		; vector -> nofunc (rts)
 	lsr blnsw		; reset blink switch
 	bcs scnk10		; if cursor is off -> reverse char
 	inc blnsw		; set blink switch
+}
 	sta config		; remember char under cursor
 	ldx tcolor
 	stx gdcol		; remember char color
 	ldx color		; load actual color
 scnk10:	eor #$80		; inverse char
 	jsr dspp		; print (reversed) char
-
+*= $E933
 ; E933 Poll the keyboard and place the result into the kbd buffer
 key:    ldy #$FF
 	sty modkey

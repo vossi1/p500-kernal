@@ -12,3 +12,5 @@ v1.7 moved tx-routines in the correct place = 100% identical to cbm2 04a kernal
 v1.8 basic SYS patched - now to selected bank -> Basic $8063 csys vector =  $EDDC-1: $DB, $ED
 v1.9 movchar single line screen, slow scroll preserve flags patches rev -03 kernal
 v2.0 added complete rev -03 new patched key functions in the editor 
+v2.1 optional solid "Atari Style" cursor ;)
+
