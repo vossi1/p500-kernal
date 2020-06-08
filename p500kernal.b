@@ -15,13 +15,13 @@
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
-;STANDARD_FKEYS	= 1	; Standard F-keys
-;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
+STANDARD_FKEYS	= 1	; Standard F-keys
+FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+;BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank1 15!
-SYSPATCH	= 1	; patched Basic SYS command
+;SYSPATCH	= 1	; patched Basic SYS command
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -203,7 +203,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	norkey		= $E1		; Keyscanner normal key number ($ff-nokey)
 	; Screen editor usage
 	bitabl		= $E2		; Wrap bitmap
-	blnon		= $E6		; Blinking cursor on
+	blnon		= $E6		; Blinking cursor on = $00
 	blncnt		= $E7		; Blink counter
 	user		= $E8		; Pointer to color RAM
 	tcolor		= $EA		; Temporary color
@@ -2265,183 +2265,181 @@ kyinok: jsr pagres    		; restore indirect bank
 }
 *= $E90C
 ; -------------------------------------------------------------------------------------------------
-; E90C Keyboard scan
-scnkey: jsr     junkwn2		; vector -> nofunc (rts)
-	lda     blnon                           ; E90F A5 E6                    ..
-	bne     key                             ; E911 D0 20                    . 
-	dec     blncnt                          ; E913 C6 E7                    ..
-	bne     key                             ; E915 D0 1C                    ..
-	lda     #$14                            ; E917 A9 14                    ..
-	sta     blncnt                          ; E919 85 E7                    ..
-	jsr     get1ch                          ; E91B 20 3F E2                  ?.
-	ldx     gdcol                           ; E91E A6 ED                    ..
-	lsr     blnsw                           ; E920 46 EB                    F.
-	bcs     LE92E                           ; E922 B0 0A                    ..
-	inc     blnsw                           ; E924 E6 EB                    ..
-	sta     config                          ; E926 85 D4                    ..
-	ldx     tcolor                          ; E928 A6 EA                    ..
-	stx     gdcol                           ; E92A 86 ED                    ..
-	ldx     color                           ; E92C A6 EC                    ..
-LE92E:  eor     #$80                            ; E92E 49 80                    I.
-	jsr     dspp                            ; E930 20 13 E2                  ..
-; E933 Poll the keyboard and place the result into the kbd buffer
-key:    ldy     #$FF                            ; E933 A0 FF                    ..
-	sty     modkey                          ; E935 84 E0                    ..
-	sty     norkey                          ; E937 84 E1                    ..
-	iny                                     ; E939 C8                       .
-	sty     tpi2+pb                         ; E93A 8C 01 DF                 ...
-	sty     tpi2+pa                         ; E93D 8C 00 DF                 ...
-	jsr     getkey                          ; E940 20 EA E9                  ..
-	and     #$3F                            ; E943 29 3F                    )?
-	eor     #$3F                            ; E945 49 3F                    I?
-	beq     nulxit                          ; E947 F0 76                    .v
-	lda     #$FF                            ; E949 A9 FF                    ..
-	sta     tpi2+pa                         ; E94B 8D 00 DF                 ...
-	asl                                     ; E94E 0A                       .
-	sta     tpi2+pb                         ; E94F 8D 01 DF                 ...
-	jsr     getkey                          ; E952 20 EA E9                  ..
-	pha                                     ; E955 48                       H
-	sta     modkey                          ; E956 85 E0                    ..
-	ora     #$30                            ; E958 09 30                    .0
-	bne     line01                          ; E95A D0 03                    ..
-linelp: jsr     getkey                          ; E95C 20 EA E9                  ..
-line01: ldx     #$05                            ; E95F A2 05                    ..
-kyloop: lsr                                     ; E961 4A                       J
-	bcc     havkey                          ; E962 90 10                    ..
-	iny                                     ; E964 C8                       .
-	dex                                     ; E965 CA                       .
-	bpl     kyloop                          ; E966 10 F9                    ..
-	sec                                     ; E968 38                       8
-	rol     tpi2+pb                         ; E969 2E 01 DF                 ...
-	rol     tpi2+pa                         ; E96C 2E 00 DF                 ...
-	bcs     linelp                          ; E96F B0 EB                    ..
-	pla                                     ; E971 68                       h
-	bcc     nulxit                          ; E972 90 4B                    .K
-havkey: ldx     normtb,y                        ; E974 BE B1 EA                 ...
-	sty     norkey                          ; E977 84 E1                    ..
-	pla                                     ; E979 68                       h
-	asl                                     ; E97A 0A                       .
-	asl                                     ; E97B 0A                       .
-	asl                                     ; E97C 0A                       .
-	bcc     doctl                           ; E97D 90 0E                    ..
-	bmi     havasc                          ; E97F 30 0F                    0.
-	ldx     shfttb,y                        ; E981 BE 11 EB                 ...
-	lda     grmode                          ; E984 A5 CC                    ..
-	bne     havasc                          ; E986 D0 08                    ..
-	ldx     shftgr,y                        ; E988 BE 71 EB                 .q.
-	bne     havasc                          ; E98B D0 03                    ..
-doctl:  ldx     ctltbl,y                        ; E98D BE D1 EB                 ...
-havasc: cpx     #$FF                            ; E990 E0 FF                    ..
-	beq     keyxit                          ; E992 F0 2D                    .-
-	txa                                     ; E994 8A                       .
-	cmp     #$E0                            ; E995 C9 E0                    ..
-	bcc     notfun                          ; E997 90 09                    ..
-	tya                                     ; E999 98                       .
-	pha                                     ; E99A 48                       H
-	jsr     funjmp                          ; E99B 20 F3 E9                  ..
-	pla                                     ; E99E 68                       h
-	tay                                     ; E99F A8                       .
-	bcs     keyxit                          ; E9A0 B0 1F                    ..
-; E9A2 Not a function key
-notfun: txa                                     ; E9A2 8A                       .
-	cpy     lstx                            ; E9A3 C4 CD                    ..
-	beq     dorpt                           ; E9A5 F0 27                    .'
-	ldx     #$13                            ; E9A7 A2 13                    ..
-	stx     delay                           ; E9A9 86 D8                    ..
-	ldx     ndx                             ; E9AB A6 D1                    ..
-	cpx     #$09                            ; E9AD E0 09                    ..
-	beq     nulxit                          ; E9AF F0 0E                    ..
-	cpy     #$59                            ; E9B1 C0 59                    .Y
-	bne     savkey                          ; E9B3 D0 29                    .)
-	cpx     #$08                            ; E9B5 E0 08                    ..
-	beq     nulxit                          ; E9B7 F0 06                    ..
-	sta     keyd,x                          ; E9B9 9D AB 03                 ...
-	inx                                     ; E9BC E8                       .
-	bne     savkey                          ; E9BD D0 1F                    ..
-nulxit: ldy     #$FF                            ; E9BF A0 FF                    ..
-keyxit: sty     lstx                            ; E9C1 84 CD                    ..
-keyxt2: ldx     #$7F                            ; E9C3 A2 7F                    ..
-	stx     tpi2+pa                         ; E9C5 8E 00 DF                 ...
-	ldx     #$FF                            ; E9C8 A2 FF                    ..
-	stx     tpi2+pb                         ; E9CA 8E 01 DF                 ...
-	rts                                     ; E9CD 60                       `
+;*******************************
+; E90C Keyboard scanner
+;*******************************
+; Cursor blink routine
+scnkey: jsr junkwn2		; vector -> nofunc (rts)
+	lda blnon
+	bne key			; skip if blinking cursor is off (run mode)
+	dec blncnt
+	bne key			; skip if blink counter not zero
+	lda #20
+	sta blncnt		; reset blink counter
+	jsr get1ch		; get char and color under cursor
+	ldx gdcol
+	lsr blnsw		; reset blink switch
+	bcs scnk10		; if cursor is off -> reverse char
+	inc blnsw		; set blink switch
+	sta config		; remember char under cursor
+	ldx tcolor
+	stx gdcol		; remember char color
+	ldx color		; load actual color
+scnk10:	eor #$80		; inverse char
+	jsr dspp		; print (reversed) char
 
+; E933 Poll the keyboard and place the result into the kbd buffer
+key:    ldy #$FF                            ; E933 A0 FF                    ..
+	sty modkey                          ; E935 84 E0                    ..
+	sty norkey                          ; E937 84 E1                    ..
+	iny                                 ; E939 C8                       .
+	sty tpi2+pb                         ; E93A 8C 01 DF                 ...
+	sty tpi2+pa                         ; E93D 8C 00 DF                 ...
+	jsr getkey                          ; E940 20 EA E9                  ..
+	and #$3F                            ; E943 29 3F                    )?
+	eor #$3F                            ; E945 49 3F                    I?
+	beq nulxit                          ; E947 F0 76                    .v
+	lda #$FF                            ; E949 A9 FF                    ..
+	sta tpi2+pa                         ; E94B 8D 00 DF                 ...
+	asl                                 ; E94E 0A                       .
+	sta tpi2+pb                         ; E94F 8D 01 DF                 ...
+	jsr getkey                          ; E952 20 EA E9                  ..
+	pha                                 ; E955 48                       H
+	sta modkey                          ; E956 85 E0                    ..
+	ora #$30                            ; E958 09 30                    .0
+	bne line01                          ; E95A D0 03                    ..
+linelp: jsr getkey                          ; E95C 20 EA E9                  ..
+line01: ldx #$05                            ; E95F A2 05                    ..
+kyloop: lsr                                 ; E961 4A                       J
+	bcc havkey                          ; E962 90 10                    ..
+	iny                                 ; E964 C8                       .
+	dex                                 ; E965 CA                       .
+	bpl kyloop                          ; E966 10 F9                    ..
+	sec                                 ; E968 38                       8
+	rol tpi2+pb                         ; E969 2E 01 DF                 ...
+	rol tpi2+pa                         ; E96C 2E 00 DF                 ...
+	bcs linelp                          ; E96F B0 EB                    ..
+	pla                                 ; E971 68                       h
+	bcc nulxit                          ; E972 90 4B                    .K
+havkey: ldx normtb,y                        ; E974 BE B1 EA                 ...
+	sty norkey                          ; E977 84 E1                    ..
+	pla                                 ; E979 68                       h
+	asl                                 ; E97A 0A                       .
+	asl                                 ; E97B 0A                       .
+	asl                                 ; E97C 0A                       .
+	bcc doctl                           ; E97D 90 0E                    ..
+	bmi havasc                          ; E97F 30 0F                    0.
+	ldx shfttb,y                        ; E981 BE 11 EB                 ...
+	lda grmode                          ; E984 A5 CC                    ..
+	bne havasc                          ; E986 D0 08                    ..
+	ldx shftgr,y                        ; E988 BE 71 EB                 .q.
+	bne havasc                          ; E98B D0 03                    ..
+doctl:  ldx ctltbl,y                        ; E98D BE D1 EB                 ...
+havasc: cpx #$FF                            ; E990 E0 FF                    ..
+	beq keyxit                          ; E992 F0 2D                    .-
+	txa                                 ; E994 8A                       .
+	cmp #$E0                            ; E995 C9 E0                    ..
+	bcc notfun                          ; E997 90 09                    ..
+	tya                                 ; E999 98                       .
+	pha                                 ; E99A 48                       H
+	jsr funjmp                          ; E99B 20 F3 E9                  ..
+	pla                                 ; E99E 68                       h
+	tay                                 ; E99F A8                       .
+	bcs keyxit                          ; E9A0 B0 1F                    ..
+; E9A2 Not a function key
+notfun: txa                                 ; E9A2 8A                       .
+	cpy lstx                            ; E9A3 C4 CD                    ..
+	beq dorpt                           ; E9A5 F0 27                    .'
+	ldx #$13                            ; E9A7 A2 13                    ..
+	stx delay                           ; E9A9 86 D8                    ..
+	ldx ndx                             ; E9AB A6 D1                    ..
+	cpx #$09                            ; E9AD E0 09                    ..
+	beq nulxit                          ; E9AF F0 0E                    ..
+	cpy #$59                            ; E9B1 C0 59                    .Y
+	bne savkey                          ; E9B3 D0 29                    .)
+	cpx #$08                            ; E9B5 E0 08                    ..
+	beq nulxit                          ; E9B7 F0 06                    ..
+	sta keyd,x                          ; E9B9 9D AB 03                 ...
+	inx                                 ; E9BC E8                       .
+	bne savkey                          ; E9BD D0 1F                    ..
+nulxit: ldy #$FF                            ; E9BF A0 FF                    ..
+keyxit: sty lstx                            ; E9C1 84 CD                    ..
+keyxt2: ldx #$7F                            ; E9C3 A2 7F                    ..
+	stx tpi2+pa                         ; E9C5 8E 00 DF                 ...
+	ldx #$FF                            ; E9C8 A2 FF                    ..
+	stx tpi2+pb                         ; E9CA 8E 01 DF                 ...
+	rts                                 ; E9CD 60                       `
 ; -------------------------------------------------------------------------------------------------
 ; E9CE Handle key repeat
-dorpt:  dec     delay                           ; E9CE C6 D8                    ..
-	bpl     keyxt2                          ; E9D0 10 F1                    ..
-	inc     delay                           ; E9D2 E6 D8                    ..
-	dec     rptcnt                          ; E9D4 C6 D7                    ..
-	bpl     keyxt2                          ; E9D6 10 EB                    ..
-	inc     rptcnt                          ; E9D8 E6 D7                    ..
-	ldx     ndx                             ; E9DA A6 D1                    ..
-	bne     keyxt2                          ; E9DC D0 E5                    ..
+dorpt:  dec delay                           ; E9CE C6 D8                    ..
+	bpl keyxt2                          ; E9D0 10 F1                    ..
+	inc delay                           ; E9D2 E6 D8                    ..
+	dec rptcnt                          ; E9D4 C6 D7                    ..
+	bpl keyxt2                          ; E9D6 10 EB                    ..
+	inc rptcnt                          ; E9D8 E6 D7                    ..
+	ldx ndx                             ; E9DA A6 D1                    ..
+	bne keyxt2                          ; E9DC D0 E5                    ..
 ; E9DE Store key in keyboard buffer
-savkey: sta     keyd,x                          ; E9DE 9D AB 03                 ...
-	inx                                     ; E9E1 E8                       .
-	stx     ndx                             ; E9E2 86 D1                    ..
-	ldx     #$03                            ; E9E4 A2 03                    ..
-	stx     rptcnt                          ; E9E6 86 D7                    ..
-	bne     keyxit                          ; E9E8 D0 D7                    ..
+savkey: sta keyd,x                          ; E9DE 9D AB 03                 ...
+	inx                                 ; E9E1 E8                       .
+	stx ndx                             ; E9E2 86 D1                    ..
+	ldx #$03                            ; E9E4 A2 03                    ..
+	stx rptcnt                          ; E9E6 86 D7                    ..
+	bne keyxit                          ; E9E8 D0 D7                    ..
 ; E9EA Read keyboard matrix and debounce
-getkey: lda     tpi2+pc                         ; E9EA AD 02 DF                 ...
-	cmp     tpi2+pc                         ; E9ED CD 02 DF                 ...
-	bne     getkey                          ; E9F0 D0 F8                    ..
-	rts                                     ; E9F2 60                       `
-
+getkey: lda tpi2+pc                         ; E9EA AD 02 DF                 ...
+	cmp tpi2+pc                         ; E9ED CD 02 DF                 ...
+	bne getkey                          ; E9F0 D0 F8                    ..
+	rts                                 ; E9F2 60                       `
 ; -------------------------------------------------------------------------------------------------
 ; E9F3 Jump vector: Called when a function key has been pressed
-funjmp: jmp     (funvec)                        ; E9F3 6C B5 03                 l..
-
+funjmp: jmp (funvec)                        ; E9F3 6C B5 03                 l..
 ; -------------------------------------------------------------------------------------------------
 ; E9F6
-funkey: cpy     lstx                            ; E9F6 C4 CD                    ..
-	beq     funrts                          ; E9F8 F0 19                    ..
-	lda     ndx                             ; E9FA A5 D1                    ..
-	ora     kyndx                           ; E9FC 05 D6                    ..
-	bne     funrts                          ; E9FE D0 13                    ..
-	sta     keyidx                          ; EA00 8D 89 03                 ...
-	txa                                     ; EA03 8A                       .
-	and     #$1F                            ; EA04 29 1F                    ).
-	tay                                     ; EA06 A8                       .
-	lda     keysiz,y                        ; EA07 B9 8D 03                 ...
-	sta     kyndx                           ; EA0A 85 D6                    ..
-	jsr     findky                          ; EA0C 20 15 EA                  ..
-	sta     keypnt                          ; EA0F 85 C2                    ..
-	stx     keypnt+1                        ; EA11 86 C3                    ..
+funkey: cpy lstx                            ; E9F6 C4 CD                    ..
+	beq funrts                          ; E9F8 F0 19                    ..
+	lda ndx                             ; E9FA A5 D1                    ..
+	ora kyndx                           ; E9FC 05 D6                    ..
+	bne funrts                          ; E9FE D0 13                    ..
+	sta keyidx                          ; EA00 8D 89 03                 ...
+	txa                                 ; EA03 8A                       .
+	and #$1F                            ; EA04 29 1F                    ).
+	tay                                 ; EA06 A8                       .
+	lda keysiz,y                        ; EA07 B9 8D 03                 ...
+	sta kyndx                           ; EA0A 85 D6                    ..
+	jsr findky                          ; EA0C 20 15 EA                  ..
+	sta keypnt                          ; EA0F 85 C2                    ..
+	stx keypnt+1                        ; EA11 86 C3                    ..
 ; EA13 Default function key handler
-funrts: sec                                     ; EA13 38                       8
-	rts                                     ; EA14 60                       `
-
+funrts: sec                                 ; EA13 38                       8
+	rts                                 ; EA14 60                       `
 ; -------------------------------------------------------------------------------------------------
 ; EA15 Find a function key definition
-findky: lda     pkybuf                          ; EA15 A5 C0                    ..
-	ldx     pkybuf+1                        ; EA17 A6 C1                    ..
-findlp: clc                                     ; EA19 18                       .
-	dey                                     ; EA1A 88                       .
-	bmi     fndout                          ; EA1B 30 08                    0.
-	adc     keysiz,y                        ; EA1D 79 8D 03                 y..
-	bcc     findlp                          ; EA20 90 F7                    ..
-	inx                                     ; EA22 E8                       .
-	bne     findlp                          ; EA23 D0 F4                    ..
-fndout: rts                                     ; EA25 60                       `
-
+findky: lda pkybuf                          ; EA15 A5 C0                    ..
+	ldx pkybuf+1                        ; EA17 A6 C1                    ..
+findlp: clc                                 ; EA19 18                       .
+	dey                                 ; EA1A 88                       .
+	bmi fndout                          ; EA1B 30 08                    0.
+	adc keysiz,y                        ; EA1D 79 8D 03                 y..
+	bcc findlp                          ; EA20 90 F7                    ..
+	inx                                 ; EA22 E8                       .
+	bne findlp                          ; EA23 D0 F4                    ..
+fndout: rts                                 ; EA25 60                       `
 ; -------------------------------------------------------------------------------------------------
 ; EA26 Calculate tabulator position
-gettab: tya                                     ; EA26 98                       .
-	and     #$07                            ; EA27 29 07                    ).
-	tax                                     ; EA29 AA                       .
-	lda     bits,x                          ; EA2A BD EF EC                 ...
-	sta     bitmsk                          ; EA2D 8D 88 03                 ...
-	tya                                     ; EA30 98                       .
-	lsr                                     ; EA31 4A                       J
-	lsr                                     ; EA32 4A                       J
-	lsr                                     ; EA33 4A                       J
-	tax                                     ; EA34 AA                       .
-	lda     tab,x                           ; EA35 BD A1 03                 ...
-	bit     bitmsk                          ; EA38 2C 88 03                 ,..
-	rts                                     ; EA3B 60                       `
-
+gettab: tya                                 ; EA26 98                       .
+	and #$07                            ; EA27 29 07                    ).
+	tax                                 ; EA29 AA                       .
+	lda bits,x                          ; EA2A BD EF EC                 ...
+	sta bitmsk                          ; EA2D 8D 88 03                 ...
+	tya                                 ; EA30 98                       .
+	lsr                                 ; EA31 4A                       J
+	lsr                                 ; EA32 4A                       J
+	lsr                                 ; EA33 4A                       J
+	tax                                 ; EA34 AA                       .
+	lda tab,x                           ; EA35 BD A1 03                 ...
+	bit bitmsk                          ; EA38 2C 88 03                 ,..
+	rts                                 ; EA3B 60                       `
 ; -------------------------------------------------------------------------------------------------
 ; EA3C Handle an escape sequence
 escape: and #$7F
@@ -2452,14 +2450,13 @@ escape: and #$7F
 escrts: rts
 ; -------------------------------------------------------------------------------------------------
 ; EA46 Call an escape sequence routine
-escgo:  asl                                     ; EA46 0A                       .
-	tax                                     ; EA47 AA                       .
-	lda     escvct+1,x                     ; EA48 BD 52 EA                 .R.
-	pha                                     ; EA4B 48                       H
-	lda     escvct,x                       ; EA4C BD 51 EA                 .Q.
-	pha                                     ; EA4F 48                       H
-	rts                                     ; EA50 60                       `
-
+escgo:  asl                                 ; EA46 0A                       .
+	tax                                 ; EA47 AA                       .
+	lda escvct+1,x                     ; EA48 BD 52 EA                 .R.
+	pha                                 ; EA4B 48                       H
+	lda escvct,x                       ; EA4C BD 51 EA                 .Q.
+	pha                                 ; EA4F 48                       H
+	rts                                 ; EA50 60                       `
 ; -------------------------------------------------------------------------------------------------
 ; EA51 Escape sequence table
 escvct:	!word auton-1		; a Auto insert
