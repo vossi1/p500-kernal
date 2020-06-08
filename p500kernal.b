@@ -10,7 +10,9 @@
 ; v1.7 moved tx-routines in the correct place = 100% identical to cbm2 04a kernal
 ; v1.8 basic SYS patched - now to selected bank -> Basic $8063 csys vector =  $EDDC-1: $DB, $ED
 ; v1.9 movchar single line screen, slow scroll preserve flags patches rev -03 kernal
-; v2.0 added complete rev -03 new patched key functions in the editor 
+; v2.0 added complete rev -03 new patched key functions in the editor
+; v2.1 optional solid Atari Style cursor ;)
+;
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -18,11 +20,13 @@
 ;STANDARD_FKEYS	= 1	; Standard F-keys
 ;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
 ;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
-			;   with vram in bank 0 the kernal doesnt write the color in bank1 15!
-SYSPATCH	= 1	; patched Basic SYS command
-SOLID_CURSOR	= 1
+CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
+BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
+			;   with vram in bank 0 the kernal doesnt write the color in bank 15!
+SYSPATCH	= 1	; patched Basic SYS command to start code in all banks
+			;   for a return is the txjump kernal part in the ram bank necessary! 
+			;   the patched basic lo with the new sys-vector is also necessary 
+SOLID_CURSOR	= 1	; solid "Atari style cursor"
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
