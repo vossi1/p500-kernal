@@ -2289,159 +2289,172 @@ scnk10:	eor #$80		; inverse char
 	jsr dspp		; print (reversed) char
 
 ; E933 Poll the keyboard and place the result into the kbd buffer
-key:    ldy #$FF                            ; E933 A0 FF                    ..
-	sty modkey                          ; E935 84 E0                    ..
-	sty norkey                          ; E937 84 E1                    ..
-	iny                                 ; E939 C8                       .
-	sty tpi2+pb                         ; E93A 8C 01 DF                 ...
-	sty tpi2+pa                         ; E93D 8C 00 DF                 ...
-	jsr getkey                          ; E940 20 EA E9                  ..
-	and #$3F                            ; E943 29 3F                    )?
-	eor #$3F                            ; E945 49 3F                    I?
-	beq nulxit                          ; E947 F0 76                    .v
-	lda #$FF                            ; E949 A9 FF                    ..
-	sta tpi2+pa                         ; E94B 8D 00 DF                 ...
-	asl                                 ; E94E 0A                       .
-	sta tpi2+pb                         ; E94F 8D 01 DF                 ...
-	jsr getkey                          ; E952 20 EA E9                  ..
-	pha                                 ; E955 48                       H
-	sta modkey                          ; E956 85 E0                    ..
-	ora #$30                            ; E958 09 30                    .0
-	bne line01                          ; E95A D0 03                    ..
-linelp: jsr getkey                          ; E95C 20 EA E9                  ..
-line01: ldx #$05                            ; E95F A2 05                    ..
-kyloop: lsr                                 ; E961 4A                       J
-	bcc havkey                          ; E962 90 10                    ..
-	iny                                 ; E964 C8                       .
-	dex                                 ; E965 CA                       .
-	bpl kyloop                          ; E966 10 F9                    ..
-	sec                                 ; E968 38                       8
-	rol tpi2+pb                         ; E969 2E 01 DF                 ...
-	rol tpi2+pa                         ; E96C 2E 00 DF                 ...
-	bcs linelp                          ; E96F B0 EB                    ..
-	pla                                 ; E971 68                       h
-	bcc nulxit                          ; E972 90 4B                    .K
-havkey: ldx normtb,y                        ; E974 BE B1 EA                 ...
-	sty norkey                          ; E977 84 E1                    ..
-	pla                                 ; E979 68                       h
-	asl                                 ; E97A 0A                       .
-	asl                                 ; E97B 0A                       .
-	asl                                 ; E97C 0A                       .
-	bcc doctl                           ; E97D 90 0E                    ..
-	bmi havasc                          ; E97F 30 0F                    0.
-	ldx shfttb,y                        ; E981 BE 11 EB                 ...
-	lda grmode                          ; E984 A5 CC                    ..
-	bne havasc                          ; E986 D0 08                    ..
-	ldx shftgr,y                        ; E988 BE 71 EB                 .q.
-	bne havasc                          ; E98B D0 03                    ..
-doctl:  ldx ctltbl,y                        ; E98D BE D1 EB                 ...
-havasc: cpx #$FF                            ; E990 E0 FF                    ..
-	beq keyxit                          ; E992 F0 2D                    .-
-	txa                                 ; E994 8A                       .
-	cmp #$E0                            ; E995 C9 E0                    ..
-	bcc notfun                          ; E997 90 09                    ..
-	tya                                 ; E999 98                       .
-	pha                                 ; E99A 48                       H
-	jsr funjmp                          ; E99B 20 F3 E9                  ..
-	pla                                 ; E99E 68                       h
-	tay                                 ; E99F A8                       .
-	bcs keyxit                          ; E9A0 B0 1F                    ..
+key:    ldy #$FF
+	sty modkey
+	sty norkey
+	iny
+	sty tpi2+pb
+	sty tpi2+pa
+	jsr getkey
+	and #$3F
+	eor #$3F
+	beq nulxit
+	lda #$FF
+	sta tpi2+pa
+	asl
+	sta tpi2+pb
+	jsr getkey
+	pha
+	sta modkey
+	ora #$30
+	bne line01
+linelp: jsr getkey
+line01: ldx #5
+kyloop: lsr
+	bcc havkey
+	iny
+	dex
+	bpl kyloop
+	sec
+	rol tpi2+pb
+	rol tpi2+pa
+	bcs linelp
+	pla
+	bcc nulxit
+;      get pet-ascii using keyboard index and shift and control inputs
+havkey: ldx normtb,y
+	sty norkey
+	pla
+	asl
+	asl
+	asl
+	bcc doctl
+	bmi havasc
+	ldx shfttb,y
+	lda grmode
+	bne havasc
+	ldx shftgr,y
+	bne havasc
+doctl:  ldx ctltbl,y
+; y-reg has keyboard index value
+; x-reg has pet-ascii value
+havasc: cpx #$FF
+	beq keyxit
+	txa
+	cmp #$E0
+	bcc notfun
+	tya
+	pha
+	jsr funjmp
+	pla
+	tay
+	bcs keyxit
 ; E9A2 Not a function key
-notfun: txa                                 ; E9A2 8A                       .
-	cpy lstx                            ; E9A3 C4 CD                    ..
-	beq dorpt                           ; E9A5 F0 27                    .'
-	ldx #$13                            ; E9A7 A2 13                    ..
-	stx delay                           ; E9A9 86 D8                    ..
-	ldx ndx                             ; E9AB A6 D1                    ..
-	cpx #$09                            ; E9AD E0 09                    ..
-	beq nulxit                          ; E9AF F0 0E                    ..
-	cpy #$59                            ; E9B1 C0 59                    .Y
-	bne savkey                          ; E9B3 D0 29                    .)
-	cpx #$08                            ; E9B5 E0 08                    ..
-	beq nulxit                          ; E9B7 F0 06                    ..
-	sta keyd,x                          ; E9B9 9D AB 03                 ...
-	inx                                 ; E9BC E8                       .
-	bne savkey                          ; E9BD D0 1F                    ..
-nulxit: ldy #$FF                            ; E9BF A0 FF                    ..
-keyxit: sty lstx                            ; E9C1 84 CD                    ..
-keyxt2: ldx #$7F                            ; E9C3 A2 7F                    ..
-	stx tpi2+pa                         ; E9C5 8E 00 DF                 ...
-	ldx #$FF                            ; E9C8 A2 FF                    ..
-	stx tpi2+pb                         ; E9CA 8E 01 DF                 ...
-	rts                                 ; E9CD 60                       `
-; -------------------------------------------------------------------------------------------------
-; E9CE Handle key repeat
-dorpt:  dec delay                           ; E9CE C6 D8                    ..
-	bpl keyxt2                          ; E9D0 10 F1                    ..
-	inc delay                           ; E9D2 E6 D8                    ..
-	dec rptcnt                          ; E9D4 C6 D7                    ..
-	bpl keyxt2                          ; E9D6 10 EB                    ..
-	inc rptcnt                          ; E9D8 E6 D7                    ..
-	ldx ndx                             ; E9DA A6 D1                    ..
-	bne keyxt2                          ; E9DC D0 E5                    ..
-; E9DE Store key in keyboard buffer
-savkey: sta keyd,x                          ; E9DE 9D AB 03                 ...
-	inx                                 ; E9E1 E8                       .
-	stx ndx                             ; E9E2 86 D1                    ..
-	ldx #$03                            ; E9E4 A2 03                    ..
-	stx rptcnt                          ; E9E6 86 D7                    ..
-	bne keyxit                          ; E9E8 D0 D7                    ..
+notfun: txa
+	cpy lstx
+; Time through
+	beq dorpt
+; A new key input - check queue availability
+	ldx #$13
+	stx delay
+	ldx ndx
+	cpx #$09
+	beq nulxit
+	cpy #$59
+	bne savkey
+	cpx #$08
+	beq nulxit
+	sta keyd,x
+	inx
+	bne savkey
+
+nulxit: ldy #$FF
+keyxit: sty lstx
+keyxt2: ldx #$7F
+	stx tpi2+pa
+	ldx #$FF
+	stx tpi2+pb
+	rts
+; E9CE Check repeat delays
+dorpt:  dec delay
+	bpl keyxt2
+	inc delay
+; Check if secondary count down to zero
+	dec rptcnt
+	bpl keyxt2
+	inc rptcnt
+; Time to repeat - check if key queue empty
+	ldx ndx
+	bne keyxt2
+; E9DE Save pet-ascii into key buffer
+savkey: sta keyd,x
+	inx
+	stx ndx
+	ldx #3
+	stx rptcnt
+	bne keyxit
 ; E9EA Read keyboard matrix and debounce
-getkey: lda tpi2+pc                         ; E9EA AD 02 DF                 ...
-	cmp tpi2+pc                         ; E9ED CD 02 DF                 ...
-	bne getkey                          ; E9F0 D0 F8                    ..
-	rts                                 ; E9F2 60                       `
+getkey: lda tpi2+pc
+	cmp tpi2+pc
+	bne getkey
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; E9F3 Jump vector: Called when a function key has been pressed
-funjmp: jmp (funvec)                        ; E9F3 6C B5 03                 l..
+funjmp: jmp (funvec)
 ; -------------------------------------------------------------------------------------------------
-; E9F6
-funkey: cpy lstx                            ; E9F6 C4 CD                    ..
-	beq funrts                          ; E9F8 F0 19                    ..
-	lda ndx                             ; E9FA A5 D1                    ..
-	ora kyndx                           ; E9FC 05 D6                    ..
-	bne funrts                          ; E9FE D0 13                    ..
-	sta keyidx                          ; EA00 8D 89 03                 ...
-	txa                                 ; EA03 8A                       .
-	and #$1F                            ; EA04 29 1F                    ).
-	tay                                 ; EA06 A8                       .
-	lda keysiz,y                        ; EA07 B9 8D 03                 ...
-	sta kyndx                           ; EA0A 85 D6                    ..
-	jsr findky                          ; EA0C 20 15 EA                  ..
-	sta keypnt                          ; EA0F 85 C2                    ..
-	stx keypnt+1                        ; EA11 86 C3                    ..
-; EA13 Default function key handler
-funrts: sec                                 ; EA13 38                       8
-	rts                                 ; EA14 60                       `
+; E9F6 Default function key handler
+dokeyf: cpy lstx
+	beq funrts
+	lda ndx
+	ora kyndx
+	bne funrts
+	sta keyidx
+	txa
+	and #$1F
+	tay
+	lda keysiz,y
+	sta kyndx
+	jsr findky
+	sta keypnt
+	stx keypnt+1
+
+funrts: sec
+	rts
 ; -------------------------------------------------------------------------------------------------
-; EA15 Find a function key definition
-findky: lda pkybuf                          ; EA15 A5 C0                    ..
-	ldx pkybuf+1                        ; EA17 A6 C1                    ..
-findlp: clc                                 ; EA19 18                       .
-	dey                                 ; EA1A 88                       .
-	bmi fndout                          ; EA1B 30 08                    0.
-	adc keysiz,y                        ; EA1D 79 8D 03                 y..
-	bcc findlp                          ; EA20 90 F7                    ..
-	inx                                 ; EA22 E8                       .
-	bne findlp                          ; EA23 D0 F4                    ..
-fndout: rts                                 ; EA25 60                       `
+; EA15 Find address of function key given in y-reg
+findky: lda pkybuf
+	ldx pkybuf+1
+findlp: clc
+	dey
+	bmi fndout
+	adc keysiz,y
+	bcc findlp
+	inx
+	bne findlp
+
+fndout: rts
 ; -------------------------------------------------------------------------------------------------
-; EA26 Calculate tabulator position
-gettab: tya                                 ; EA26 98                       .
-	and #$07                            ; EA27 29 07                    ).
-	tax                                 ; EA29 AA                       .
-	lda bits,x                          ; EA2A BD EF EC                 ...
-	sta bitmsk                          ; EA2D 8D 88 03                 ...
-	tya                                 ; EA30 98                       .
-	lsr                                 ; EA31 4A                       J
-	lsr                                 ; EA32 4A                       J
-	lsr                                 ; EA33 4A                       J
-	tax                                 ; EA34 AA                       .
-	lda tab,x                           ; EA35 BD A1 03                 ...
-	bit bitmsk                          ; EA38 2C 88 03                 ,..
-	rts                                 ; EA3B 60                       `
+; EA26 Tab set-up (tab positioner)
+; y=column in question
+gettab: tya
+	and #$07
+	tax
+	lda bits,x
+	sta bitmsk
+	tya
+	lsr
+	lsr
+	lsr
+	tax
+	lda tab,x
+	bit bitmsk
+	rts
 ; -------------------------------------------------------------------------------------------------
-; EA3C Handle an escape sequence
+;************************************************************
+;*  routines involved in executing escape functions
+;************************************************************
+; EA3C Main escape sequence handler
+; entry: character following escape character in acc.
 escape: and #$7F
 	sec
 	sbc #$41
@@ -2449,14 +2462,14 @@ escape: and #$7F
 	bcc escgo
 escrts: rts
 ; -------------------------------------------------------------------------------------------------
-; EA46 Call an escape sequence routine
-escgo:  asl                                 ; EA46 0A                       .
-	tax                                 ; EA47 AA                       .
-	lda escvct+1,x                     ; EA48 BD 52 EA                 .R.
-	pha                                 ; EA4B 48                       H
-	lda escvct,x                       ; EA4C BD 51 EA                 .Q.
-	pha                                 ; EA4F 48                       H
-	rts                                 ; EA50 60                       `
+; EA46 Get address of escape routine, and go to it.
+escgo:  asl
+	tax
+	lda escvct+1,x
+	pha
+	lda escvct,x
+	pha
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; EA51 Escape sequence table
 escvct:	!word auton-1		; a Auto insert
@@ -2769,7 +2782,7 @@ tvic:	!byte $1B,$00,$00,$00,$00,$08,$00,$40
 	!byte BGRCOL
 ; -------------------------------------------------------------------------------------------------
 ; ED08 Extended editor vector table (copied to $3B5)
-edvect:	!word funkey
+edvect:	!word dokeyf
 	!word wrvram
 	!word wrcram
 	!word nofunc
