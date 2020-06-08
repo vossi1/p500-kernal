@@ -15,13 +15,13 @@
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
-STANDARD_FKEYS	= 1	; Standard F-keys
-FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-;CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
-;BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
+;STANDARD_FKEYS	= 1	; Standard F-keys
+;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+CBMPATCH	= 1	; CBM B-series patches, Vossi $3BF patches
+BANK15_VIDEO	= 1	; Superfast Video with vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank1 15!
-;SYSPATCH	= 1	; patched Basic SYS command
+SYSPATCH	= 1	; patched Basic SYS command
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -1845,229 +1845,217 @@ logsw:	lda #0
 	sta logscr		; store flag: $00 = disable, $80 = enable
 	rts
 ; -------------------------------------------------------------------------------------------------
-!ifdef CBMPATCH{
-; E7A0 Not used - removed in patch 3
-unused:	rts		; something related to $03BF
-			;   code removed to free space for new f-key functions below
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+; E7A0 This function is not used - removed in patch 3
+unused:	rts			; something related to $03BF
+				;   code removed to free space for new f-key functions below
 ; -------------------------------------------------------------------------------------------------
-keyfun
-	sei             ;prevent fight over variables with keyscan...
+; ********** Patched new f-key functions with sei/cli and chr$(141) for shift-return **********
+keyfun: sei			; prevent fight over variables with keyscan...
 	dey
-	bmi listky      ;do list if no parameters given
-	jmp addkey      ;- else go add a new key definition
-;
-;   list key defintions
-;
-listky	ldy #0          ;initialize key counter
-;
-listlp
-	iny
+	bmi listky		; do list if no parameters given
+	jmp addkey		; - else go add a new key definition
+
+; list key defintions
+listky:	ldy #0			; initialize key counter
+
+listlp:	iny
 	sty sedt1
-	dey             ;minus 1 for indexing
-	lda keysiz,y    ;get key length
-	beq nodefn      ;no listing if no defintion
-	sta keyidx      ;save key length
-	jsr findky      ;get buffer start addr for function key
+	dey			; minus 1 for indexing
+	lda keysiz,y		; get key length
+	beq nodefn		; no listing if no defintion
+	sta keyidx		; save key length
+	jsr findky		; get buffer start addr for function key
 	sta keypnt
-	stx keypnt+1    ;save 2 byte address in temp loc
+	stx keypnt+1		; save 2 byte address in temp loc
+; print 'key ' preamble
 	ldx #3
-;
-preamb	lda keword,x    ;print 'key ' preamble
+preamb:	lda keword,x
 	jsr bsout
 	dex
 	bpl preamb
-;
-	ldx #$2f
-	lda sedt1       ;get key number
+; convert to 1 or 2 digit ascii
+	ldx #$2F
+	lda sedt1		; get key number
 	sec
-ky2asc	inx             ;convert to 1 or 2 digit ascii
+ky2asc:	inx			; .x=$30, if two digits it will inc to $31
 	sbc #10
-	bcs ky2asc
-	adc #$3a        ;add 10 & make ascii
+	bcs ky2asc		; repeat if >9
+	adc #$3A		; add 10 & make ascii
 	cpx #$30
-	beq nosec       ;skip 2nd digit print
-	pha             ;save first digit-10
+	beq nosec		; skip 2nd digit print
+	pha			; save first digit-10
 	txa
-	jsr bsout       ;print second digit
-	pla             ;restore first digit-10
-;
-nosec
-	jsr bsout       ;print first digit
-	ldy #0          ;init string position counter
-	lda #','        ;for comma print
-lstk20	jsr bsout       ;print char - comma or plus-sign
-	ldx #7          ;for chr$ printing - no plus-sign or quote to preceed
-txtprt
-	jsr pagkey      ;make sure function key ram page
-	lda (keypnt),y  ;get byte
-	jsr pagres
+	jsr bsout		; print second digit
+	pla			; restore first digit-10
+; print key string
+nosec:	jsr bsout		; print first digit
+	ldy #0			; init string position counter
+	lda #','		; for comma print
+lstk20:	jsr bsout		; print char - comma or plus-sign
+	ldx #7			; for chr$ printing - no plus-sign or quote to preceed
+txtprt:	jsr pagkey		; switch to bank with function keys
+	lda (keypnt),y		; get byte
+	jsr pagres		; restore indirect bank
 	cmp #13
-	beq lstkcr      ;print chr$(13) for return
+	beq lstkcr		; print chr$(13) for return
 	cmp #141
-	beq lstksc      ;print chr$(141) for return
+	beq lstksc		; print chr$(141) for shift-return
 	cmp #34
-	beq lstkqt      ;print chr$(34) for quote
-	cpx #9          ;was a normal char printed last time
-	beq lstk10      ;yes - skip ahead
-	pha             ;save char
+	beq lstkqt		; print chr$(34) for quote
+	cpx #9			; was a normal char printed last time
+	beq lstk10		; yes - skip ahead
+	pha			; save char
 	lda #$22
-	jsr bsout       ;print a quote
-	pla             ;restore the char
-;
-lstk10	jsr bsout       ;print the char
-	ldx #9          ;for chr$ - print quote and plus next time
+	jsr bsout		; print a quote
+	pla			; restore the char
+
+lstk10:	jsr bsout		; print the char
+	ldx #9			; for chr$ - print quote and plus next time
 	iny
 	cpy keyidx
-	bne txtprt      ;loop to end of string
-;
+	bne txtprt		; loop to end of string
+
 	lda #$22
-	jsr bsout       ;print ending quote
-;
-lstk30
-	lda #$0d
-	jsr bsout       ;do a return
-nodefn
-	ldy sedt1       ;get key number
+	jsr bsout		; print ending quote
+
+lstk30:	lda #$0D
+	jsr bsout		; do a return
+
+nodefn:	ldy sedt1		; get key number
 	cpy #pgmkys
-	bne listlp      ;loop til all keys checked
-	cli             ;all done...clear the keyscan holdoff
-	clc             ;okay return always
+	bne listlp		; loop til all keys checked
+
+	cli			; all done...clear the keyscan holdoff
+	clc			; okay return always
 	rts
-;
-lstkcr	ldx #qtword-cdword-1 ;index for return
-	!byte $2c        ;skip 2
-lstksc	ldx #addkey-cdword-1 ;index for shifted-return
-	!byte $2c        ;skip 2
-lstkqt	ldx #scword-cdword-1 ;index for quote
-;
-lstk	txa             ;save value index....
-	pha             ;save .x
-	ldx #crword-cdword-1 ;print chr$(
-lstklp	lda cdword,x    ;print loop
-	beq lstk40      ;zero is end...
-	jsr bsout       ;
+
+lstkcr:	ldx #qtword-cdword-1	; index for return
+	!byte $2c		; skip 2
+lstksc:	ldx #addkey-cdword-1	; index for shifted-return
+	!byte $2c		; skip 2
+lstkqt:	ldx #scword-cdword-1	; index for quote
+
+lstk:	txa			; save value index....
+	pha			; save .x
+	ldx #crword-cdword-1	; print chr$(
+lstklp:	lda cdword,x		; print loop
+	beq lstk40		; zero is end...
+	jsr bsout
 	dex
 	bpl lstklp
-	pla             ;move number and repeat
-	tax
-	bne lstklp
-;
-lstk40	iny
-	cpy keyidx
-	beq lstk30      ;exit if all string printed
-	lda #'+'         ;set to print plus sign
-	bne lstk20      ;return to routine
-;
-;
-keword	!pet " yek"
-cdword	!pet "($rhc+",$22
-crword	!pet 0,")31"
-qtword	!pet 0,")43"
-scword	!pet 0,")141"
 
-;   insert a new key defintion
-addkey
-	pha             ;save zero page address of params
+	pla			; move number and repeat
 	tax
-	sty sedt1       ;save key number in temp loc
-	lda $0,x        ;get new string length
+	bne lstklp		; loop again for 'xxx)' ending part
+
+lstk40:	iny
+	cpy keyidx
+	beq lstk30		; exit if all string printed
+	lda #'+'		; set to print plus sign
+	bne lstk20		; return to routine
+
+keword:	!pet " yek"
+cdword:	!pet "($rhc+",$22
+crword:	!pet 0,")31"
+qtword:	!pet 0,")43"
+scword:	!pet 0,")141"
+
+; insert a new key defintion
+addkey:	pha			; save zero page address of params
+	tax
+	sty sedt1		; save key number in temp loc
+	lda $0,x		; get new string length
 	sec
-	sbc keysiz,y    ;subtract old length
-	sta sedt2       ;save difference in temp location
-	ror fktmp       ;save the carry
+	sbc keysiz,y		; subtract old length
+	sta sedt2		; save difference in temp location
+	ror fktmp		; save the carry
 	iny
-	jsr findky      ;find start addr of next function key
+	jsr findky		; find start addr of next function key
 	sta sedsal
-	stx sedsal+1    ;save 2 byte address in temp loc
+	stx sedsal+1		; save 2 byte address in temp loc
 	ldy #pgmkys
-	jsr findky      ;find end of last function key
+	jsr findky		; find end of last function key
 	sta sedeal
-	stx sedeal+1    ;save next free byte addr in temp loc
-	ldy fktmp       ;check if new string is longer or shorter
-	bpl keysho      ;skip ahead if shorter
+	stx sedeal+1		; save next free byte addr in temp loc
+	ldy fktmp		; check if new string is longer or shorter
+	bpl keysho		; skip ahead if shorter
 	clc
-	sbc pkyend      ;subtract last available adress
+	sbc pkyend		; subtract last available adress
 	tay
 	txa
 	sbc pkyend+1
 	tax
 	tya
 	clc
-	adc sedt2       ;add difference
+	adc sedt2		; add difference
 	txa
 	adc #0
-	bcs kyxit       ;skip if memory not full
+	bcs kyxit		; exit if no room, skip if memory not full
 
-; expand or contract key area to make room for new
-;   key definition.
-keysho
-	jsr pagkey      ;set up function key ram page
-kymove
-	lda sedeal
-	clc             ;check if entire area expanded or contracted
+; expand or contract key area to make room for new key definition.
+keysho:	jsr pagkey		; set up function key ram page
+kymove:	lda sedeal
+	clc			; check if entire area expanded or contracted
 	sbc sedsal
 	lda sedeal+1
 	sbc sedsal+1
-	bcc keyins      ;go insert new key defintion if yes
+	bcc keyins		; go insert new key defintion if yes
 	ldy #0
-	lda fktmp       ;check if expand or contract
-	bpl kshort      ;skip if needs to be contracted
+	lda fktmp		; check if expand or contract
+	bpl kshort		; skip if needs to be contracted
+
 	lda sedeal
-	bne newky4      ;dec 1 from source addr
-	dec sedeal+1    ;sub 1 for borrow
-newky4
-	dec sedeal
-	lda (sedeal),y  ;move 1 byte up to expand
-	ldy sedt2       ;get offset = difference
-	sta (sedeal),y  ;move byte up
-	jmp kymove      ;loop until all bytes moved
-kshort
-	lda (sedsal),y  ;get source byte
-	ldy sedt2       ;get offset = difference
-	dec sedsal+1    ;sub 1 to move down
-	sta (sedsal),y  ;move the byte down
+	bne newky4		; dec 1 from source addr
+	dec sedeal+1		; sub 1 for borrow
+newky4:	dec sedeal
+	lda (sedeal),y		; move 1 byte up to expand
+	ldy sedt2		; get offset = difference
+	sta (sedeal),y		; move byte up
+	jmp kymove		; loop until all bytes moved
+
+kshort:	lda (sedsal),y		; get source byte
+	ldy sedt2		; get offset = difference
+	dec sedsal+1		; sub 1 to move down
+	sta (sedsal),y		; move the byte down
 	inc sedsal+1
-	inc sedsal      ;move source up 1 byte
+	inc sedsal		; move source up 1 byte
 	bne kymove
-	inc sedsal+1    ;add 1 for carry
-	bne kymove      ;always
-;
+	inc sedsal+1		; add 1 for carry
+	bne kymove		; always
 ;  insert the new string defintion
-;
-keyins
-	ldy sedt1       ;get the key index
-	jsr findky      ;find buffer start address for this key
+keyins:	ldy sedt1		; get the key index
+	jsr findky		; find buffer start address for this key
 	sta sedsal
-	stx sedsal+1    ;save 2 byte address in temp loc
+	stx sedsal+1		; save 2 byte address in temp loc
 	ldy sedt1
 	pla
 	pha
-	tax             ;get zero page addr of params
-	lda $0,x
-	sta keysiz,y    ;save key length
+	tax			; get zero page addr of params
+	lda $00,x
+	sta keysiz,y		; save key length
 	tay
-	beq kyinok      ;equal to zero no keys...exit
-	lda $1,x        ;get & save low byte of string address
+	beq kyinok		; equal to zero no keys...exit
+	lda $01,x		; get & save low byte of string address
 	sta sedeal
-	lda $2,x        ;get & save high byte of string address
+	lda $02,x		; get & save high byte of string address
 	sta sedeal+1
-kyinlp
-	dey
-	lda $3,x        ;get string ram page
+
+kyinlp:	dey
+	lda $03,x		; get string ram page
 	sta i6509
-	lda (sedeal),y  ;get byte
-	jsr pagres      ;restore original ram page
-	jsr pagkey      ;set up function key ram page
-	sta (sedsal),y  ;store into buffer
-	tya             ;.y flags...end?
-	bne kyinlp      ;no... loop
-kyinok
-	jsr pagres
-	clc             ;for good exit carry clear
-kyxit	pla             ;pop zero page address for params
-	cli             ;all done...release keyscan
-; only RTS used for: 'unused' - removed in patch 3
-	rts             ; c-set is memory full error
+	lda (sedeal),y		; get byte
+	jsr pagres		; restore indirect bank
+	jsr pagkey		; switch to indirect bank with key buffer
+	sta (sedsal),y		; store into buffer
+	tya			; .y flags...end?
+	bne kyinlp		; no... loop
+
+kyinok:	jsr pagres		; restore indirect bank
+	clc			; for good exit carry clear
+kyxit:	pla			; pop zero page address for params
+	cli			; all done...release keyscan
+	rts			; c-set is memory full error
 } else{			; ********* OLD version without chr$(141) and sei/cli
 ; -------------------------------------------------------------------------------------------------
 ; E7A0 Not used - removed in patch 3
@@ -2800,7 +2788,7 @@ coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ; -------------------------------------------------------------------------------------------------
 ; ED22 Unused space
 	!byte $00
-!ifdef CBMPATCH{
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
 ;**************************************************
 ; patch1 - checks for a single line window
 ;          aborts if so...
