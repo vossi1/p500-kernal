@@ -17,16 +17,16 @@
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
-;STANDARD_FKEYS	= 1	; Standard F-keys
-;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
-BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
+STANDARD_FKEYS	= 1	; Standard F-keys
+FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+;CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
+;BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank 15!
-SYSPATCH	= 1	; patched Basic SYS command to start code in all banks
+;SYSPATCH	= 1	; patched Basic SYS command to start code in all banks
 			;   for a return is the txjump kernal part in the ram bank necessary! 
 			;   the patched basic lo with the new sys-vector is also necessary 
-SOLID_CURSOR	= 1	; solid "Atari style cursor"
+;SOLID_CURSOR	= 1	; solid "Atari style cursor"
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -183,7 +183,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	; Editor variables for speed & size
 	tblx		= $CA		; Cursor line
 	pntr		= $CB		; Cursor column
-	grmode		= $CC		; Graphic/text mode flag
+	grmode		= $CC		; Graphic/text mode flag $00=graphic, $02=text
 	lstx		= $CD		; Last character index
 	lstp		= $CE		; Screen editor start position
 	lsxp		= $CF		; Screen editor start row
@@ -2303,53 +2303,57 @@ scnk10:	eor #$80		; inverse char
 	jsr dspp		; print (reversed) char
 *= $E933
 ; E933 Poll the keyboard and place the result into the kbd buffer
-key:    ldy #$FF
+key:    ldy #$FF		; say no keys pressed (real-time keyscan)
 	sty modkey
 	sty norkey
-	iny
-	sty tpi2+pb
+	iny			; init base kybd index = 0
+	sty tpi2+pb		; allow all output lines
 	sty tpi2+pa
-	jsr getkey
-	and #$3F
+	jsr getkey		; get keybd input
+	and #$3F		; check if any inputs
 	eor #$3F
-	beq nulxit
+	beq nulxit		; exit if none
 	lda #$FF
-	sta tpi2+pa
+	sta tpi2+pa		; allow only output line 0
 	asl
 	sta tpi2+pb
-	jsr getkey
-	pha
-	sta modkey
-	ora #$30
+	jsr getkey		; get input from line 0
+	pha			; save shift & control bits
+	sta modkey		; shift keys are down
+	ora #$30		; mask them by setting bits
 	bne line01
-linelp: jsr getkey
-line01: ldx #5
-kyloop: lsr
-	bcc havkey
-	iny
+
+linelp: jsr getkey		; get line inputs
+line01: ldx #5			; loop for 6 input lines
+kyloop: lsr			; check line
+	bcc havkey		; skip ahead if have input
+	iny			; inc keyd code count
 	dex
 	bpl kyloop
+
 	sec
-	rol tpi2+pb
-	rol tpi2+pa
-	bcs linelp
-	pla
-	bcc nulxit
+	rol tpi2+pb		; rotate to activate next
+	rol tpi2+pa		; - output line
+	bcs linelp		; loop until all lines done
+
+	pla			; clear shift/control byte
+	bcc nulxit		; exit if no key
 ;      get pet-ascii using keyboard index and shift and control inputs
 havkey: ldx normtb,y
-	sty norkey
-	pla
+	sty norkey		; have a normal keypress
+	pla			; get shift/control byte
 	asl
+	asl			; move bits left
 	asl
-	asl
-	bcc doctl
-	bmi havasc
-	ldx shfttb,y
-	lda grmode
-	bne havasc
-	ldx shftgr,y
-	bne havasc
-doctl:  ldx ctltbl,y
+	bcc doctl		; skip ahead if control depressed
+	bmi havasc		; skip ahead if not shifted - have ascii
+	ldx shfttb,y		; assume shited textual
+	lda grmode		; test text or graphic mode
+	bne havasc		; have key if text mode
+	ldx shftgr,y		; get shifted graphic
+	bne havasc		; go process ascii key
+
+doctl:	ldx ctltbl,y		; get pet-ascii char for this key
 ; y-reg has keyboard index value
 ; x-reg has pet-ascii value
 havasc: cpx #$FF
