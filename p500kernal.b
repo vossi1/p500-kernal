@@ -3559,13 +3559,11 @@ LF1BF:  jsr     clrch                          ; F1BF 20 CC FF                  
 	lda     #$00                            ; F1C2 A9 00                    ..
 	clc                                     ; F1C4 18                       .
 	jmp     close                          ; F1C5 4C C3 FF                 L..
-
 ; -------------------------------------------------------------------------------------------------
 ; F1C8
-	!byte   $EA,$EA
+	!byte $EA,$EA
 ; -------------------------------------------------------------------------------------------------
 ; F1CA ##### messages #####
-kmsgtab:
 ms1:	!pet $0D,"i/o error ",$A3
 ms5:	!pet $0D,"searching",$A0
 ms6:	!pet "for",$A0
@@ -3580,8 +3578,8 @@ ms34:	!pet $0D,"** monitor 1.0 **",$8D
 ms36:	!pet $0D,"brea",$CB
 ; -------------------------------------------------------------------------------------------------
 ; F223 Print message to screen only if output enabled
-spmsg:	bit msgflg      ;printing messages?
-	bpl msg10       ;no...
+spmsg:	bit msgflg		; printing messages?
+	bpl msg10		; no...
 msg:	lda ms1,y
 	php
 	and #$7F
@@ -3591,6 +3589,7 @@ msg:	lda ms1,y
 	bpl msg
 msg10:	clc
 	rts
+*= $F237
 ; -------------------------------------------------------------------------------------------------
 ; F237 Output talk on IEC bus
 ntalk:   ora     #$40                            ; F237 09 40                    .@
