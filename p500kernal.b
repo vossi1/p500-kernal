@@ -3138,7 +3138,7 @@ cmds:	!pet ':'		; alter memory
 	!word unitd
 cmdend:
 ; -------------------------------------------------------------------------------------------------
-; EEF5 Monitor command 'x' (exit)
+; EEF5 Exit 'x'
 xeit:	pla			; remove command return from stack
 	pla
 	sei			; disable interrupts...all warm start code expects
@@ -3181,123 +3181,144 @@ crlf:   lda #$0D		; do carriage return
 regk:	!pet $0D,"  "		; 3 spaces
 	!pet " pc "," irq "," sr ac xr yr sp"
 ; -------------------------------------------------------------------------------------------------
-; EF41 Monitor command 'r' (regs)
-dsplyr:  ldx     #$00                            ; EF41 A2 00                    ..
-LEF43:  lda     regk,x                       ; EF43 BD 26 EF                 .&.
-	jsr     bsout                          ; EF46 20 D2 FF                  ..
-	inx                                     ; EF49 E8                       .
-	cpx     #$1B                            ; EF4A E0 1B                    ..
-	bne     LEF43                           ; EF4C D0 F5                    ..
-	lda     #$3B                            ; EF4E A9 3B                    .;
-	jsr     altrit                          ; EF50 20 13 EF                  ..
-	ldx     pch                             ; EF53 A6 AE                    ..
-	ldy     pcl                             ; EF55 A4 AF                    ..
-	jsr     hex4                            ; EF57 20 F9 F0                  ..
-	jsr     space                           ; EF5A 20 1B EF                  ..
-	ldx     invh                            ; EF5D A6 B7                    ..
-	ldy     invl                            ; EF5F A4 B8                    ..
-	jsr     hex4                            ; EF61 20 F9 F0                  ..
-	jsr     setr                            ; EF64 20 04 EF                  ..
-LEF67:  sta     tmpc                            ; EF67 85 BD                    ..
-	ldy     #$00                            ; EF69 A0 00                    ..
-	sty     fnlen                           ; EF6B 84 9D                    ..
-LEF6D:  jsr     space                           ; EF6D 20 1B EF                  ..
-	lda     (tmp0),y                        ; EF70 B1 B9                    ..
-	jsr     hex2                            ; EF72 20 FE F0                  ..
-	inc     tmp0                            ; EF75 E6 B9                    ..
-	bne     LEF7F                           ; EF77 D0 06                    ..
-	inc     tmp0+1                          ; EF79 E6 BA                    ..
-	bne     LEF7F                           ; EF7B D0 02                    ..
-	dec     fnlen                           ; EF7D C6 9D                    ..
-LEF7F:  dec     tmpc                            ; EF7F C6 BD                    ..
-	bne     LEF6D                           ; EF81 D0 EA                    ..
-	rts                                     ; EF83 60                       `
+; EF41 Display register function 'r'
+dsplyr:	ldx #0
+d2:	lda regk,x
+	jsr bsout		; print heading
+	inx
+	cpx #dsplyr-regk		; max length
+	bne d2
+	lda #';'
+	jsr altrit		; allow alter after display
+	ldx pch
+	ldy pcl
+	jsr wroa		; print program counter
+	jsr space
+	ldx invh
+	ldy invl
+	jsr wroa		; print irq vector
+	jsr setr		; set to print .p,.a,.x,.y,.s
 
+; display memory subroutine
+dm:	sta tmpc		; byte count
+	ldy #0			; indirect index
+	sty fnlen		; fnlen is zero-page crossing flag...
+dm1:	jsr space		; space tween bytes
+	lda (tmp0),y
+	jsr wrob		; write byte of memory
+
+; increment indirect
+	inc tmp0
+	bne dm2
+	inc tmp0+1
+	bne dm2			; no zero page crossing
+	dec fnlen		; fnlen<>0 is flag
+
+dm2:	dec tmpc		; count bytes
+	bne dm1			; until zero
+	rts
 ; -------------------------------------------------------------------------------------------------
-; EF84 Monitor command 'm' (memory dump)
-dsplym:  jsr     rdfour                          ; EF84 20 26 F1                  &.
-	bcs     LEFC2                           ; EF87 B0 39                    .9
-	jsr     xchgtmp                         ; EF89 20 16 F1                  ..
-	jsr     rdfour                          ; EF8C 20 26 F1                  &.
-	bcc     LEF99                           ; EF8F 90 08                    ..
-	lda     tmp2                            ; EF91 A5 BB                    ..
-	sta     tmp0                            ; EF93 85 B9                    ..
-	lda     tmp2+1                          ; EF95 A5 BC                    ..
-	sta     tmp0+1                          ; EF97 85 BA                    ..
-LEF99:  jsr     xchgtmp                         ; EF99 20 16 F1                  ..
-LEF9C:  jsr     stop                           ; EF9C 20 E1 FF                  ..
-	beq     LEFC1                           ; EF9F F0 20                    . 
-	lda     #$3A                            ; EFA1 A9 3A                    .:
-	jsr     altrit                          ; EFA3 20 13 EF                  ..
-	ldx     tmp0+1                          ; EFA6 A6 BA                    ..
-	ldy     tmp0                            ; EFA8 A4 B9                    ..
-	jsr     hex4                            ; EFAA 20 F9 F0                  ..
-	lda     #$08                            ; EFAD A9 08                    ..
-	jsr     LEF67                           ; EFAF 20 67 EF                  g.
-	lda     fnlen                           ; EFB2 A5 9D                    ..
-	bne     LEFC1                           ; EFB4 D0 0B                    ..
-	sec                                     ; EFB6 38                       8
-	lda     tmp2                            ; EFB7 A5 BB                    ..
-	sbc     tmp0                            ; EFB9 E5 B9                    ..
-	lda     tmp2+1                          ; EFBB A5 BC                    ..
-	sbc     tmp0+1                          ; EFBD E5 BA                    ..
-	bcs     LEF9C                           ; EFBF B0 DB                    ..
-LEFC1:  rts                                     ; EFC1 60                       `
+; EF84 Display memory function 'm'
+dsplym:	jsr rdoa		; read start adr
+	bcs dsperr		; ...err if no sa
+	jsr t2t2		; sa to tmp2
 
-LEFC2:  jmp     erropr                          ; EFC2 4C 50 EE                 LP.
+; allow user to type just one address
+	jsr rdoa		; read end adr
+	bcc dsp123		; good...no default
 
+	lda tmp2
+	sta tmp0		; default low byte
+	lda tmp2+1
+	sta tmp0+1		; default hi byte
+
+dsp123:	jsr t2t2		; sa to tmp0, ea to tmp2
+dsp1:	jsr stop		; stop key?
+	beq beqs1		; yes...break list
+
+	lda #':'
+	jsr altrit		; allow alter
+	ldx tmp0+1
+	ldy tmp0
+	jsr wroa		; write start address
+
+	lda #$08		; count of bytes
+	jsr dm			; display bytes
+
+	lda fnlen		; check for zero-crossing
+	bne beqs1		; yup....
+	sec
+	lda tmp2
+	sbc tmp0
+	lda tmp2+1
+	sbc tmp0+1
+	bcs dsp1		; end >= start
+
+beqs1:	rts			; a.o.k. exit
+
+dsperr:	jmp erropr
 ; -------------------------------------------------------------------------------------------------
-; EFC5 Monitor command ';' (set registers)
-altr:jsr     rdfour                          ; EFC5 20 26 F1                  &.
-	bcs     LEFC2                           ; EFC8 B0 F8                    ..
-	jsr     putp                           ; EFCA 20 FB EE                  ..
-	jsr     rdfour                          ; EFCD 20 26 F1                  &.
-	bcs     LEFC2                           ; EFD0 B0 F0                    ..
-	lda     tmp0                            ; EFD2 A5 B9                    ..
-	sta     invl                            ; EFD4 85 B8                    ..
-	lda     tmp0+1                          ; EFD6 A5 BA                    ..
-	sta     invh                            ; EFD8 85 B7                    ..
-	jsr     setr                            ; EFDA 20 04 EF                  ..
-	bne     LEFFE                           ; EFDD D0 1F                    ..
-; EFDF Monitor command 'v' (set bank)
-view:  jsr     rdtwo                           ; EFDF 20 33 F1                  3.
-	bcs     LEFC2                           ; EFE2 B0 DE                    ..
-	cmp     #$10                            ; EFE4 C9 10                    ..
-	bcs     LEFC2                           ; EFE6 B0 DA                    ..
-	sta     i6509                           ; EFE8 85 01                    ..
-	rts                                     ; EFEA 60                       `
+; EFC5 Alter register function ';'
+altr:	jsr rdoa		; read new pc
+	bcs dsperr		; ...no address=error
 
+	jsr putp		; alter pc
+
+	jsr rdoa		; read new irq
+	bcs dsperr		; ...no address=error
+
+	lda tmp0
+	sta invl		; alter irq vector
+	lda tmp0+1
+	sta invh
+
+	jsr setr		; set to alter r's
+	bne a4			; branch always
+
+; EFDF View a segment (point indirect) 'v'
+view:	jsr rdob		; get a byte
+	bcs dsperr		; ...if none...error
+	cmp #16			; range 0-15
+	bcs dsperr		; to large no modulo
+	sta i6509
+	rts
 ; -------------------------------------------------------------------------------------------------
-; EFEB Monitor command 'u' (unit)
-unitd: jsr     rdtwo                           ; EFEB 20 33 F1                  3.
-	bcs     LEFC2                           ; EFEE B0 D2                    ..
-	cmp     #$20                            ; EFF0 C9 20                    . 
-	bcs     LEFC2                           ; EFF2 B0 CE                    ..
-	sta     ddisk                           ; EFF4 85 BF                    ..
-	rts                                     ; EFF6 60                       `
-
+; EFEB Unit default for disk 'u'
+unitd:	jsr rdob		; get a byte
+	bcs dsperr		; ...if none...error
+	cmp #32			; range 0-31
+	bcs dsperr		; to large no modulo
+	sta ddisk
+	rts
 ; -------------------------------------------------------------------------------------------------
-; EFF7 Monitor command ':' (set memory)
-altm:jsr     rdfour                          ; EFF7 20 26 F1                  &.
-	bcs     LEFC2                           ; EFFA B0 C6                    ..
-	lda     #$08                            ; EFFC A9 08                    ..
-LEFFE:  sta     tmpc                            ; EFFE 85 BD                    ..
--       jsr     rdtwo                           ; F000 20 33 F1                  3.
-	bcs     ++                              ; F003 B0 0E                    ..
-	ldy     #$00                            ; F005 A0 00                    ..
-	sta     (tmp0),y                        ; F007 91 B9                    ..
-	inc     tmp0                            ; F009 E6 B9                    ..
-	bne     +                               ; F00B D0 02                    ..
-	inc     tmp0+1                          ; F00D E6 BA                    ..
-+       dec     tmpc                            ; F00F C6 BD                    ..
-	bne     -                               ; F011 D0 ED                    ..
-++      rts                                     ; F013 60                       `
+; EFF7 Alter memory - read adr and data ':'
+altm:	jsr rdoa		; read alter adr
+	bcs dsperr		; ...if none...error
 
+	lda #8			; allow 8 bytes change
+
+; common code for ':' and ';'
+a4:	sta tmpc		; number of bytes to change
+
+a5:	jsr rdob		; read byte
+	bcs a9
+
+	ldy #0
+	sta (tmp0),y		; store it away
+
+; increment store address
+	inc tmp0
+	bne a6
+	inc tmp0+1
+
+a6:	dec tmpc		; count byte
+	bne a5			; until zero
+a9:	rts
 ; -------------------------------------------------------------------------------------------------
 ; F014 Monitor command 'g' (go)
 go:    jsr     rdone                           ; F014 20 62 F1                  b.
 	beq     LF021                           ; F017 F0 08                    ..
-	jsr     rdfour                          ; F019 20 26 F1                  &.
+	jsr     rdoa                          ; F019 20 26 F1                  &.
 	bcs     LF040                           ; F01C B0 22                    ."
 	jsr     putp                           ; F01E 20 FB EE                  ..
 LF021:  ldx     sp                              ; F021 A6 B4                    ..
@@ -3362,20 +3383,20 @@ LF089:  jsr     rdone                           ; F089 20 62 F1                 
 	beq     LF077                           ; F08C F0 E9                    ..
 	cmp     #$2C                            ; F08E C9 2C                    .,
 LF090:  bne     LF061                           ; F090 D0 CF                    ..
-	jsr     rdtwo                           ; F092 20 33 F1                  3.
+	jsr     rdob                           ; F092 20 33 F1                  3.
 	bcs     LF0F6                           ; F095 B0 5F                    ._
 	sta     fa                              ; F097 85 9F                    ..
 	jsr     rdone                           ; F099 20 62 F1                  b.
 	beq     LF077                           ; F09C F0 D9                    ..
 	cmp     #$2C                            ; F09E C9 2C                    .,
 LF0A0:  bne     LF090                           ; F0A0 D0 EE                    ..
-	jsr     rdtwo                           ; F0A2 20 33 F1                  3.
+	jsr     rdob                           ; F0A2 20 33 F1                  3.
 	bcs     LF0F6                           ; F0A5 B0 4F                    .O
 	cmp     #$10                            ; F0A7 C9 10                    ..
 	bcs     LF0F6                           ; F0A9 B0 4B                    .K
 	sta     t6509                           ; F0AB 85 BE                    ..
 	sta     stas                            ; F0AD 85 9B                    ..
-	jsr     rdfour                          ; F0AF 20 26 F1                  &.
+	jsr     rdoa                          ; F0AF 20 26 F1                  &.
 	bcs     LF0F6                           ; F0B2 B0 42                    .B
 	lda     tmp0                            ; F0B4 A5 B9                    ..
 	sta     stal                            ; F0B6 85 99                    ..
@@ -3385,12 +3406,12 @@ LF0A0:  bne     LF090                           ; F0A0 D0 EE                    
 	beq     LF077                           ; F0BF F0 B6                    ..
 	cmp     #$2C                            ; F0C1 C9 2C                    .,
 	bne     LF0F6                           ; F0C3 D0 31                    .1
-	jsr     rdtwo                           ; F0C5 20 33 F1                  3.
+	jsr     rdob                           ; F0C5 20 33 F1                  3.
 	bcs     LF0F6                           ; F0C8 B0 2C                    .,
 	cmp     #$10                            ; F0CA C9 10                    ..
 	bcs     LF0F6                           ; F0CC B0 28                    .(
 	sta     eas                             ; F0CE 85 98                    ..
-	jsr     rdfour                          ; F0D0 20 26 F1                  &.
+	jsr     rdoa                          ; F0D0 20 26 F1                  &.
 	bcs     LF0F6                           ; F0D3 B0 21                    .!
 	lda     tmp0                            ; F0D5 A5 B9                    ..
 	sta     eal                             ; F0D7 85 96                    ..
@@ -3412,57 +3433,56 @@ LF0F6:  jmp     erropr                          ; F0F6 4C 50 EE                 
 
 ; -------------------------------------------------------------------------------------------------
 ; F0F9 Output X/Y as 4 hex bytes
-hex4:   txa                                     ; F0F9 8A                       .
-	jsr     hex2                            ; F0FA 20 FE F0                  ..
+wroa:   txa                                     ; F0F9 8A                       .
+	jsr     wrob                            ; F0FA 20 FE F0                  ..
 	tya                                     ; F0FD 98                       .
 ; F0FE Output A as two hex bytes
-hex2:   pha                                     ; F0FE 48                       H
+wrob:   pha                                     ; F0FE 48                       H
 	lsr                                     ; F0FF 4A                       J
 	lsr                                     ; F100 4A                       J
 	lsr                                     ; F101 4A                       J
 	lsr                                     ; F102 4A                       J
-	jsr     hex1                            ; F103 20 0A F1                  ..
+	jsr     ascii                            ; F103 20 0A F1                  ..
 	tax                                     ; F106 AA                       .
 	pla                                     ; F107 68                       h
 	and     #$0F                            ; F108 29 0F                    ).
 ; F10A Output low nibble of A as one hex byte
-hex1:   clc                                     ; F10A 18                       .
-	adc     #$F6                            ; F10B 69 F6                    i.
-	bcc     LF111                           ; F10D 90 02                    ..
-	adc     #$06                            ; F10F 69 06                    i.
-LF111:  adc     #$3A                            ; F111 69 3A                    i:
-	jmp     bsout                          ; F113 4C D2 FF                 L..
-
+ascii	clc
+	adc #$f6
+	bcc asc1
+	adc #$06
+asc1	adc #$3a
+	jmp bsout
 ; -------------------------------------------------------------------------------------------------
-; F116 Exchange tmp0 and invl
-xchgtmp:ldx     #$02                            ; F116 A2 02                    ..
--       lda     invl,x                          ; F118 B5 B8                    ..
-	pha                                     ; F11A 48                       H
-	lda     tmp0+1,x                        ; F11B B5 BA                    ..
-	sta     invl,x                          ; F11D 95 B8                    ..
-	pla                                     ; F11F 68                       h
-	sta     tmp0+1,x                        ; F120 95 BA                    ..
-	dex                                     ; F122 CA                       .
-	bne     -                               ; F123 D0 F3                    ..
-	rts                                     ; F125 60                       `
-
+; F116 Exchange temporaries
+;
+t2t2:	ldx #2
+t2t21:	lda tmp0-1,x
+	pha
+	lda tmp2-1,x
+	sta tmp0-1,x 
+	pla
+	sta tmp2-1,x
+	dex
+	bne t2t21
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; F126 Read 4 chars from input into tmp0/tmp0+1
-rdfour: jsr     rdtwo                           ; F126 20 33 F1                  3.
+rdoa: jsr     rdob                           ; F126 20 33 F1                  3.
 	bcs     +                               ; F129 B0 07                    ..
 	sta     tmp0+1                          ; F12B 85 BA                    ..
-	jsr     rdtwo                           ; F12D 20 33 F1                  3.
+	jsr     rdob                           ; F12D 20 33 F1                  3.
 	sta     tmp0                            ; F130 85 B9                    ..
 +       rts                                     ; F132 60                       `
 
 ; -------------------------------------------------------------------------------------------------
 ; F133 Read 2 chars from input into A
-rdtwo:  lda     #$00                            ; F133 A9 00                    ..
+rdob:  lda     #$00                            ; F133 A9 00                    ..
 	sta     stack                           ; F135 8D 00 01                 ...
 	jsr     rdone                           ; F138 20 62 F1                  b.
 	beq     +                               ; F13B F0 19                    ..
 	cmp     #$20                            ; F13D C9 20                    . 
-	beq     rdtwo                           ; F13F F0 F2                    ..
+	beq     rdob                           ; F13F F0 F2                    ..
 	jsr     hexit                           ; F141 20 57 F1                  W.
 	asl                                     ; F144 0A                       .
 	asl                                     ; F145 0A                       .
