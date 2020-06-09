@@ -2277,14 +2277,22 @@ kyinok: jsr pagres    		; restore indirect bank
 scnkey: jsr junkwn2		; vector -> nofunc (rts)
 	lda blnon
 	bne key			; skip if blinking cursor is off (run mode)
-!ifdef SOLID_CURSOR{
+
+!ifdef SOLID_CURSOR{		; ********** Solid cursor patch ***********
 	lda blnsw
 	bne key			; skip if cursor already visible
 	
 	inc blnsw		; set visibility switch
 	jsr get1ch		; get char and color under cursor
 	ldx gdcol
-} else{
+	sta config		; remember char under cursor
+	ldx tcolor
+	stx gdcol		; remember char color
+	ldx color		; load actual color
+scnk10:	eor #$80		; inverse char
+	jsr dspp		; print (reversed) char
+	jmp key
+} else{				; ********** Blinking standard cursor **********
 	dec blncnt
 	bne key			; skip if blink counter not zero
 	lda #20
@@ -2294,15 +2302,15 @@ scnkey: jsr junkwn2		; vector -> nofunc (rts)
 	lsr blnsw		; reset blink switch
 	bcs scnk10		; if cursor is off -> reverse char
 	inc blnsw		; set blink switch
-}
 	sta config		; remember char under cursor
 	ldx tcolor
 	stx gdcol		; remember char color
 	ldx color		; load actual color
 scnk10:	eor #$80		; inverse char
 	jsr dspp		; print (reversed) char
+}
 *= $E933
-; E933 Poll the keyboard and place the result into the kbd buffer
+; E933 Keyboard scanner
 key:    ldy #$FF		; say no keys pressed (real-time keyscan)
 	sty modkey
 	sty norkey
@@ -2338,7 +2346,7 @@ kyloop: lsr			; check line
 
 	pla			; clear shift/control byte
 	bcc nulxit		; exit if no key
-;      get pet-ascii using keyboard index and shift and control inputs
+; get pet-ascii using keyboard index and shift and control inputs
 havkey: ldx normtb,y
 	sty norkey		; have a normal keypress
 	pla			; get shift/control byte
@@ -2357,67 +2365,71 @@ doctl:	ldx ctltbl,y		; get pet-ascii char for this key
 ; y-reg has keyboard index value
 ; x-reg has pet-ascii value
 havasc: cpx #$FF
-	beq keyxit
+	beq keyxit		; exit if null pet-ascii
 	txa
-	cmp #$E0
+	cmp #$E0		; check if function key
 	bcc notfun
 	tya
 	pha
-	jsr funjmp
+	jsr funjmp		; do function key indirect
 	pla
 	tay
-	bcs keyxit
+	bcs keyxit		; done if carry flag set
 ; E9A2 Not a function key
-notfun: txa
-	cpy lstx
+notfun: txa			; get pet-ascii code
+	cpy lstx		; check if same key as last
 ; Time through
-	beq dorpt
+	beq dorpt		; skip ahead if so
 ; A new key input - check queue availability
-	ldx #$13
-	stx delay
-	ldx ndx
-	cpx #$09
-	beq nulxit
-	cpy #$59
-	bne savkey
-	cpx #$08
-	beq nulxit
-	sta keyd,x
-	inx
-	bne savkey
+	ldx #19
+	stx delay		; reset initial delay count
+	ldx ndx			; get key-in queue size
+	cpx #keymax		; check if queue full
+	beq nulxit		; exit if yes
+	cpy #dblzer		; check if keypad - 00
+	bne savkey		; go save key-in if not
+	cpx #keymax-1		; check if room for two
+	beq nulxit		; exit if not
+	sta keyd,x		; save first zero
+	inx			; update queue size
+	bne savkey		; always
 
 nulxit: ldy #$FF
-keyxit: sty lstx
+keyxit: sty lstx		; save last key number
 keyxt2: ldx #$7F
-	stx tpi2+pa
-	ldx #$FF
+	stx tpi2+pa		; reset output lines to allow
+	ldx #$FF		; - stop key input
 	stx tpi2+pb
 	rts
+
 ; E9CE Check repeat delays
-dorpt:  dec delay
-	bpl keyxt2
-	inc delay
+dorpt:  dec delay		; dec initial delay count
+	bpl keyxt2		; exit if was not zero - still on 1st delay
+	inc delay		; - else reset count to zero
+
 ; Check if secondary count down to zero
-	dec rptcnt
-	bpl keyxt2
-	inc rptcnt
+	dec rptcnt		; dec repeat btwn keys
+	bpl keyxt2		; exit if was not zero - still on delay
+	inc rptcnt		; reset back to zero
+
 ; Time to repeat - check if key queue empty
-	ldx ndx
-	bne keyxt2
+	ldx ndx			; get kybd queue size
+	bne keyxt2		; exit if kybd queue not empty
+
 ; E9DE Save pet-ascii into key buffer
-savkey: sta keyd,x
+savkey: sta keyd,x		; store pet-ascii in kybd buffer
 	inx
 	stx ndx
 	ldx #3
-	stx rptcnt
+	stx rptcnt		; reset delay btwn keys
 	bne keyxit
 ; E9EA Read keyboard matrix and debounce
-getkey: lda tpi2+pc
+getkey: lda tpi2+pc		; debounce keyboard input
 	cmp tpi2+pc
 	bne getkey
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E9F3 Jump vector: Called when a function key has been pressed
+; E9F3 Jump vector: Function key indirect
 funjmp: jmp (funvec)
 ; -------------------------------------------------------------------------------------------------
 ; E9F6 Default function key handler
