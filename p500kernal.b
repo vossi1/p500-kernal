@@ -2945,7 +2945,6 @@ fligm:
 }
 ; ****************************************** KERNAL ***********************************************
 !zone kernal
-*= kernal+$E00
 ;************************************************
 ;* kernal monitor                               *
 ;*                                              *
@@ -2967,211 +2966,224 @@ fligm:
 ;* for syntax & semantics see cbm kernal manual *
 ;* copyright (c) 1981 by cbm                    *
 ;************************************************
-; EE00 Monitor entry after boot (no basic)
-monon:	jsr     ioinit                          ; EE00 20 FE F9                  ..
-	jsr     restor                          ; EE03 20 B1 FB                  ..
-	jsr     jcint                           ; EE06 20 04 E0                  ..
-; EE09 Monitor cold start
-monoff:	jsr     clrch                          ; EE09 20 CC FF                  ..
-	lda     #winit		; waste two bytes so timc=60950
-	ldx     #$00                            ; EE0E A2 00                    ..
-	ldy     #$EE                            ; EE10 A0 EE                    ..
-	jsr     vreset                          ; EE12 20 D9 FB                  ..
-	cli                                     ; EE15 58                       X
-; EE16 Monitor entry using SYS
-timc:   lda     #$C0                            ; EE16 A9 C0                    ..
-	sta     msgflg                          ; EE18 8D 61 03                 .a.
-	lda     #$40                            ; EE1B A9 40                    .@
-	sta     tmpc                            ; EE1D 85 BD                    ..
-	bne     b3                              ; EE1F D0 10                    ..
-; EE21 Monitor entry via BRK
-timb:   jsr     clrch                          ; EE21 20 CC FF                  ..
-	lda     #$53                            ; EE24 A9 53                    .S
-	sta     tmpc                            ; EE26 85 BD                    ..
-	cld                                     ; EE28 D8                       .
-	ldx     #$05                            ; EE29 A2 05                    ..
+; EE00 Reset entry
+*= kernal+$E00
+
+; ***** Warm start entry *******
+monon:	jsr ioinit		; get i/o
+	jsr restor		; vectors
+	jsr jcint		; screen editor
+
+; ***** Cold start entry ******
+monoff:	jsr clrch		; clear channels
+	lda #winit		; waste two bytes so timc=60950
+	ldx #<monon		; point reset vectors at monitor on
+	ldy #>monon
+	jsr vreset
+	cli			; release irq's
+
+; ***** Call entry *****
+timc:	lda #$40+$80
+	sta msgflg		; error+messages on
+	lda #ms34-ms1		; call entry
+	sta tmpc
+	bne b3			; branch always
+
+; ***** Break entry *****
+timb:	jsr clrch		; clr channels
+	lda #ms36-ms1		; break entry
+	sta tmpc
+	cld 
+
+; Save .y,.x,.a,flags, and pc
+	ldx #5
 ; EE2B Pop registers from stack and save them
-b2:     pla                                     ; EE2B 68                       h
-	sta     pch,x                           ; EE2C 95 AE                    ..
-	dex                                     ; EE2E CA                       .
-	bpl     b2                              ; EE2F 10 FA                    ..
-; EE31 Save indirect segment and other stuff
-b3:     lda     i6509                           ; EE31 A5 01                    ..
-	sta     xi6509                          ; EE33 85 B5                    ..
-	lda     cinv                            ; EE35 AD 00 03                 ...
-	sta     invl                            ; EE38 85 B8                    ..
-	lda     cinv+1                          ; EE3A AD 01 03                 ...
-	sta     invh                            ; EE3D 85 B7                    ..
-	tsx                                     ; EE3F BA                       .
-	stx     sp                              ; EE40 86 B4                    ..
-	cli                                     ; EE42 58                       X
-	lda     #$08                            ; EE43 A9 08                    ..
-	sta     ddisk                           ; EE45 85 BF                    ..
-	ldy     tmpc                            ; EE47 A4 BD                    ..
-	jsr     spmsg                           ; EE49 20 23 F2                  #.
-	lda     #$52                            ; EE4C A9 52                    .R
-	bne     mcmd                            ; EE4E D0 23                    .#
-; EE50 Invalid monitor input, print "?" + CR + "."
-erropr: jsr     outqst                          ; EE50 20 1E EF                  ..
-	pla                                     ; EE53 68                       h
-	pla                                     ; EE54 68                       h
-	lda     #$C0                            ; EE55 A9 C0                    ..
-	sta     msgflg                          ; EE57 8D 61 03                 .a.
-	lda     #$00                            ; EE5A A9 00                    ..
-	sta     fnadr                           ; EE5C 85 90                    ..
-	lda     #$02                            ; EE5E A9 02                    ..
-	sta     fnadr+1                         ; EE60 85 91                    ..
-	lda     #$0F                            ; EE62 A9 0F                    ..
-	sta     fnadr+2                         ; EE64 85 92                    ..
-	jsr     crlf                            ; EE66 20 21 EF                  !.
-st1:    jsr     basin                          ; EE69 20 CF FF                  ..
-	cmp     #$20                            ; EE6C C9 20                    . 
-	beq     st1                             ; EE6E F0 F9                    ..
-	jmp     (usrcmd)                        ; EE70 6C 1E 03                 l..
+b1:	pla
+	sta pch,x
+	dex
+	bpl b1
 
-; -------------------------------------------------------------------------------------------------
-; EE73 Search for a monitor command in the table
-mcmd:   ldx     #$00                            ; EE73 A2 00                    ..
-	stx     fnlen                           ; EE75 86 9D                    ..
-	tay                                     ; EE77 A8                       .
-	lda     #$EE                            ; EE78 A9 EE                    ..
-	pha                                     ; EE7A 48                       H
-	lda     #$54                            ; EE7B A9 54                    .T
-	pha                                     ; EE7D 48                       H
-	tya                                     ; EE7E 98                       .
-s1:     cmp     cmds,x                          ; EE7F DD D1 EE                 ...
-	bne     s2                              ; EE82 D0 10                    ..
-	sta     savx                            ; EE84 8D 66 03                 .f.
-	lda     cmds+1,x                        ; EE87 BD D2 EE                 ...
-	sta     tmp0                            ; EE8A 85 B9                    ..
-	lda     cmds+2,x                        ; EE8C BD D3 EE                 ...
-	sta     tmp0+1                          ; EE8F 85 BA                    ..
-	jmp     (tmp0)                          ; EE91 6C B9 00                 l..
+b3:	lda i6509		; save indirection segment
+	sta xi6509
+	lda cinv
+	sta invl		; save irq low
+	lda cinv+1
+	sta invh		; save irq high
 
-; -------------------------------------------------------------------------------------------------
-; EE94 Increment X to point to next command in table
-s2:     inx                                     ; EE94 E8                       .
-	inx                                     ; EE95 E8                       .
-	inx                                     ; EE96 E8                       .
-	cpx     #$24                            ; EE97 E0 24                    .$
-	bcc     s1                              ; EE99 90 E4                    ..
-	ldx     #$00                            ; EE9B A2 00                    ..
-; EE9D Check for a disk command
-s3:     cmp     #$0D                            ; EE9D C9 0D                    ..
-	beq     s4                              ; EE9F F0 0D                    ..
-	cmp     #$20                            ; EEA1 C9 20                    . 
-	beq     s4                              ; EEA3 F0 09                    ..
-	sta     $0200,x                         ; EEA5 9D 00 02                 ...
-	jsr     basin                          ; EEA8 20 CF FF                  ..
-	inx                                     ; EEAB E8                       .
-	bne     s3                              ; EEAC D0 EF                    ..
-; EEAE Handle a disk command
-s4:     sta     tmpc                            ; EEAE 85 BD                    ..
-	txa                                     ; EEB0 8A                       .
-	beq     s5                              ; EEB1 F0 1D                    ..
-	sta     fnlen                           ; EEB3 85 9D                    ..
-	lda     #$40                            ; EEB5 A9 40                    .@
-	sta     msgflg                          ; EEB7 8D 61 03                 .a.
-	lda     ddisk                           ; EEBA A5 BF                    ..
-	sta     fa                              ; EEBC 85 9F                    ..
-	lda     #$0F                            ; EEBE A9 0F                    ..
-	sta     i6509                           ; EEC0 85 01                    ..
-	ldx     #$FF                            ; EEC2 A2 FF                    ..
-	ldy     #$FF                            ; EEC4 A0 FF                    ..
-	jsr     load                           ; EEC6 20 D5 FF                  ..
-	bcs     s5                              ; EEC9 B0 05                    ..
-	lda     tmpc                            ; EECB A5 BD                    ..
-	jmp     (stal)                          ; EECD 6C 99 00                 l..
+	tsx
+	stx sp			; save original sp
+	cli			; clear ints
+	lda #8			; set disk default to 8
+	sta ddisk
 
-s5:     rts                                     ; EED0 60                       `
+b5:	ldy tmpc		; message code
+	jsr spmsg		; print break/call
+
+	lda #'r'		; display regs on entry
+	bne s0			; branch always
+; EE50 ***** Error entry *****
+
+erropr:	jsr outqst
+	pla
+	pla
+
+; ***** Command interpreter entry *****
+
+strtm1=*-1
+	lda #$40+$80
+	sta msgflg		; i/o messages to screen
+	lda #<buf		; put filename at bottom of basic buffer
+	sta fnadr
+	lda #>buf
+	sta fnadr+1
+	lda #irom
+	sta fnadr+2
+	jsr crlf
+
+st1:	jsr basin		; read command
+
+	cmp #' '
+	beq st1			; span blanks
+	jmp (usrcmd)		; user indirect for monitor
 ; -------------------------------------------------------------------------------------------------
-; EED1 Table with monitor commands. One letter command followed by address.
-cmds:   !pet         ":"                                ; EED1 3A                       :
-	!word   msetmem                         ; EED2 F7 EF                    ..
+; EE73 Command interpreter
+s0:	ldx #0
+	stx fnlen
+	tay			; save current command
+
+; Put return address for commands on stack
+	lda #>strtm1
+	pha
+	lda #<strtm1
+	pha
+
+	tya			; current command in .a
+
+s1:	cmp cmds,x		; is it this one?
+	bne s2			; notit
+
+	sta savx		; save current command
+
+; Indirect jmp from table
+	lda cmds+1,x
+	sta tmp0
+	lda cmds+2,x
+	sta tmp0+1
+	jmp (tmp0)
 ; -------------------------------------------------------------------------------------------------
-	!pet         ";"                                ; EED4 3B                       ;
-	!word   msetreg                         ; EED5 C5 EF                    ..
+; EE94 Each table entry is 3 long---skip to next
+s2:	inx
+	inx
+	inx
+	cpx #cmdend-cmds
+	bcc s1			; loop for all commands
+
+; Command not in table...look on disk.
+; Command name can be any length and have parameters.
+	ldx #0			; length to zero
+s3:	cmp #$0D		; end of name?
+	beq s4			; yes...
+	cmp #' '		; blank?
+	beq s4			; yes
+	sta buf,x
+	jsr basin		; get next
+	inx			; count char
+	bne s3			; and continue
+
+s4:	sta tmpc
+	txa			; count
+	beq s6			; is zero
+
+	sta fnlen
+	lda #$40
+	sta msgflg		; messages off
+	lda ddisk
+	sta fa			; will use default disk
+	lda #irom		; commands only load to rom segment !!!***
+	sta i6509		; turn indirect to rom segment
+	ldx #$FF
+	ldy #$FF
+	jsr load		; try to load command
+	bcs s6			; bad load...
+
+	lda tmpc		; pass last character
+	jmp (stal)		; go do it
+
+s6:	rts
 ; -------------------------------------------------------------------------------------------------
-	!pet         "r"                                ; EED7 52                       R
-	!word   mregs                           ; EED8 41 EF                    A.
-; -------------------------------------------------------------------------------------------------
-	!pet         "m"                                ; EEDA 4D                       M
-	!word   mdump                           ; EEDB 84 EF                    ..
-; -------------------------------------------------------------------------------------------------
-	!pet         "g"                                ; EEDD 47                       G
-	!word   mgo                             ; EEDE 14 F0                    ..
-; -------------------------------------------------------------------------------------------------
-	!pet         "l"                                ; EEE0 4C                       L
-	!word   mload                           ; EEE1 43 F0                    C.
-; -------------------------------------------------------------------------------------------------
-	!pet         "s"                                ; EEE3 53                       S
-	!word   mload                           ; EEE4 43 F0                    C.
-; -------------------------------------------------------------------------------------------------
-	!pet         "v"                                ; EEE6 56                       V
-	!word   mbank                           ; EEE7 DF EF                    ..
-; -------------------------------------------------------------------------------------------------
-	!pet   "@"                                      ; EEE9 40                       @
-	!word   mdisk                           ; EEEA 68 F1                    h.
-; -------------------------------------------------------------------------------------------------
-	!pet         "z"                                ; EEEC 5A                       Z
-	!word   ipcgov                          ; EEED 72 FF                    r.
-; -------------------------------------------------------------------------------------------------
-	!pet         "x"                                ; EEEF 58                       X
-	!word   mexit                           ; EEF0 F5 EE                    ..
-; -------------------------------------------------------------------------------------------------
-	!pet         "u"                                ; EEF2 55                       U
-	!word   mdunit                          ; EEF3 EB EF                    ..
+; EED1 Command table
+cmds:	!pet ':'		; alter memory
+	!word altm
+	!pet ';'		; alter registers
+	!word altr
+	!pet 'r'		; display registers
+	!word dsplyr
+	!pet 'm'		; display memory
+	!word dsplym
+	!pet 'g'		; start execution
+	!word go
+	!pet 'l'		; load memory
+	!word ld
+	!pet 's'		; save memory
+	!word ld
+	!pet 'v'		; view segment
+	!word view
+	!pet '@'		; disk command (alternate)
+	!word disk
+	!pet 'z'		; transfer to 2nd microprocessor
+	!word ipcgov		; ipcgo vector
+	!pet 'x'		; warm start basic
+	!word xeit
+	!pet 'u'		; default disk unit set
+	!word unitd
+cmdend:
 ; -------------------------------------------------------------------------------------------------
 ; EEF5 Monitor command 'x' (exit)
-mexit:  pla                                     ; EEF5 68                       h
-	pla                                     ; EEF6 68                       h
-	sei                                     ; EEF7 78                       x
-	jmp     (evect)                         ; EEF8 6C F8 03                 l..
-
+xeit:	pla			; remove command return from stack
+	pla
+	sei			; disable interrupts...all warm start code expects
+	jmp (evect)		; go warmstart language
 ; -------------------------------------------------------------------------------------------------
 ; EEFB Move tmp0/tmp0+1 to PC memory location
-putpc:  lda     tmp0                            ; EEFB A5 B9                    ..
-	sta     pcl                             ; EEFD 85 AF                    ..
-	lda     tmp0+1                          ; EEFF A5 BA                    ..
-	sta     pch                             ; EF01 85 AE                    ..
-	rts                                     ; EF03 60                       `
-
+putp:	lda tmp0		; move tmp0 to pch,pcl
+	sta pcl
+	lda tmp0+1
+	sta pch
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; EF04 Set tmp0 to point to the saved regs in zero page
-setr:   lda     #<flgs                          ; EF04 A9 B0                    ..
-	sta     tmp0                            ; EF06 85 B9                    ..
-	lda     #>flgs                            ; EF08 A9 00                    ..
-	sta     tmp0+1                          ; EF0A 85 BA                    ..
-	lda     #$0F                            ; EF0C A9 0F                    ..
-	sta     i6509                           ; EF0E 85 01                    ..
-	lda     #$05                            ; EF10 A9 05                    ..
-	rts                                     ; EF12 60                       `
-
+setr:	lda #<flgs		; set to access regs
+	sta tmp0
+	lda #>flgs
+	sta tmp0+1
+	lda #irom		; point indirect at roms
+	sta i6509
+	lda #5
+	rts
 ; -------------------------------------------------------------------------------------------------
-; EF13 Print CR + '.' + A + ' '
-altrit: pha                                     ; EF13 48                       H
-	jsr     crlf                            ; EF14 20 21 EF                  !.
-	pla                                     ; EF17 68                       h
-	jsr     bsout                          ; EF18 20 D2 FF                  ..
-; Print ' '
-space:  lda     #$20                            ; EF1B A9 20                    . 
-!byte   $2C                                     ; EF1D 2C                       ,
-; Print '?'
-outqst: lda     #$3F                            ; EF1E A9 3F                    .?
-!byte   $2C                                     ; EF20 2C                       ,
-; Print CR + '.'
-crlf:   lda     #$0D                            ; EF21 A9 0D                    ..
-	jmp     bsout                          ; EF23 4C D2 FF                 L..
+; EF13 Prints '.:' or '.;' before data to permit alter after 'm' or 'r' command
 
+altrit: pha			; preserve alter character
+	jsr crlf
+	pla
+	jsr bsout
+
+space:  lda #' '		; output a space
+	!byte $2C		; skip two bytes
+
+outqst: lda #'?'		; output question
+	!byte $2C		; skip two bytes
+
+crlf:   lda #$0D		; do carriage return
+	jmp bsout
 ; -------------------------------------------------------------------------------------------------
-; EF26 Header for 'r' command
-reghead:
-	!byte   $0D
-	!pet   "   pc  irq  sr ac xr yr sp"
+; EF26 Data for register display heading
+regk:	!pet $0D,"  "		; 3 spaces
+	!pet " pc "," irq "," sr ac xr yr sp"
 ; -------------------------------------------------------------------------------------------------
 ; EF41 Monitor command 'r' (regs)
-mregs:  ldx     #$00                            ; EF41 A2 00                    ..
-LEF43:  lda     reghead,x                       ; EF43 BD 26 EF                 .&.
+dsplyr:  ldx     #$00                            ; EF41 A2 00                    ..
+LEF43:  lda     regk,x                       ; EF43 BD 26 EF                 .&.
 	jsr     bsout                          ; EF46 20 D2 FF                  ..
 	inx                                     ; EF49 E8                       .
 	cpx     #$1B                            ; EF4A E0 1B                    ..
@@ -3203,7 +3215,7 @@ LEF7F:  dec     tmpc                            ; EF7F C6 BD                    
 
 ; -------------------------------------------------------------------------------------------------
 ; EF84 Monitor command 'm' (memory dump)
-mdump:  jsr     rdfour                          ; EF84 20 26 F1                  &.
+dsplym:  jsr     rdfour                          ; EF84 20 26 F1                  &.
 	bcs     LEFC2                           ; EF87 B0 39                    .9
 	jsr     xchgtmp                         ; EF89 20 16 F1                  ..
 	jsr     rdfour                          ; EF8C 20 26 F1                  &.
@@ -3236,9 +3248,9 @@ LEFC2:  jmp     erropr                          ; EFC2 4C 50 EE                 
 
 ; -------------------------------------------------------------------------------------------------
 ; EFC5 Monitor command ';' (set registers)
-msetreg:jsr     rdfour                          ; EFC5 20 26 F1                  &.
+altr:jsr     rdfour                          ; EFC5 20 26 F1                  &.
 	bcs     LEFC2                           ; EFC8 B0 F8                    ..
-	jsr     putpc                           ; EFCA 20 FB EE                  ..
+	jsr     putp                           ; EFCA 20 FB EE                  ..
 	jsr     rdfour                          ; EFCD 20 26 F1                  &.
 	bcs     LEFC2                           ; EFD0 B0 F0                    ..
 	lda     tmp0                            ; EFD2 A5 B9                    ..
@@ -3248,7 +3260,7 @@ msetreg:jsr     rdfour                          ; EFC5 20 26 F1                 
 	jsr     setr                            ; EFDA 20 04 EF                  ..
 	bne     LEFFE                           ; EFDD D0 1F                    ..
 ; EFDF Monitor command 'v' (set bank)
-mbank:  jsr     rdtwo                           ; EFDF 20 33 F1                  3.
+view:  jsr     rdtwo                           ; EFDF 20 33 F1                  3.
 	bcs     LEFC2                           ; EFE2 B0 DE                    ..
 	cmp     #$10                            ; EFE4 C9 10                    ..
 	bcs     LEFC2                           ; EFE6 B0 DA                    ..
@@ -3257,7 +3269,7 @@ mbank:  jsr     rdtwo                           ; EFDF 20 33 F1                 
 
 ; -------------------------------------------------------------------------------------------------
 ; EFEB Monitor command 'u' (unit)
-mdunit: jsr     rdtwo                           ; EFEB 20 33 F1                  3.
+unitd: jsr     rdtwo                           ; EFEB 20 33 F1                  3.
 	bcs     LEFC2                           ; EFEE B0 D2                    ..
 	cmp     #$20                            ; EFF0 C9 20                    . 
 	bcs     LEFC2                           ; EFF2 B0 CE                    ..
@@ -3266,7 +3278,7 @@ mdunit: jsr     rdtwo                           ; EFEB 20 33 F1                 
 
 ; -------------------------------------------------------------------------------------------------
 ; EFF7 Monitor command ':' (set memory)
-msetmem:jsr     rdfour                          ; EFF7 20 26 F1                  &.
+altm:jsr     rdfour                          ; EFF7 20 26 F1                  &.
 	bcs     LEFC2                           ; EFFA B0 C6                    ..
 	lda     #$08                            ; EFFC A9 08                    ..
 LEFFE:  sta     tmpc                            ; EFFE 85 BD                    ..
@@ -3283,11 +3295,11 @@ LEFFE:  sta     tmpc                            ; EFFE 85 BD                    
 
 ; -------------------------------------------------------------------------------------------------
 ; F014 Monitor command 'g' (go)
-mgo:    jsr     rdone                           ; F014 20 62 F1                  b.
+go:    jsr     rdone                           ; F014 20 62 F1                  b.
 	beq     LF021                           ; F017 F0 08                    ..
 	jsr     rdfour                          ; F019 20 26 F1                  &.
 	bcs     LF040                           ; F01C B0 22                    ."
-	jsr     putpc                           ; F01E 20 FB EE                  ..
+	jsr     putp                           ; F01E 20 FB EE                  ..
 LF021:  ldx     sp                              ; F021 A6 B4                    ..
 	txs                                     ; F023 9A                       .
 	sei                                     ; F024 78                       x
@@ -3309,7 +3321,7 @@ LF040:  jmp     erropr                          ; F040 4C 50 EE                 
 
 ; -------------------------------------------------------------------------------------------------
 ; F043 Monitor commands 'l' and 's' (load & save)
-mload:  ldy     #$01                            ; F043 A0 01                    ..
+ld:  ldy     #$01                            ; F043 A0 01                    ..
 	sty     fa                              ; F045 84 9F                    ..
 	dey                                     ; F047 88                       .
 	lda     #$FF                            ; F048 A9 FF                    ..
@@ -3481,7 +3493,7 @@ rdone:  jsr     basin                          ; F162 20 CF FF                  
 
 ; -------------------------------------------------------------------------------------------------
 ; F168 Monitor command '@' (disk commands)
-mdisk:  lda     #$00                            ; F168 A9 00                    ..
+disk:  lda     #$00                            ; F168 A9 00                    ..
 	sta     status                          ; F16A 85 9C                    ..
 	sta     fnlen                           ; F16C 85 9D                    ..
 	ldx     ddisk                           ; F16E A6 BF                    ..
@@ -3532,47 +3544,33 @@ LF1BF:  jsr     clrch                          ; F1BF 20 CC FF                  
 ; F1C8
 	!byte   $EA,$EA
 ; -------------------------------------------------------------------------------------------------
-; F1CA Table with kernal messages
-kmsgtab:!byte   $0D                                     ; F1CA 0D                       .
-	!pet   "i/o error "                             ; F1CB 49 2F 4F 20 45 52 52 4F  I/O ERRO
-							; F1D3 52 20                    R 
-	!byte   $A3,$0D                                 ; F1D5 A3 0D                    ..
-	!pet   "searching"                              ; F1D7 53 45 41 52 43 48 49 4E  SEARCHIN
-							; F1DF 47                       G
-	!byte   $A0                                     ; F1E0 A0                       .
-	!pet   "for"                                    ; F1E1 46 4F 52                 FOR
-	!byte   $A0,$0D                                 ; F1E4 A0 0D                    ..
-	!pet   "loadin"                                 ; F1E6 4C 4F 41 44 49 4E        LOADIN
-	!byte   $C7,$0D                                 ; F1EC C7 0D                    ..
-	!pet   "saving"                                 ; F1EE 53 41 56 49 4E 47        SAVING
-	!byte   $A0,$0D                                 ; F1F4 A0 0D                    ..
-	!pet   "verifyin"                               ; F1F6 56 45 52 49 46 59 49 4E  VERIFYIN
-	!byte   $C7,$0D                                 ; F1FE C7 0D                    ..
-	!pet   "found"                                  ; F200 46 4F 55 4E 44           FOUND
-	!byte   $A0,$0D                                 ; F205 A0 0D                    ..
-	!pet   "ok"                                     ; F207 4F 4B                    OK
-	!byte   $8D,$0D                                 ; F209 8D 0D                    ..
-	!pet   "** monitor 1.0 **"                      ; F20B 2A 2A 20 4D 4F 4E 49 54  ** MONIT
-							; F213 4F 52 20 31 2E 30 20 2A  OR 1.0 *
-							; F21B 2A                       *
-	!byte   $8D,$0D                                 ; F21C 8D 0D                    ..
-	!pet   "brea"                                   ; F21E 42 52 45 41              BREA
-	!byte   $CB                                     ; F222 CB                       .
+; F1CA ##### messages #####
+kmsgtab:
+ms1:	!pet $0D,"i/o error ",$A3
+ms5:	!pet $0D,"searching",$A0
+ms6:	!pet "for",$A0
+;ms7:	!pet $0D,"press play on tap",$C5
+;ms8:	!pet "press record & play on tap",$C5
+ms10:	!pet $0D,"loadin",$C7
+ms11:	!pet $0D,"saving",$A0
+ms21:	!pet $0D,"verifyin",$C7
+ms17:	!pet $0D,"found",$A0
+ms18:	!pet $0D,"ok",$8D
+ms34:	!pet $0D,"** monitor 1.0 **",$8D
+ms36:	!pet $0D,"brea",$CB
 ; -------------------------------------------------------------------------------------------------
-; F223 Test error flag, print system message
-spmsg:  bit     msgflg                          ; F223 2C 61 03                 ,a.
-	bpl     LF235                           ; F226 10 0D                    ..
-; F228 Print system message, offset in Y
-msg:    lda     kmsgtab,y                       ; F228 B9 CA F1                 ...
-	php                                     ; F22B 08                       .
-	and     #$7F                            ; F22C 29 7F                    ).
-	jsr     bsout                          ; F22E 20 D2 FF                  ..
-	iny                                     ; F231 C8                       .
-	plp                                     ; F232 28                       (
-	bpl     msg                             ; F233 10 F3                    ..
-LF235:  clc                                     ; F235 18                       .
-	rts                                     ; F236 60                       `
-
+; F223 Print message to screen only if output enabled
+spmsg:	bit msgflg      ;printing messages?
+	bpl msg10       ;no...
+msg:	lda ms1,y
+	php
+	and #$7F
+	jsr bsout
+	iny
+	plp
+	bpl msg
+msg10:	clc
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; F237 Output talk on IEC bus
 ntalk:   ora     #$40                            ; F237 09 40                    .@
@@ -5202,7 +5200,7 @@ jmptab: !word kirq              ; FB09 -> FBF8
 	!word nclall            ; FB21 -> F686
 	!word nload              ; FB23 -> F74D
 	!word nsave              ; FB25 -> F853
-	!word mcmd              ; FB27 -> EE73
+	!word s0              ; FB27 -> EE73
 	!word jescrt           ; FB29 -> E01F
 	!word jescrt           ; FB2B -> E01F
 	!word nsecnd            ; FB2D -> F27B
