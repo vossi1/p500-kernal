@@ -2434,19 +2434,19 @@ funjmp: jmp (funvec)
 ; -------------------------------------------------------------------------------------------------
 ; E9F6 Default function key handler
 dokeyf: cpy lstx
-	beq funrts
+	beq funrts		; exit not allowed to repeat
 	lda ndx
 	ora kyndx
-	bne funrts
-	sta keyidx
+	bne funrts		; exit - function queue not empty
+	sta keyidx		; init pointer index into function area
 	txa
-	and #$1F
+	and #$1F		; mask out to get function key number
 	tay
-	lda keysiz,y
-	sta kyndx
+	lda keysiz,y		; get function key size
+	sta kyndx		; - and store it for key scan
 	jsr findky
-	sta keypnt
-	stx keypnt+1
+	sta keypnt		; get function start addr
+	stx keypnt+1		; - and save in keypnt
 
 funrts: sec
 	rts
@@ -2454,30 +2454,31 @@ funrts: sec
 ; EA15 Find address of function key given in y-reg
 findky: lda pkybuf
 	ldx pkybuf+1
+
 findlp: clc
-	dey
-	bmi fndout
-	adc keysiz,y
-	bcc findlp
+	dey			; found key yet?
+	bmi fndout		; yes - done
+	adc keysiz,y		; add function key size
+	bcc findlp		; loop if no high byte carry-over
 	inx
-	bne findlp
+	bne findlp		; loop - always
 
 fndout: rts
 ; -------------------------------------------------------------------------------------------------
 ; EA26 Tab set-up (tab positioner)
 ; y=column in question
-gettab: tya
+gettab: tya			; get bit in question
 	and #$07
 	tax
 	lda bits,x
 	sta bitmsk
-	tya
+	tya			; get 8 bit block
 	lsr
 	lsr
 	lsr
 	tax
 	lda tab,x
-	bit bitmsk
+	bit bitmsk		; set equal flag
 	rts
 ; -------------------------------------------------------------------------------------------------
 ;************************************************************
@@ -2487,19 +2488,19 @@ gettab: tya
 ; entry: character following escape character in acc.
 escape: and #$7F
 	sec
-	sbc #$41
-	cmp #$1A
-	bcc escgo
-escrts: rts
+	sbc #'a'		; table begins at ascii a
+	cmp #$1A		; 'z'-'a'+1
+	bcc escgo		; valid char, go get address
+escrts:	rts			; failed to find entry...ignore it!
 ; -------------------------------------------------------------------------------------------------
 ; EA46 Get address of escape routine, and go to it.
-escgo:  asl
+escgo:  asl			; multiply index by 2
 	tax
-	lda escvct+1,x
+	lda escvct+1,x		; get high byte
 	pha
-	lda escvct,x
+	lda escvct,x		; and low
 	pha
-	rts
+	rts			; and go to that address
 ; -------------------------------------------------------------------------------------------------
 ; EA51 Escape sequence table
 escvct:	!word auton-1		; a Auto insert
@@ -2530,37 +2531,37 @@ escvct:	!word auton-1		; a Auto insert
 	!word notimp-1		; z
 ; -------------------------------------------------------------------------------------------------
 ; EA85 Set top left window corner (esc-t)
-sethtt: clc                     ; set upper left corner with C=0
-	!byte $24               ; skip next instruction with bit $xx
+sethtt: clc			; set upper left corner with C=0
+	!byte $24		; skip next instruction with bit $xx
 ; EA87 Set bottom right window corner (esc-b)
-sethtb: sec                     ; set lower right corner with C=1
-window: ldx pntr                ; load cursor column
-	lda tblx                ; load cursour row
-	bcc settps              ; set upper left corner if C=0
-setbts: sta scbot               ; store last row
-	stx scrt                ; store last column
+sethtb: sec			; set lower right corner with C=1
+window: ldx pntr		; load cursor column
+	lda tblx		; load cursour row
+	bcc settps		; set upper left corner if C=0
+setbts: sta scbot		; store last row
+	stx scrt		; store last column
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; EA93 Set full screen window
 sreset: lda #scymax		; load last row, column of screen
 	ldx #scxmax
-	jsr setbts              ; et lower right corner
-	lda #$00                ; clear A, X to first row, column
+	jsr setbts		; set lower right corner
+	lda #0			; clear A, X to first row, column
 	tax
-settps: sta sctop               ; set first row
-	stx sclf                ; set first column
+settps: sta sctop		; set first row
+	stx sclf		; set first column
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; EAA2 Bell on (esc-g)
-bellon: lda #$00                ; $00 = bell on
+bellon: lda #0			; $00 = bell on
 ; EAA4 Bell off (esc-h)
-bellof:sta bellmd              ; store bell flag - any value = bell off
+bellof:sta bellmd		; store bell flag - any value = bell off
 ; EAA7 Not implemented escape sequences jump here
 notimp: rts
 ; -------------------------------------------------------------------------------------------------
 ; EAA8 Auto insert mode off (esc-c)
 autoff: lda #$00
-	!byte $2C               ; skips next instruction with bit $xxxx
+	!byte $2C		; skips next instruction
 ; EAAB Auto insert mode on (esc-a)
 auton:  lda #$FF
 	sta insflg
@@ -2704,21 +2705,89 @@ ctltbl:					; keyboard table... control characters, any mode
 	 !byte $ff,$97,$98,$9b,$ff,$ff
 ; -------------------------------------------------------------------------------------------------
 ; EC31 <SHIFT> <RUN/STOP> String: DLOAD "*" + RUN
-runtb:  !pet "d",$CC,$22        ; dL"
-	!pet "*",$0D            ; * <RETURN>
-	!pet "run",$0D          ; run <RETURN>
+runtb:  !pet "d",$CC,$22,"*",$0D	; dL"* <RETURN>
+	!pet "run",$0D          	; run <RETURN>
 ; -------------------------------------------------------------------------------------------------
 ;****** address of screen lines ******
-; EC3A Start of screen lines, low bytes
-ldtb2: !byte $00,$28,$50,$78,$A0,$C8,$F0,$18
-	!byte $40,$68,$90,$B8,$E0,$08,$30,$58
-	!byte $80,$A8,$D0,$F8,$20,$48,$70,$98
-	!byte $C0
-; EC53 Start of screen lines, high bytes
-ldtb1: !byte $D0,$D0,$D0,$D0,$D0,$D0,$D0,$D1
-	!byte $D1,$D1,$D1,$D1,$D1,$D2,$D2,$D2
-	!byte $D2,$D2,$D2,$D2,$D3,$D3,$D3,$D3
-	!byte $D3
+linz0	= scnram
+linz1	= linz0+llen
+linz2	= linz1+llen
+linz3	= linz2+llen
+linz4	= linz3+llen
+linz5	= linz4+llen
+linz6	= linz5+llen
+linz7	= linz6+llen
+linz8	= linz7+llen
+linz9	= linz8+llen
+linz10	= linz9+llen
+linz11	= linz10+llen
+linz12	= linz11+llen
+linz13	= linz12+llen
+linz14	= linz13+llen
+linz15	= linz14+llen
+linz16	= linz15+llen
+linz17	= linz16+llen
+linz18	= linz17+llen
+linz19	= linz18+llen
+linz20	= linz19+llen
+linz21	= linz20+llen
+linz22	= linz21+llen
+linz23	= linz22+llen
+linz24	= linz23+llen
+
+;****** screen lines lo byte table ******
+ldtb2:	!byte <linz0
+	!byte <linz1
+	!byte <linz2
+	!byte <linz3
+	!byte <linz4
+	!byte <linz5
+	!byte <linz6
+	!byte <linz7
+	!byte <linz8
+	!byte <linz9
+	!byte <linz10
+	!byte <linz11
+	!byte <linz12
+	!byte <linz13
+	!byte <linz14
+	!byte <linz15
+	!byte <linz16
+	!byte <linz17
+	!byte <linz18
+	!byte <linz19
+	!byte <linz20
+	!byte <linz21
+	!byte <linz22
+	!byte <linz23
+	!byte <linz24
+
+;****** screen lines hi byte table ******
+ldtb1:	!byte >linz0
+	!byte >linz1
+	!byte >linz2
+	!byte >linz3
+	!byte >linz4
+	!byte >linz5
+	!byte >linz6
+	!byte >linz7
+	!byte >linz8
+	!byte >linz9
+	!byte >linz10
+	!byte >linz11
+	!byte >linz12
+	!byte >linz13
+	!byte >linz14
+	!byte >linz15
+	!byte >linz16
+	!byte >linz17
+	!byte >linz18
+	!byte >linz19
+	!byte >linz20
+	!byte >linz21
+	!byte >linz22
+	!byte >linz23
+	!byte >linz24
 ; -------------------------------------------------------------------------------------------------
 ; EC6C Dispatch table (control codes $00-$1F, $80-$9F)
 ctable:	!word cuser-1
@@ -2754,52 +2823,58 @@ ctable:	!word cuser-1
 	!word chkcol-1		; green/yellow
 	!word chkcol-1		; blue/cyan
 ; -------------------------------------------------------------------------------------------------
-!ifdef STANDARD_FKEYS{          ; ********** Standard F-keys **********
 ; ECAC Length of function key texts
-keylen: !byte $05,$04,$06,$06,$05,$06,$04,$09
-	!byte $07,$05                   ; 57 bytes keydef-text
+keylen: !byte key2-key1
+	!byte key3-key2
+	!byte key4-key3
+	!byte key5-key4
+	!byte key6-key5
+	!byte key7-key6
+	!byte key8-key7
+	!byte key9-key8
+	!byte key10-key9
+	!byte keyend-key10                   ; 57 bytes keydef-text
+
+!ifdef STANDARD_FKEYS{          ; ********** Standard F-keys **********
 ; ECB6 Function key definitions
-keydef: !pet "print"                    ; F1
-	!pet "list"                     ; F2
-	!pet "dload",$22                ; F3
-	!pet "dsave",$22                ; F4
-	!pet "dopen"                    ; F5
-	!pet "dclose"                   ; F6
-	!pet "copy"                     ; F7
-	!pet "directory"                ; F8
-	!pet "scratch"                  ; F9
-	!pet "chr$("                    ; F10
+keydef:
+key1:	!pet "print"                    ; F1
+key2:	!pet "list"                     ; F2
+key3:	!pet "dload",$22                ; F3
+key4:	!pet "dsave",$22                ; F4
+key5:	!pet "dopen"                    ; F5
+key6:	!pet "dclose"                   ; F6
+key7:	!pet "copy"                     ; F7
+key8:	!pet "directory"                ; F8
+key9:	!pet "scratch"                  ; F9
+key10:	!pet "chr$("                    ; F10
 ; -------------------------------------------------------------------------------------------------
 } else{                         ; ********** F-keys PATCH **********
-; ECAC Length of function key texts
-keylen: !byte $03,$03,$03,$03,$0d,$0d,$04,$09
-	!byte $03,$03                   ; 57 bytes keydef-text
 ; ECB6 Function key definitions
-keydef: !pet "rU",$0d                   ; F1
-	!pet "lI",$0d                   ; F2
-	!pet "dL",$22                   ; F3
-	!pet "dS",$22                   ; F4
-	!pet "oP8,8,15,",$22,"cd:"      ; F5
-	!pet "oP9,9,15,",$22,"cd:"      ; F6
-	!pet "dcL",$0d                  ; F7
-	!pet "diRd0onu8"                ; F8
-	!pet "sC",$22                   ; F9
-	!pet "hE",$22                   ; F10
+keydef:
+key1:	!pet "rU",$0d                   ; F1
+key2:	!pet "lI",$0d                   ; F2
+key3:	!pet "dL",$22                   ; F3
+key4:	!pet "dS",$22                   ; F4
+key5:	!pet "oP8,8,15,",$22,"cd:"      ; F5
+key6:	!pet "oP9,9,15,",$22,"cd:"      ; F6
+key7:	!pet "dcL",$0d                  ; F7
+key8:	!pet "diRd0onu8"                ; F8
+key9:	!pet "sC",$22                   ; F9
+key10:	!pet "hE",$22                   ; F10
 }
-; Length of function key texts
-;keylen: !byte $03,$04,$06,$06,$05,$05,$04,$09
-;        !byte $08,$07                   ; 57 bytes keydef-text
 ; Function key definitions
-;keydef: !pet "run"                      ; F1
-;        !pet "list"                     ; F2
-;        !pet "dload",$22                ; F3
-;        !pet "dsave",$22                ; F4
-;        !pet "print"                    ; F5
-;        !pet "chr$("                    ; F6
-;        !pet "bank"                     ; F7
-;        !pet "directory"                ; F8
-;        !pet "scratch",$22              ; F9
-;        !pet "header",$22               ; F10
+;keydef:
+;key1:	!pet "run"                      ; F1
+;key2:	!pet "list"                     ; F2
+;key3:	!pet "dload",$22                ; F3
+;key4:	!pet "dsave",$22                ; F4
+;key5:	!pet "print"                    ; F5
+;key6:	!pet "chr$("                    ; F6
+;key7:	!pet "bank"                     ; F7
+;key8:	!pet "directory"                ; F8
+;key9:	!pet "scratch",$22              ; F9
+;key10:	!pet "header",$22               ; F10
 ;}
 keyend:
 ; -------------------------------------------------------------------------------------------------
