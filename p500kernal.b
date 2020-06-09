@@ -3220,7 +3220,7 @@ dm2:	dec tmpc		; count bytes
 ; -------------------------------------------------------------------------------------------------
 ; EF84 Display memory function 'm'
 dsplym:	jsr rdoa		; read start adr
-	bcs dsperr		; ...err if no sa
+	bcs errl		; ...err if no sa
 	jsr t2t2		; sa to tmp2
 
 ; allow user to type just one address
@@ -3256,16 +3256,16 @@ dsp1:	jsr stop		; stop key?
 
 beqs1:	rts			; a.o.k. exit
 
-dsperr:	jmp erropr
+errl:	jmp erropr		; syntax error jump
 ; -------------------------------------------------------------------------------------------------
 ; EFC5 Alter register function ';'
 altr:	jsr rdoa		; read new pc
-	bcs dsperr		; ...no address=error
+	bcs errl		; ...no address=error
 
 	jsr putp		; alter pc
 
 	jsr rdoa		; read new irq
-	bcs dsperr		; ...no address=error
+	bcs errl		; ...no address=error
 
 	lda tmp0
 	sta invl		; alter irq vector
@@ -3277,23 +3277,23 @@ altr:	jsr rdoa		; read new pc
 
 ; EFDF View a segment (point indirect) 'v'
 view:	jsr rdob		; get a byte
-	bcs dsperr		; ...if none...error
+	bcs errl		; ...if none...error
 	cmp #16			; range 0-15
-	bcs dsperr		; to large no modulo
+	bcs errl		; to large no modulo
 	sta i6509
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; EFEB Unit default for disk 'u'
 unitd:	jsr rdob		; get a byte
-	bcs dsperr		; ...if none...error
+	bcs errl		; ...if none...error
 	cmp #32			; range 0-31
-	bcs dsperr		; to large no modulo
+	bcs errl		; to large no modulo
 	sta ddisk
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; EFF7 Alter memory - read adr and data ':'
 altm:	jsr rdoa		; read alter adr
-	bcs dsperr		; ...if none...error
+	bcs errl		; ...if none...error
 
 	lda #8			; allow 8 bytes change
 
