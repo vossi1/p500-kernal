@@ -2949,6 +2949,7 @@ fligm:
 	rts	
 }
 ; ****************************************** KERNAL ***********************************************
+; ##### monitor #####
 !zone kernal
 ;************************************************
 ;* kernal monitor                               *
@@ -3629,139 +3630,139 @@ msg10:	clc
 ; -------------------------------------------------------------------------------------------------
 ; ##### ieee #####
 ; F237 Command ieee-488 device to talk
-ntalk:	ora #tlkr       ;make a talk adr
-	bne list1       ;always go to list1
+ntalk:	ora #tlkr		; make a talk adr
+	bne list1		; always go to list1
 ; command ieee-488 device to listen
-nlistn:	ora #lstnr      ;make a listen adr
+nlistn:	ora #lstnr		; make a listen adr
 
-list1:	pha             ;save device and talk/listen
+list1:	pha			; save device and talk/listen
 
-	lda #tddb       ;set control for atn/data out
+	lda #tddb		; set control for atn/data out
 	sta tpi1+ddpa
 
-	lda #$FF        ;set direction for transmitt *
-	sta cia+pra     ;set data   *
-	sta cia+ddra    ;set data direction out   *
-	lda #$FF-dc-ren ;enable transmitt
+	lda #$FF		; set direction for transmitt *
+	sta cia+pra		; set data   *
+	sta cia+ddra		; set data direction out   *
+	lda #$FF-dc-ren		; enable transmitt
 	sta tpi1+pa
-	lda c3po        ;get ieee flags
-	bpl list2       ;if data in buffer
+	lda c3po		; get ieee flags
+	bpl list2		; if data in buffer
 
-	lda tpi1+pa     ;send eoi
+	lda tpi1+pa		; send eoi
 	and #$FF-eoi
 	sta tpi1+pa
 
-	lda bsour       ;get byte to send
-	jsr tbyte       ;send last character
+	lda bsour		; get byte to send
+	jsr tbyte		; send last character
 
-	lda c3po        ;clear byte in buffer flag
+	lda c3po		; clear byte in buffer flag
 	and #$FF-dibf
 	sta c3po
 
-	lda tpi1+pa     ;clear eoi
+	lda tpi1+pa		; clear eoi
 	ora #eoi
 	sta tpi1+pa
 
-list2:	lda tpi1+pa     ;assert atn
+list2:	lda tpi1+pa		; assert atn
 	and #$FF-atn
 	sta tpi1+pa
 
-	pla             ;get talk/listen address
+	pla			; get talk/listen address
 	jmp tbyte
 ; -------------------------------------------------------------------------------------------------
 ; F27B Send secondary address after listen
-nsecnd:	jsr tbyte       ;send it      
+nsecnd:	jsr tbyte		; send it      
 ; release attention after listen       
 scat1:
-scatn:	lda tpi1+pa     ;de-assert atn
+scatn:	lda tpi1+pa		; de-assert atn
 	ora #atn
 	sta tpi1+pa
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; F287 Talk second address
-ntksa:	jsr tbyte       ;send secondary address
+ntksa:	jsr tbyte		; send secondary address
 
-tkatn:	lda #$FF-nrfd-ndac-te-ren ;pull nrfd and ndac low
+tkatn:	lda #$FF-nrfd-ndac-te-ren ; pull nrfd and ndac low
 	and tpi1+pa
 ; exit entry for untalk/unlisten
 setlns:	sta tpi1+pa
-	lda #rddb       ;set control lines for input
+	lda #rddb		; set control lines for input
 	sta tpi1+ddpa
-	lda #$00        ;set data lines for recieve
+	lda #$00		; set data lines for recieve
 	sta cia+ddra
 	beq scatn
 ; -------------------------------------------------------------------------------------------------
 ; F29E Buffered output to ieee-488
-nciout:	pha             ;save data
-	lda c3po        ;get ieee flags
-	bpl ci1         ;if no data in buffer
-	lda bsour       ;get data in buffer
-	jsr tbyte       ;transmit byte
-	lda c3po        ;get ieee flags
+nciout:	pha			; save data
+	lda c3po		; get ieee flags
+	bpl ci1			; if no data in buffer
+	lda bsour		; get data in buffer
+	jsr tbyte		; transmit byte
+	lda c3po		; get ieee flags
 
-ci1:	ora #dibf       ;set data in buffer flag
+ci1:	ora #dibf		; set data in buffer flag
 	sta c3po
 
-	pla             ;get new data
+	pla			; get new data
 	sta bsour
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; F2B2 Send untalk command on ie
-nuntlk:	lda #utlkr      ;untalk command
-	bne unls1       ;always
+nuntlk:	lda #utlkr		; untalk command
+	bne unls1		; always
 
 ; send unlisten command on ieee-488
-nunlsn:	lda #ulstn      ;unlisten command
-unls1:	jsr list1       ;send it
-	lda #$FF-te-ren ;set for recieve all lines high
-	jmp setlns      ;go setup proper exit state
+nunlsn:	lda #ulstn		; unlisten command
+unls1:	jsr list1		; send it
+	lda #$FF-te-ren		; set for recieve all lines high
+	jmp setlns		; go setup proper exit state
 ; -------------------------------------------------------------------------------------------------
 ; F2C0 tbyte -- output byte onto ieee bus.
 ;   entry a = data byte to be output.
 ;   uses a register. 1 byte of stack space.
-tbyte:	eor #$FF	;compliment data
+tbyte:	eor #$FF	; compliment data
 	sta cia+pra
 
 	lda tpi1+pa
-	ora #dav+te     ;say data not valid, te=data out
+	ora #dav+te		; say data not valid, te=data out
 	sta tpi1+pa
 
-	bit tpi1+pa     ;test nrfd & ndac in high state
-	bvc tby2        ;either nrfd or ndac low => ok
+	bit tpi1+pa		; test nrfd & ndac in high state
+	bvc tby2		; either nrfd or ndac low => ok
 	bpl tby2
 
-tby1:	lda #nodev      ;set no-device bit in status
+tby1:	lda #nodev		; set no-device bit in status
 	jsr udst
-	bne tby7        ;always exit
+	bne tby7		; always exit
 
 tby2:	lda tpi1+pa
-	bpl tby2        ;if nrfd is high
+	bpl tby2		; if nrfd is high
 
 	and #$FF-dav
 	sta tpi1+pa
 
-tby3:	jsr timero      ;set timeout
-	bcc tby4        ;c-clear means first time through
-tby3t:	sec             ;c-set is second time
+tby3:	jsr timero		; set timeout
+	bcc tby4		; c-clear means first time through
+tby3t:	sec			; c-set is second time
 
 tby4:	bit tpi1+pa
-	bvs tby6        ;if ndac hi
+	bvs tby6		; if ndac hi
 	lda cia+icr
-	and #$02        ;timer b posistion (cia)
-	beq tby4        ;if no timeout
-	lda timout      ;timeout selection flag
-	bmi tby3        ;no - loop
-	bcc tby3t       ;wait full 64us
+	and #$02		; timer b posistion (cia)
+	beq tby4		; if no timeout
+	lda timout		; timeout selection flag
+	bmi tby3		; no - loop
+	bcc tby3t		; wait full 64us
 
-tby5:	lda #toout      ;set timeout on output in status
-	jsr udst        ;update status
+tby5:	lda #toout		; set timeout on output in status
+	jsr udst		; update status
 
-tby6:	lda tpi1+pa     ;release dav
+tby6:	lda tpi1+pa		; release dav
 	ora #dav
 	sta tpi1+pa
 
-tby7:	lda #$FF        ;release data bus
-	sta cia+pra     ;bus failure exit
+tby7:	lda #$FF		; release data bus
+	sta cia+pra		; bus failure exit
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; F311 rbyte -- input byte from ieee bus.
@@ -3769,66 +3770,66 @@ tby7:	lda #$FF        ;release data bus
 ;   exit a = input data byte.
 nacptr:	; ********************************
 nrbyte:
-	lda tpi1+pa     ;set control lines
-	and #$FF-te-ndac-ren ;pull ndac low, te=data in
-	ora #nrfd+dc    ;say read for data
+	lda tpi1+pa		; set control lines
+	and #$FF-te-ndac-ren	;pull ndac low, te=data in
+	ora #nrfd+dc		; say read for data
 	sta tpi1+pa
 
-rby1:	jsr timero      ;return c-clear for cbmii
-	bcc rby2        ;c-clear is first time through
-rby1t:	sec             ;c-set is second time through
+rby1:	jsr timero		; return c-clear for cbmii
+	bcc rby2		; c-clear is first time through
+rby1t:	sec			; c-set is second time through
 
-rby2:	lda tpi1+pa     ;get ieee control lines
+rby2:	lda tpi1+pa		; get ieee control lines
 	and #dav
-	beq rby4        ;if data available
+	beq rby4		; if data available
 	lda cia+icr
-	and #$02        ;timer b (cia)
-	beq rby2        ;if not timed out
-	lda timout      ;get timeout flag
-	bmi rby1        ;loop
-	bcc rby1t       ;go through twice
+	and #$02		; timer b (cia)
+	beq rby2		; if not timed out
+	lda timout		; get timeout flag
+	bmi rby1		; loop
+	bcc rby1t		; go through twice
 
-rby3:	lda #toin       ;set timeout on input in status
+rby3:	lda #toin		; set timeout on input in status
 	jsr udst
 	lda tpi1+pa
-	and #$FF-nrfd-ndac-te ;nrfd & ndac lo on error
+	and #$FF-nrfd-ndac-te	; nrfd & ndac lo on error
 	sta tpi1+pa
-	lda #cr         ;return null input
+	lda #cr			; return null input
 	rts
 ; F346
-rby4:	lda tpi1+pa     ;say not read for data
+rby4:	lda tpi1+pa		; say not read for data
 	and #$FF-nrfd
 	sta tpi1+pa
 	and #eoi
-	bne rby5        ;if not eoi
-	lda #eoist      ;set eoi in status
+	bne rby5		; if not eoi
+	lda #eoist		; set eoi in status
 	jsr udst
 
-rby5:	lda cia+pra     ;get data
+rby5:	lda cia+pra		; get data
 	eor #$FF
 
-rby6:	pha             ;save data
-	lda tpi1+pa     ;say data accepted
+rby6:	pha			; save data
+	lda tpi1+pa		; say data accepted
 	ora #ndac
 	sta tpi1+pa
 
-rby7:	lda tpi1+pa     ;get ieee control lines
+rby7:	lda tpi1+pa		; get ieee control lines
 	and #dav
-	beq rby7        ;if dav high
+	beq rby7		; if dav high
 
-	lda tpi1+pa     ;say dat not accpted
+	lda tpi1+pa		; say dat not accpted
 	and #$FF-ndac
 	sta tpi1+pa
-	pla             ;return data in a
+	pla			; return data in a
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; F376 Set up for timeout (6526)
-timero:	lda #$80        ;set time for at least 32us
+timero:	lda #$80		; set time for at least 32us
 
 	sta cia+tbhi
-	lda #$11        ;turn on timer continous in case of other irq's
+	lda #$11		; turn on timer continous in case of other irq's
 	sta cia+crb
-	lda cia+icr     ;clear interrupt
+	lda cia+icr		; clear interrupt
 	clc
 	rts
 ; -------------------------------------------------------------------------------------------------
