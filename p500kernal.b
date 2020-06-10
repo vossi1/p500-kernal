@@ -12,7 +12,7 @@
 ; v1.9 movchar single line screen, slow scroll preserve flags patches rev -03 kernal
 ; v2.0 added complete rev -03 new patched key functions in the editor
 ; v2.1 optional solid Atari Style cursor ;)
-;
+; v2.2 optional IEEE rev -03 patch with ren 
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -3771,7 +3771,7 @@ tby7:	lda #$FF		; release data bus
 nacptr:	; ********************************
 nrbyte:
 	lda tpi1+pa		; set control lines
-	and #$FF-te-ndac-ren	;pull ndac low, te=data in
+	and #$FF-te-ndac-ren	; pull ndac low, te=data in
 	ora #nrfd+dc		; say read for data
 	sta tpi1+pa
 

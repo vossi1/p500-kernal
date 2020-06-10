@@ -13,4 +13,4 @@ v1.8 basic SYS patched - now to selected bank -> Basic $8063 csys vector =  $EDD
 v1.9 movchar single line screen, slow scroll preserve flags patches rev -03 kernal
 v2.0 added complete rev -03 new patched key functions in the editor 
 v2.1 optional solid "Atari Style" cursor ;)
-
+v2.2 optional IEEE rev -03 patch with ren 
