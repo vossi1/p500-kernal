@@ -3186,7 +3186,7 @@ dsplyr:	ldx #0
 d2:	lda regk,x
 	jsr bsout		; print heading
 	inx
-	cpx #dsplyr-regk		; max length
+	cpx #dsplyr-regk	; max length
 	bne d2
 	lda #';'
 	jsr altrit		; allow alter after display
@@ -3220,7 +3220,7 @@ dm2:	dec tmpc		; count bytes
 ; -------------------------------------------------------------------------------------------------
 ; EF84 Display memory function 'm'
 dsplym:	jsr rdoa		; read start adr
-	bcs errl		; ...err if no sa
+	bcs arrn		; ...err if no sa
 	jsr t2t2		; sa to tmp2
 
 ; allow user to type just one address
@@ -3256,16 +3256,16 @@ dsp1:	jsr stop		; stop key?
 
 beqs1:	rts			; a.o.k. exit
 
-errl:	jmp erropr		; syntax error jump
+arrn:	jmp erropr		; syntax error jump
 ; -------------------------------------------------------------------------------------------------
 ; EFC5 Alter register function ';'
 altr:	jsr rdoa		; read new pc
-	bcs errl		; ...no address=error
+	bcs arrn		; ...no address=error
 
 	jsr putp		; alter pc
 
 	jsr rdoa		; read new irq
-	bcs errl		; ...no address=error
+	bcs arrn		; ...no address=error
 
 	lda tmp0
 	sta invl		; alter irq vector
@@ -3277,23 +3277,23 @@ altr:	jsr rdoa		; read new pc
 
 ; EFDF View a segment (point indirect) 'v'
 view:	jsr rdob		; get a byte
-	bcs errl		; ...if none...error
+	bcs arrn		; ...if none...error
 	cmp #16			; range 0-15
-	bcs errl		; to large no modulo
+	bcs arrn		; to large no modulo
 	sta i6509
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; EFEB Unit default for disk 'u'
 unitd:	jsr rdob		; get a byte
-	bcs errl		; ...if none...error
+	bcs arrn		; ...if none...error
 	cmp #32			; range 0-31
-	bcs errl		; to large no modulo
+	bcs arrn		; to large no modulo
 	sta ddisk
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; EFF7 Alter memory - read adr and data ':'
 altm:	jsr rdoa		; read alter adr
-	bcs errl		; ...if none...error
+	bcs arrn		; ...if none...error
 
 	lda #8			; allow 8 bytes change
 
@@ -3315,147 +3315,173 @@ a6:	dec tmpc		; count byte
 	bne a5			; until zero
 a9:	rts
 ; -------------------------------------------------------------------------------------------------
-; F014 Monitor command 'g' (go)
-go:    jsr     rdone                           ; F014 20 62 F1                  b.
-	beq     LF021                           ; F017 F0 08                    ..
-	jsr     rdoa                          ; F019 20 26 F1                  &.
-	bcs     LF040                           ; F01C B0 22                    ."
-	jsr     putp                           ; F01E 20 FB EE                  ..
-LF021:  ldx     sp                              ; F021 A6 B4                    ..
-	txs                                     ; F023 9A                       .
-	sei                                     ; F024 78                       x
-	lda     invh                            ; F025 A5 B7                    ..
-	sta     cinv+1                          ; F027 8D 01 03                 ...
-	lda     invl                            ; F02A A5 B8                    ..
-	sta     cinv                            ; F02C 8D 00 03                 ...
-	lda     xi6509                          ; F02F A5 B5                    ..
-	sta     i6509                           ; F031 85 01                    ..
-	ldx     #$00                            ; F033 A2 00                    ..
-LF035:  lda     pch,x                           ; F035 B5 AE                    ..
-	pha                                     ; F037 48                       H
-	inx                                     ; F038 E8                       .
-	cpx     #$06                            ; F039 E0 06                    ..
-	bne     LF035                           ; F03B D0 F8                    ..
-	jmp     prend                           ; F03D 4C B3 FC                 L..
+; F014 Start execution function 'g'
+go:	jsr rdoc		; see if default
+	beq g1			; yes...pc is address
+	jsr rdoa		; no...get new addr
+	bcs errl		; ...none=error
+	jsr putp		; move addr to p.c.
 
-LF040:  jmp     erropr                          ; F040 4C 50 EE                 LP.
+g1:	ldx sp
+	txs			; orig or new sp value to sp
 
+	sei			; prevent disaster
+
+	lda invh
+	sta cinv+1		; set up irq vector
+	lda invl
+	sta cinv
+	lda xi6509		; and indirection register
+	sta i6509
+
+; get flags,pch,pcl,.a,.x,.y
+	ldx #0
+g2:	lda pch,x
+	pha			; everybody on stack
+	inx
+	cpx #6
+	bne g2
+
+; interrupt return sets everybody up from data on stack
+	jmp prend
+
+errl:	jmp erropr
 ; -------------------------------------------------------------------------------------------------
-; F043 Monitor commands 'l' and 's' (load & save)
-ld:  ldy     #$01                            ; F043 A0 01                    ..
-	sty     fa                              ; F045 84 9F                    ..
-	dey                                     ; F047 88                       .
-	lda     #$FF                            ; F048 A9 FF                    ..
-	sta     tmp0                            ; F04A 85 B9                    ..
-	sta     tmp0+1                          ; F04C 85 BA                    ..
-	lda     i6509                           ; F04E A5 01                    ..
-	sta     t6509                           ; F050 85 BE                    ..
-	lda     #$0F                            ; F052 A9 0F                    ..
-	sta     i6509                           ; F054 85 01                    ..
-LF056:  jsr     rdone                           ; F056 20 62 F1                  b.
-	beq     LF077                           ; F059 F0 1C                    ..
-	cmp     #$20                            ; F05B C9 20                    . 
-	beq     LF056                           ; F05D F0 F7                    ..
-	cmp     #$22                            ; F05F C9 22                    ."
-LF061:  bne     LF040                           ; F061 D0 DD                    ..
-LF063:  jsr     rdone                           ; F063 20 62 F1                  b.
-	beq     LF077                           ; F066 F0 0F                    ..
-	cmp     #$22                            ; F068 C9 22                    ."
-	beq     LF089                           ; F06A F0 1D                    ..
-	sta     (fnadr),y                       ; F06C 91 90                    ..
-	inc     fnlen                           ; F06E E6 9D                    ..
-	iny                                     ; F070 C8                       .
-	cpy     #$10                            ; F071 C0 10                    ..
-	beq     LF040                           ; F073 F0 CB                    ..
-	bne     LF063                           ; F075 D0 EC                    ..
-LF077:  lda     savx                            ; F077 AD 66 03                 .f.
-	cmp     #$4C                            ; F07A C9 4C                    .L
-	bne     LF061                           ; F07C D0 E3                    ..
-	lda     t6509                           ; F07E A5 BE                    ..
-	and     #$0F                            ; F080 29 0F                    ).
-	ldx     tmp0                            ; F082 A6 B9                    ..
-	ldy     tmp0+1                          ; F084 A4 BA                    ..
-	jmp     load                           ; F086 4C D5 FF                 L..
+; F043 Load ram function 'l' and 's'
+;  *note - load/save reset indirect to rom
+ld:	ldy #1
+	sty fa			; default device #1
+	dey			; .y=0 to count name length
+	lda #$FF		; default no move load
+	sta tmp0
+	sta tmp0+1
+	lda i6509		; save indirect for seg address
+	sta t6509
+	lda #irom		; indirect to rom for filename
+	sta i6509
 
+l1:	jsr rdoc		; default?
+	beq l5			; yes...try load
+
+	cmp #' '
+	beq l1			; span blanks
+
+	cmp #$22		; string next?
+l2:	bne errl		; no file name...
+
+l3:	jsr rdoc		; get character of name
+	beq l5			; end...asssume load
+
+	cmp #$22		; end of string?
+	beq l8			; yes...could still be 'l' or 's'
+
+	sta (fnadr),y		; store name
+	inc fnlen
+	iny
+	cpy #16			; max file name length
+
+l4:	beq errl		; file name too long
+	bne l3			; branch always
+; see if we got a load
+l5:	lda savx		; get last command
+	cmp #'l'
+	bne l2			; no..not a load..error
+
+	lda t6509		; get segment to load to
+	and #irom		; mask off verify bit
+	ldx tmp0
+	ldy tmp0+1
+	jmp load		; yes...do load
+
+l8:	jsr rdoc		; more stuff?
+	beq l5			; no...defualt load
+
+	cmp #','		; delimeter?
+l9:	bne l2			; no...bad syntax
+
+	jsr rdob		; yes...get next parm
+	bcs l15			; ...error if none
+
+	sta fa
+
+	jsr rdoc		; more parms?
+	beq l5			; no...default load
+
+	cmp #','		; delimeter?
+l12:	bne l9			; no...bad syntax
+
+	jsr rdob		; segment byte ?
+	bcs l15			; ...must have
+	cmp #16			; 00-0f allowed
+	bcs l15			; too big...
+	sta t6509
+	sta stas		; prep segment
+	jsr rdoa
+	bcs l15
+; set up start save address
+	lda tmp0
+	sta stal
+	lda tmp0+1
+	sta stah
+
+	jsr rdoc		; delimeter?
+	beq l5			; cr, do load
+	cmp #','
+	bne l15			; no delim
+
+	jsr rdob		; get segment byte
+	bcs l15			; ...must have
+	cmp #16			; allow only 00-0f
+	bcs l15			; too big...
+	sta eas			; prep segment
+	jsr rdoa		; try to read end address
+	bcs l15			; ...must have
+
+; set up end save address
+	lda tmp0
+	sta eal
+	lda tmp0+1
+	sta eah
+
+l20:	jsr basin
+	cmp #$20
+	beq l20			; span blanks
+
+	cmp #cr
+l14:	bne l12			; missing cr at end
+	lda savx 		; was command save?
+	cmp #'s'
+	bne l14			; no...load can't have parms
+	ldx #stal		; get params for save
+	ldy #eal
+	jmp save
+
+l15:	jmp erropr
 ; -------------------------------------------------------------------------------------------------
-; F089
-LF089:  jsr     rdone                           ; F089 20 62 F1                  b.
-	beq     LF077                           ; F08C F0 E9                    ..
-	cmp     #$2C                            ; F08E C9 2C                    .,
-LF090:  bne     LF061                           ; F090 D0 CF                    ..
-	jsr     rdob                           ; F092 20 33 F1                  3.
-	bcs     LF0F6                           ; F095 B0 5F                    ._
-	sta     fa                              ; F097 85 9F                    ..
-	jsr     rdone                           ; F099 20 62 F1                  b.
-	beq     LF077                           ; F09C F0 D9                    ..
-	cmp     #$2C                            ; F09E C9 2C                    .,
-LF0A0:  bne     LF090                           ; F0A0 D0 EE                    ..
-	jsr     rdob                           ; F0A2 20 33 F1                  3.
-	bcs     LF0F6                           ; F0A5 B0 4F                    .O
-	cmp     #$10                            ; F0A7 C9 10                    ..
-	bcs     LF0F6                           ; F0A9 B0 4B                    .K
-	sta     t6509                           ; F0AB 85 BE                    ..
-	sta     stas                            ; F0AD 85 9B                    ..
-	jsr     rdoa                          ; F0AF 20 26 F1                  &.
-	bcs     LF0F6                           ; F0B2 B0 42                    .B
-	lda     tmp0                            ; F0B4 A5 B9                    ..
-	sta     stal                            ; F0B6 85 99                    ..
-	lda     tmp0+1                          ; F0B8 A5 BA                    ..
-	sta     stah                            ; F0BA 85 9A                    ..
-	jsr     rdone                           ; F0BC 20 62 F1                  b.
-	beq     LF077                           ; F0BF F0 B6                    ..
-	cmp     #$2C                            ; F0C1 C9 2C                    .,
-	bne     LF0F6                           ; F0C3 D0 31                    .1
-	jsr     rdob                           ; F0C5 20 33 F1                  3.
-	bcs     LF0F6                           ; F0C8 B0 2C                    .,
-	cmp     #$10                            ; F0CA C9 10                    ..
-	bcs     LF0F6                           ; F0CC B0 28                    .(
-	sta     eas                             ; F0CE 85 98                    ..
-	jsr     rdoa                          ; F0D0 20 26 F1                  &.
-	bcs     LF0F6                           ; F0D3 B0 21                    .!
-	lda     tmp0                            ; F0D5 A5 B9                    ..
-	sta     eal                             ; F0D7 85 96                    ..
-	lda     tmp0+1                          ; F0D9 A5 BA                    ..
-	sta     eah                             ; F0DB 85 97                    ..
-LF0DD:  jsr     basin                          ; F0DD 20 CF FF                  ..
-	cmp     #$20                            ; F0E0 C9 20                    . 
-	beq     LF0DD                           ; F0E2 F0 F9                    ..
-	cmp     #$0D                            ; F0E4 C9 0D                    ..
-LF0E6:  bne     LF0A0                           ; F0E6 D0 B8                    ..
-	lda     savx                            ; F0E8 AD 66 03                 .f.
-	cmp     #$53                            ; F0EB C9 53                    .S
-	bne     LF0E6                           ; F0ED D0 F7                    ..
-	ldx     #$99                            ; F0EF A2 99                    ..
-	ldy     #$96                            ; F0F1 A0 96                    ..
-	jmp     save                           ; F0F3 4C D8 FF                 L..
-
-LF0F6:  jmp     erropr                          ; F0F6 4C 50 EE                 LP.
-
-; -------------------------------------------------------------------------------------------------
-; F0F9 Output X/Y as 4 hex bytes
-wroa:   txa                                     ; F0F9 8A                       .
-	jsr     wrob                            ; F0FA 20 FE F0                  ..
-	tya                                     ; F0FD 98                       .
-; F0FE Output A as two hex bytes
-wrob:   pha                                     ; F0FE 48                       H
-	lsr                                     ; F0FF 4A                       J
-	lsr                                     ; F100 4A                       J
-	lsr                                     ; F101 4A                       J
-	lsr                                     ; F102 4A                       J
-	jsr     ascii                            ; F103 20 0A F1                  ..
-	tax                                     ; F106 AA                       .
-	pla                                     ; F107 68                       h
-	and     #$0F                            ; F108 29 0F                    ).
-; F10A Output low nibble of A as one hex byte
-ascii	clc
-	adc #$f6
+; F0F9 Write adr from tmp0 stores
+wroa:   txa			; hi-byte
+	jsr wrob
+	tya			; low-byte
+; F0FE Write byte --- a = byte
+; unpack byte data into two ascii characters. a=byte; x,a=chars
+wrob:   pha
+	lsr
+	lsr
+	lsr
+	lsr
+	jsr ascii		; convert to ascii
+	tax
+	pla
+	and #$0F
+; F10A Convert nybble in a to ascii and print it
+ascii:	clc
+	adc #$F6
 	bcc asc1
 	adc #$06
-asc1	adc #$3a
+asc1:	adc #$3A
 	jmp bsout
 ; -------------------------------------------------------------------------------------------------
 ; F116 Exchange temporaries
-;
 t2t2:	ldx #2
 t2t21:	lda tmp0-1,x
 	pha
@@ -3467,101 +3493,107 @@ t2t21:	lda tmp0-1,x
 	bne t2t21
 	rts
 ; -------------------------------------------------------------------------------------------------
-; F126 Read 4 chars from input into tmp0/tmp0+1
-rdoa: jsr     rdob                           ; F126 20 33 F1                  3.
-	bcs     +                               ; F129 B0 07                    ..
-	sta     tmp0+1                          ; F12B 85 BA                    ..
-	jsr     rdob                           ; F12D 20 33 F1                  3.
-	sta     tmp0                            ; F130 85 B9                    ..
-+       rts                                     ; F132 60                       `
-
+; F126 Read hex adr,return hi in tmp0, lo in tmp0+1,and cy=1, if sp cy=0
+rdoa:	jsr rdob		; read 2-char byte
+	bcs rdoa2		; space
+	sta tmp0+1
+	jsr rdob
+	sta tmp0
+rdoa2:	rts
 ; -------------------------------------------------------------------------------------------------
-; F133 Read 2 chars from input into A
-rdob:  lda     #$00                            ; F133 A9 00                    ..
-	sta     stack                           ; F135 8D 00 01                 ...
-	jsr     rdone                           ; F138 20 62 F1                  b.
-	beq     +                               ; F13B F0 19                    ..
-	cmp     #$20                            ; F13D C9 20                    . 
-	beq     rdob                           ; F13F F0 F2                    ..
-	jsr     hexit                           ; F141 20 57 F1                  W.
-	asl                                     ; F144 0A                       .
-	asl                                     ; F145 0A                       .
-	asl                                     ; F146 0A                       .
-	asl                                     ; F147 0A                       .
-	sta     stack                           ; F148 8D 00 01                 ...
-	jsr     rdone                           ; F14B 20 62 F1                  b.
-	beq     +                               ; F14E F0 06                    ..
-	jsr     hexit                           ; F150 20 57 F1                  W.
-	ora     stack                           ; F153 0D 00 01                 ...
-+       rts                                     ; F156 60                       `
+; F133 Read hex byte and return in a and cy=0 if sp cy=1
+rdob:	lda #0			; space
+	sta bad			; read next char
+	jsr rdoc
+	beq rdob4		; fail on cr
+	cmp #' '		; blank?
+	beq rdob		; span blanks...
 
+	jsr hexit		; convert to hex nybble
+	asl
+	asl
+	asl
+	asl
+	sta bad
+	jsr rdoc		; 2nd char assumed hex
+	beq rdob4		; fail on cr
+	jsr hexit
+	ora bad
+
+rdob4:	rts
 ; -------------------------------------------------------------------------------------------------
 ; F157 Convert char in A into hex value
-hexit:  cmp     #$3A                            ; F157 C9 3A                    .:
-	php                                     ; F159 08                       .
-	and     #$0F                            ; F15A 29 0F                    ).
-	plp                                     ; F15C 28                       (
-	bcc     +                               ; F15D 90 02                    ..
-	adc     #$08                            ; F15F 69 08                    i.
-+       rts                                     ; F161 60                       `
+hexit:  cmp #$3A
+	php			; save flags
+	and #$0F
+	plp
+	bcc hex09		; 0-9
+	adc #8			; alpha add 8+cy=9
+hex09:	rts
+; -------------------------------------------------------------------------------------------------
+; F162 Get character and test for cr
+rdoc:	jsr basin
+	cmp #$0D		; is it a cr
+	rts			; return with flags
+; -------------------------------------------------------------------------------------------------
+; F168 Send disk command or read status '@'
+disk:	lda #0			; clear status @ i/o begin
+	sta status
+	sta fnlen		; filename length of zero...
 
-; -------------------------------------------------------------------------------------------------
-; F162 Input one char, check for CR
-rdone:  jsr     basin                          ; F162 20 CF FF                  ..
-	cmp     #$0D                            ; F165 C9 0D                    ..
-	rts                                     ; F167 60                       `
+	ldx ddisk		; get default disk
+	ldy #$0F		; open command channel
+	jsr setlfs		; .a-0 temporary channel #
+	clc
+	jsr open		; open a real channel
+	bcs disk30		; exit if bad return
 
+	jsr rdoc		; see if status check
+	beq disk20		; yes
+
+	pha
+	ldx #0
+	jsr ckout		; set up as output
+	pla
+	bcs disk30		; bad status return
+	bcc disk15		; no...ok
+
+disk10:	jsr basin		; get a character
+disk15:	cmp #$0D		; see if end
+	php			; save for later
+	jsr bsout		; out to floppy
+	lda status
+	bne disk28		; bad status returned
+	plp			; end?
+	bne disk10		; no...continue
+	beq disk30		; yes...floppy done
+
+disk20:	jsr crlf
+	ldx #0
+	jsr chkin		; tell floppy to speak
+	bcs disk30		; bad device
+
+disk25:  jsr basin		; get a character
+	cmp #$0D
+	php			; save test for later
+	jsr bsout		; out to screen
+	lda status		; check for bad basin
+	and #$FF-$40		; remove eoi bit
+	bne disk28		; report bad status
+	plp			; end?
+	bne disk25		; no...
+	beq disk30		; yes...floppy done
+
+disk28:	pla			; clean up...
+disk29:	jsr error5		; report error #5 for bad device
+disk30:	jsr clrch		; clean up
+	lda #0
+	clc			; just remove from table
+	jmp close
 ; -------------------------------------------------------------------------------------------------
-; F168 Monitor command '@' (disk commands)
-disk:  lda     #$00                            ; F168 A9 00                    ..
-	sta     status                          ; F16A 85 9C                    ..
-	sta     fnlen                           ; F16C 85 9D                    ..
-	ldx     ddisk                           ; F16E A6 BF                    ..
-	ldy     #$0F                            ; F170 A0 0F                    ..
-	jsr     setlfs                          ; F172 20 4F FB                  O.
-	clc                                     ; F175 18                       .
-	jsr     open                           ; F176 20 C0 FF                  ..
-	bcs     LF1BF                           ; F179 B0 44                    .D
-	jsr     rdone                           ; F17B 20 62 F1                  b.
-	beq     LF19D                           ; F17E F0 1D                    ..
-	pha                                     ; F180 48                       H
-	ldx     #$00                            ; F181 A2 00                    ..
-	jsr     ckout                          ; F183 20 C9 FF                  ..
-	pla                                     ; F186 68                       h
-	bcs     LF1BF                           ; F187 B0 36                    .6
-	bcc     LF18E                           ; F189 90 03                    ..
-LF18B:  jsr     basin                          ; F18B 20 CF FF                  ..
-LF18E:  cmp     #$0D                            ; F18E C9 0D                    ..
-	php                                     ; F190 08                       .
-	jsr     bsout                          ; F191 20 D2 FF                  ..
-	lda     status                          ; F194 A5 9C                    ..
-	bne     LF1BB                           ; F196 D0 23                    .#
-	plp                                     ; F198 28                       (
-	bne     LF18B                           ; F199 D0 F0                    ..
-	beq     LF1BF                           ; F19B F0 22                    ."
-LF19D:  jsr     crlf                            ; F19D 20 21 EF                  !.
-	ldx     #$00                            ; F1A0 A2 00                    ..
-	jsr     chkin                          ; F1A2 20 C6 FF                  ..
-	bcs     LF1BF                           ; F1A5 B0 18                    ..
-LF1A7:  jsr     basin                          ; F1A7 20 CF FF                  ..
-	cmp     #$0D                            ; F1AA C9 0D                    ..
-	php                                     ; F1AC 08                       .
-	jsr     bsout                          ; F1AD 20 D2 FF                  ..
-	lda     status                          ; F1B0 A5 9C                    ..
-	and     #$BF                            ; F1B2 29 BF                    ).
-	bne     LF1BB                           ; F1B4 D0 05                    ..
-	plp                                     ; F1B6 28                       (
-	bne     LF1A7                           ; F1B7 D0 EE                    ..
-	beq     LF1BF                           ; F1B9 F0 04                    ..
-LF1BB:  pla                                     ; F1BB 68                       h
-	jsr     error5                          ; F1BC 20 4C F9                  L.
-LF1BF:  jsr     clrch                          ; F1BF 20 CC FF                  ..
-	lda     #$00                            ; F1C2 A9 00                    ..
-	clc                                     ; F1C4 18                       .
-	jmp     close                          ; F1C5 4C C3 FF                 L..
-; -------------------------------------------------------------------------------------------------
-; F1C8
-	!byte $EA,$EA
+; F1C8 Unused
+	nop
+	nop
 ; -------------------------------------------------------------------------------------------------
 ; F1CA ##### messages #####
 ms1:	!pet $0D,"i/o error ",$A3
