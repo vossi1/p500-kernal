@@ -21,6 +21,7 @@ STANDARD_FKEYS	= 1	; Standard F-keys
 FULL_RAMTEST	= 1	; Standard full and slow RAM-test
 STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
 ;CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
+;IEEEPATCH	= 1	; CBM-B-series ieee-patches -03 (with ren)
 ;BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank 15!
 ;SYSPATCH	= 1	; patched Basic SYS command to start code in all banks
@@ -492,7 +493,11 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 		; Equates
 		dc	= $01	; 75160/75161 control line
 		te	= $02	; 75160/75161 control line
+	!ifdef IEEEPATCH{
 		ren	= $04	; Remote enable
+	} else{
+		ren	= 0	; Remote enable
+	}
 		atn	= $08	; Attention
 		dav	= $10	; Data available
 		eoi	= $20	; End or identify
@@ -500,16 +505,16 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 		nrfd	= $80	; Not ready for data
 		ifc	= $01	; Interface clear
 		srq	= $02	; Service request
-		;
+		
 		rddb	= nrfd+ndac+te+dc+ren	;directions for receiver
 		tddb	= eoi+dav+atn+te+dc+ren	;directions for transmitt
-		;
+		
 		eoist	= $40	; eoi status test
 		tlkr	= $40	; device is talker
 		lstnr	= $20	; device is listener
 		utlkr	= $5f	; device untalk
 		ulstn	= $3f	; device unlisten
-		;       
+		       
 		toout	= $01	; timeout status on output
 		toin	= $02	; timeout status on input
 		eoist	= $40	; eoi on input
@@ -3621,186 +3626,216 @@ msg:	lda ms1,y
 	bpl msg
 msg10:	clc
 	rts
-*= $F237
 ; -------------------------------------------------------------------------------------------------
-; F237 Output talk on IEC bus
-ntalk:   ora     #$40                            ; F237 09 40                    .@
-	bne     LF23D                           ; F239 D0 02                    ..
-; F23B Output listen on IEC bus
-nlistn:  ora     #$20                            ; F23B 09 20                    . 
-LF23D:  pha                                     ; F23D 48                       H
-	lda     #$3B                            ; F23E A9 3B                    .;
-	sta     tpi1+ddpa                       ; F240 8D 03 DE                 ...
-	lda     #$FF                            ; F243 A9 FF                    ..
-	sta     cia+pra                        ; F245 8D 00 DC                 ...
-	sta     cia+ddra                       ; F248 8D 02 DC                 ...
-	lda     #$FE                            ; F24B A9 FE                    ..
-	sta     tpi1+pa                         ; F24D 8D 00 DE                 ...
-	lda     c3po                            ; F250 A5 AA                    ..
-	bpl     LF26F                           ; F252 10 1B                    ..
-	lda     tpi1+pa                         ; F254 AD 00 DE                 ...
-	and     #$DF                            ; F257 29 DF                    ).
-	sta     tpi1+pa                         ; F259 8D 00 DE                 ...
-	lda     bsour                           ; F25C A5 AB                    ..
-	jsr     txbyte                          ; F25E 20 C0 F2                  ..
-	lda     c3po                            ; F261 A5 AA                    ..
-	and     #$7F                            ; F263 29 7F                    ).
-	sta     c3po                            ; F265 85 AA                    ..
-	lda     tpi1+pa                         ; F267 AD 00 DE                 ...
-	ora     #$20                            ; F26A 09 20                    . 
-	sta     tpi1+pa                         ; F26C 8D 00 DE                 ...
-LF26F:  lda     tpi1+pa                         ; F26F AD 00 DE                 ...
-	and     #$F7                            ; F272 29 F7                    ).
-	sta     tpi1+pa                         ; F274 8D 00 DE                 ...
-	pla                                     ; F277 68                       h
-	jmp     txbyte                          ; F278 4C C0 F2                 L..
+; ##### ieee #####
+; F237 Command ieee-488 device to talk
+ntalk:	ora #tlkr       ;make a talk adr
+	bne list1       ;always go to list1
+; command ieee-488 device to listen
+nlistn:	ora #lstnr      ;make a listen adr
 
-; -------------------------------------------------------------------------------------------------
-; F27B Output secondary address after listen on IEC bus
-nsecnd:  jsr     txbyte                          ; F27B 20 C0 F2                  ..
-; F27E NOT ATN high after secnd
-secatn: lda     tpi1+pa                         ; F27E AD 00 DE                 ...
-	ora     #$08                            ; F281 09 08                    ..
-	sta     tpi1+pa                         ; F283 8D 00 DE                 ...
-	rts                                     ; F286 60                       `
+list1:	pha             ;save device and talk/listen
 
-; -------------------------------------------------------------------------------------------------
-; F287 Output secondary address on IEC bus
-ntksa:   jsr     txbyte                          ; F287 20 C0 F2                  ..
-tkatn:  lda     #$3D                            ; F28A A9 3D                    .=
-	and     tpi1+pa                         ; F28C 2D 00 DE                 -..
-; F28F Output A on IEC, switch data to input
-setlns: sta     tpi1+pa                         ; F28F 8D 00 DE                 ...
-	lda     #$C3                            ; F292 A9 C3                    ..
-	sta     tpi1+ddpa                       ; F294 8D 03 DE                 ...
-	lda     #$00                            ; F297 A9 00                    ..
-	sta     cia+ddra                       ; F299 8D 02 DC                 ...
-	beq     secatn                          ; F29C F0 E0                    ..
-; F29E Output A on IEC with EOF flag
-nciout:  pha                                     ; F29E 48                       H
-	lda     c3po                            ; F29F A5 AA                    ..
-	bpl     LF2AA                           ; F2A1 10 07                    ..
-	lda     bsour                           ; F2A3 A5 AB                    ..
-	jsr     txbyte                          ; F2A5 20 C0 F2                  ..
-	lda     c3po                            ; F2A8 A5 AA                    ..
-LF2AA:  ora     #$80                            ; F2AA 09 80                    ..
-	sta     c3po                            ; F2AC 85 AA                    ..
-	pla                                     ; F2AE 68                       h
-	sta     bsour                           ; F2AF 85 AB                    ..
-	rts                                     ; F2B1 60                       `
+	lda #tddb       ;set control for atn/data out
+	sta tpi1+ddpa
 
-; -------------------------------------------------------------------------------------------------
-; F2B2 Output untalk on IEC
-nuntlk: lda     #$5F                            ; F2B2 A9 5F                    ._
-	bne     LF2B8                           ; F2B4 D0 02                    ..
-; F2B6 Output unlisten on IEC
-nunlsn:  lda     #$3F                            ; F2B6 A9 3F                    .?
-LF2B8:  jsr     LF23D                           ; F2B8 20 3D F2                  =.
-	lda     #$FD                            ; F2BB A9 FD                    ..
-	jmp     setlns                          ; F2BD 4C 8F F2                 L..
+	lda #$FF        ;set direction for transmitt *
+	sta cia+pra     ;set data   *
+	sta cia+ddra    ;set data direction out   *
+	lda #$FF-dc-ren ;enable transmitt
+	sta tpi1+pa
+	lda c3po        ;get ieee flags
+	bpl list2       ;if data in buffer
 
-; -------------------------------------------------------------------------------------------------
-; F2C0 Output A on IEC without EOF flag
-txbyte: eor     #$FF                            ; F2C0 49 FF                    I.
-	sta     cia+pra                        ; F2C2 8D 00 DC                 ...
-	lda     tpi1+pa                         ; F2C5 AD 00 DE                 ...
-	ora     #$12                            ; F2C8 09 12                    ..
-	sta     tpi1+pa                         ; F2CA 8D 00 DE                 ...
-	bit     tpi1+pa                         ; F2CD 2C 00 DE                 ,..
-	bvc     txbyt1                          ; F2D0 50 09                    P.
-	bpl     txbyt1                          ; F2D2 10 07                    ..
-	lda     #$80                            ; F2D4 A9 80                    ..
-	jsr     udst                            ; F2D6 20 6E FB                  n.
-	bne     txbyt6                          ; F2D9 D0 30                    .0
-txbyt1: lda     tpi1+pa                         ; F2DB AD 00 DE                 ...
-	bpl     txbyt1                          ; F2DE 10 FB                    ..
-	and     #$EF                            ; F2E0 29 EF                    ).
-	sta     tpi1+pa                         ; F2E2 8D 00 DE                 ...
-txbyt2: jsr     timeron                         ; F2E5 20 76 F3                  v.
-	bcc     txbyt4                          ; F2E8 90 01                    ..
-txbyt3: sec                                     ; F2EA 38                       8
-txbyt4: bit     tpi1+pa                         ; F2EB 2C 00 DE                 ,..
-	bvs     txbyt5                          ; F2EE 70 13                    p.
-	lda     cia+icr                        ; F2F0 AD 0D DC                 ...
-	and     #$02                            ; F2F3 29 02                    ).
-	beq     txbyt4                          ; F2F5 F0 F4                    ..
-	lda     timout                          ; F2F7 AD 5E 03                 .^.
-	bmi     txbyt2                          ; F2FA 30 E9                    0.
-	bcc     txbyt3                          ; F2FC 90 EC                    ..
-	lda     #$01                            ; F2FE A9 01                    ..
-	jsr     udst                            ; F300 20 6E FB                  n.
-txbyt5: lda     tpi1+pa                         ; F303 AD 00 DE                 ...
-	ora     #$10                            ; F306 09 10                    ..
-	sta     tpi1+pa                         ; F308 8D 00 DE                 ...
-txbyt6: lda     #$FF                            ; F30B A9 FF                    ..
-	sta     cia+pra                        ; F30D 8D 00 DC                 ...
-	rts                                     ; F310 60                       `
+	lda tpi1+pa     ;send eoi
+	and #$FF-eoi
+	sta tpi1+pa
 
-; -------------------------------------------------------------------------------------------------
-; F311 Read char from IEC bus into A
-nacptr:  lda     tpi1+pa                         ; F311 AD 00 DE                 ...
-	and     #$BD                            ; F314 29 BD                    ).
-	ora     #$81                            ; F316 09 81                    ..
-	sta     tpi1+pa                         ; F318 8D 00 DE                 ...
-LF31B:  jsr     timeron                         ; F31B 20 76 F3                  v.
-	bcc     LF321                           ; F31E 90 01                    ..
-LF320:  sec                                     ; F320 38                       8
-LF321:  lda     tpi1+pa                         ; F321 AD 00 DE                 ...
-	and     #$10                            ; F324 29 10                    ).
-	beq     LF346                           ; F326 F0 1E                    ..
-	lda     cia+icr                        ; F328 AD 0D DC                 ...
-	and     #$02                            ; F32B 29 02                    ).
-	beq     LF321                           ; F32D F0 F2                    ..
-	lda     timout                          ; F32F AD 5E 03                 .^.
-	bmi     LF31B                           ; F332 30 E7                    0.
-	bcc     LF320                           ; F334 90 EA                    ..
-	lda     #$02                            ; F336 A9 02                    ..
-	jsr     udst                            ; F338 20 6E FB                  n.
-	lda     tpi1+pa                         ; F33B AD 00 DE                 ...
-	and     #$3D                            ; F33E 29 3D                    )=
-	sta     tpi1+pa                         ; F340 8D 00 DE                 ...
-	lda     #$0D                            ; F343 A9 0D                    ..
-	rts                                     ; F345 60                       `
+	lda bsour       ;get byte to send
+	jsr tbyte       ;send last character
 
+	lda c3po        ;clear byte in buffer flag
+	and #$FF-dibf
+	sta c3po
+
+	lda tpi1+pa     ;clear eoi
+	ora #eoi
+	sta tpi1+pa
+
+list2:	lda tpi1+pa     ;assert atn
+	and #$FF-atn
+	sta tpi1+pa
+
+	pla             ;get talk/listen address
+	jmp tbyte
 ; -------------------------------------------------------------------------------------------------
+; F27B Send secondary address after listen
+nsecnd:	jsr tbyte       ;send it      
+; release attention after listen       
+scat1:
+scatn:	lda tpi1+pa     ;de-assert atn
+	ora #atn
+	sta tpi1+pa
+	rts
+; -------------------------------------------------------------------------------------------------
+; F287 Talk second address
+ntksa:	jsr tbyte       ;send secondary address
+
+tkatn:	lda #$FF-nrfd-ndac-te-ren ;pull nrfd and ndac low
+	and tpi1+pa
+; exit entry for untalk/unlisten
+setlns:	sta tpi1+pa
+	lda #rddb       ;set control lines for input
+	sta tpi1+ddpa
+	lda #$00        ;set data lines for recieve
+	sta cia+ddra
+	beq scatn
+; -------------------------------------------------------------------------------------------------
+; F29E Buffered output to ieee-488
+nciout:	pha             ;save data
+	lda c3po        ;get ieee flags
+	bpl ci1         ;if no data in buffer
+	lda bsour       ;get data in buffer
+	jsr tbyte       ;transmit byte
+	lda c3po        ;get ieee flags
+
+ci1:	ora #dibf       ;set data in buffer flag
+	sta c3po
+
+	pla             ;get new data
+	sta bsour
+	rts
+; -------------------------------------------------------------------------------------------------
+; F2B2 Send untalk command on ie
+nuntlk:	lda #utlkr      ;untalk command
+	bne unls1       ;always
+
+; send unlisten command on ieee-488
+nunlsn:	lda #ulstn      ;unlisten command
+unls1:	jsr list1       ;send it
+	lda #$FF-te-ren ;set for recieve all lines high
+	jmp setlns      ;go setup proper exit state
+; -------------------------------------------------------------------------------------------------
+; F2C0 tbyte -- output byte onto ieee bus.
+;   entry a = data byte to be output.
+;   uses a register. 1 byte of stack space.
+tbyte:	eor #$FF	;compliment data
+	sta cia+pra
+
+	lda tpi1+pa
+	ora #dav+te     ;say data not valid, te=data out
+	sta tpi1+pa
+
+	bit tpi1+pa     ;test nrfd & ndac in high state
+	bvc tby2        ;either nrfd or ndac low => ok
+	bpl tby2
+
+tby1:	lda #nodev      ;set no-device bit in status
+	jsr udst
+	bne tby7        ;always exit
+
+tby2:	lda tpi1+pa
+	bpl tby2        ;if nrfd is high
+
+	and #$FF-dav
+	sta tpi1+pa
+
+tby3:	jsr timero      ;set timeout
+	bcc tby4        ;c-clear means first time through
+tby3t:	sec             ;c-set is second time
+
+tby4:	bit tpi1+pa
+	bvs tby6        ;if ndac hi
+	lda cia+icr
+	and #$02        ;timer b posistion (cia)
+	beq tby4        ;if no timeout
+	lda timout      ;timeout selection flag
+	bmi tby3        ;no - loop
+	bcc tby3t       ;wait full 64us
+
+tby5:	lda #toout      ;set timeout on output in status
+	jsr udst        ;update status
+
+tby6:	lda tpi1+pa     ;release dav
+	ora #dav
+	sta tpi1+pa
+
+tby7:	lda #$FF        ;release data bus
+	sta cia+pra     ;bus failure exit
+	rts
+; -------------------------------------------------------------------------------------------------
+; F311 rbyte -- input byte from ieee bus.
+;   uses a register. 1 byte of stack space.
+;   exit a = input data byte.
+nacptr:	; ********************************
+nrbyte:
+	lda tpi1+pa     ;set control lines
+	and #$FF-te-ndac-ren ;pull ndac low, te=data in
+	ora #nrfd+dc    ;say read for data
+	sta tpi1+pa
+
+rby1:	jsr timero      ;return c-clear for cbmii
+	bcc rby2        ;c-clear is first time through
+rby1t:	sec             ;c-set is second time through
+
+rby2:	lda tpi1+pa     ;get ieee control lines
+	and #dav
+	beq rby4        ;if data available
+	lda cia+icr
+	and #$02        ;timer b (cia)
+	beq rby2        ;if not timed out
+	lda timout      ;get timeout flag
+	bmi rby1        ;loop
+	bcc rby1t       ;go through twice
+
+rby3:	lda #toin       ;set timeout on input in status
+	jsr udst
+	lda tpi1+pa
+	and #$FF-nrfd-ndac-te ;nrfd & ndac lo on error
+	sta tpi1+pa
+	lda #cr         ;return null input
+	rts
 ; F346
-LF346:  lda     tpi1+pa                         ; F346 AD 00 DE                 ...
-	and     #$7F                            ; F349 29 7F                    ).
-	sta     tpi1+pa                         ; F34B 8D 00 DE                 ...
-	and     #$20                            ; F34E 29 20                    ) 
-	bne     LF357                           ; F350 D0 05                    ..
-	lda     #$40                            ; F352 A9 40                    .@
-	jsr     udst                            ; F354 20 6E FB                  n.
-LF357:  lda     cia+pra                        ; F357 AD 00 DC                 ...
-	eor     #$FF                            ; F35A 49 FF                    I.
-	pha                                     ; F35C 48                       H
-	lda     tpi1+pa                         ; F35D AD 00 DE                 ...
-	ora     #$40                            ; F360 09 40                    .@
-	sta     tpi1+pa                         ; F362 8D 00 DE                 ...
-LF365:  lda     tpi1+pa                         ; F365 AD 00 DE                 ...
-	and     #$10                            ; F368 29 10                    ).
-	beq     LF365                           ; F36A F0 F9                    ..
-	lda     tpi1+pa                         ; F36C AD 00 DE                 ...
-	and     #$BF                            ; F36F 29 BF                    ).
-	sta     tpi1+pa                         ; F371 8D 00 DE                 ...
-	pla                                     ; F374 68                       h
-	rts                                     ; F375 60                       `
+rby4:	lda tpi1+pa     ;say not read for data
+	and #$FF-nrfd
+	sta tpi1+pa
+	and #eoi
+	bne rby5        ;if not eoi
+	lda #eoist      ;set eoi in status
+	jsr udst
 
-; -------------------------------------------------------------------------------------------------
-; F376 Set timer for timeout on IEC
-timeron:lda     #$80                            ; F376 A9 80                    ..
-	sta     cia+tbhi                       ; F378 8D 07 DC                 ...
-	lda     #$11                            ; F37B A9 11                    ..
-	sta     cia+crb                        ; F37D 8D 0F DC                 ...
-	lda     cia+icr                        ; F380 AD 0D DC                 ...
-	clc                                     ; F383 18                       .
-	rts                                     ; F384 60                       `
+rby5:	lda cia+pra     ;get data
+	eor #$FF
 
+rby6:	pha             ;save data
+	lda tpi1+pa     ;say data accepted
+	ora #ndac
+	sta tpi1+pa
+
+rby7:	lda tpi1+pa     ;get ieee control lines
+	and #dav
+	beq rby7        ;if dav high
+
+	lda tpi1+pa     ;say dat not accpted
+	and #$FF-ndac
+	sta tpi1+pa
+	pla             ;return data in a
+	rts
 ; -------------------------------------------------------------------------------------------------
-; F385
-	jmp     error9                          ; F385 4C 58 F9                 LX.
+; F376 Set up for timeout (6526)
+timero:	lda #$80        ;set time for at least 32us
+
+	sta cia+tbhi
+	lda #$11        ;turn on timer continous in case of other irq's
+	sta cia+crb
+	lda cia+icr     ;clear interrupt
+	clc
+	rts
 ; -------------------------------------------------------------------------------------------------
-; opn232 - open an rs-232 channel
+; F385 ##### rs232 #####
+	jmp error9		; bad device number
+; -------------------------------------------------------------------------------------------------
+; F388 opn232 - open an rs-232 channel
 ;   if sa=1 then output channel
 ;   if sa=2 then input  channel
 ;   if sa=3 then bidirectional channel
@@ -3822,7 +3857,6 @@ timeron:lda     #$80                            ; F376 A9 80                    
 ;                (0)   = 0   (dtr off)
 ;  4. do buffer alocatation, if needed
 ;---------------------------------------------
-; F388
 opn232:	jsr     rdst232                         ; F388 20 35 F4                  5.
 	ldy     #$00                            ; F38B A0 00                    ..
 LF38D:  cpy     fnlen                           ; F38D C4 9D                    ..
@@ -4306,7 +4340,7 @@ LF5DC:  tax                                     ; F5DC AA                       
 	jsr     listn                         ; F5DD 20 B1 FF                  ..
 	lda     sa                              ; F5E0 A5 A0                    ..
 	bpl     LF5E9                           ; F5E2 10 05                    ..
-	jsr     secatn                          ; F5E4 20 7E F2                  ~.
+	jsr     scatn                          ; F5E4 20 7E F2                  ~.
 	bne     LF5EC                           ; F5E7 D0 03                    ..
 LF5E9:  jsr     secnd                          ; F5E9 20 93 FF                  ..
 LF5EC:  txa                                     ; F5EC 8A                       .
