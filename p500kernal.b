@@ -5052,6 +5052,7 @@ settim	pha			; save for later
 	sta cia+tod10
 	rts
 ; -------------------------------------------------------------------------------------------------
+; ##### errorhandler #####
 ;************************************
 ;* error handler                    *
 ;*  restores i/o channels to default*
@@ -5059,47 +5060,41 @@ settim	pha			; save for later
 ;*  bit 6 of msgflg set.  returns   *
 ;*  with error # in .a and carry.   *
 ;************************************
-; F940 Output "i/o error: 1" (too many files)
-error1: lda     #$01                            ; F940 A9 01                    ..
-!byte   $2C                                     ; F942 2C                       ,
-; Output "i/o error: 2" (file open)
-error2: lda     #$02                            ; F943 A9 02                    ..
-!byte   $2C                                     ; F945 2C                       ,
-; Output "i/o error: 3" (file not open)
-error3: lda     #$03                            ; F946 A9 03                    ..
-!byte   $2C                                     ; F948 2C                       ,
-; Output "i/o error: 4" (file not found)
-error4: lda     #$04                            ; F949 A9 04                    ..
-!byte   $2C                                     ; F94B 2C                       ,
-; Output "i/o error: 5" (device not present)
-error5: lda     #$05                            ; F94C A9 05                    ..
-!byte   $2C                                     ; F94E 2C                       ,
-; Output "i/o error: 6" (not input file)
-error6: lda     #$06                            ; F94F A9 06                    ..
-!byte   $2C                                     ; F951 2C                       ,
-; Output "i/o error: 7" (not output file)
-error7: lda     #$07                            ; F952 A9 07                    ..
-!byte   $2C                                     ; F954 2C                       ,
-; Output "i/o error: 8" (missing file name)
-error8: lda     #$08                            ; F955 A9 08                    ..
-!byte   $2C                                     ; F957 2C                       ,
-; Output "i/o error: 9" (illegal device number)
-error9: lda     #$09                            ; F958 A9 09                    ..
-; F95A Error output routine
-errorx: pha                                     ; F95A 48                       H
-	jsr     clrch                          ; F95B 20 CC FF                  ..
-	ldy     #$00                            ; F95E A0 00                    ..
-	bit     msgflg                          ; F960 2C 61 03                 ,a.
-	bvc     LF96F                           ; F963 50 0A                    P.
-	jsr     msg                             ; F965 20 28 F2                  (.
-	pla                                     ; F968 68                       h
-	pha                                     ; F969 48                       H
-	ora     #$30                            ; F96A 09 30                    .0
-	jsr     bsout                          ; F96C 20 D2 FF                  ..
-LF96F:  pla                                     ; F96F 68                       h
-	sec                                     ; F970 38                       8
-	rts                                     ; F971 60                       `
+; F940 
+error1:	lda #1			; too many files
+	!byte $2c
+error2:	lda #2			; file open
+	!byte $2c
+error3:	lda #3			; file not open
+	!byte $2c
+error4:	lda #4			; file not found
+	!byte $2c
+error5:	lda #5			; device not present
+	!byte $2c
+error6:	lda #6			; not input file
+	!byte $2c
+error7:	lda #7			; not output file
+	!byte $2c
+error8:	lda #8			; missing file name
+	!byte $2c
+error9:	lda #9			; bad device #
 
+errorx:	pha			; error number on stack
+	jsr clrch		; restore i/o channels
+
+	ldy #ms1-ms1
+	bit msgflg		; are we printing error?
+	bvc erexit		; no...
+
+	jsr msg			; print "cbm i/o error #"
+	pla
+	pha
+	ora #$30		; make error # ascii
+	jsr bsout		; print it
+
+erexit:	pla
+	sec
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;***************************************
 ;* stop -- check stop key flag and     *
