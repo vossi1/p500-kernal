@@ -4375,6 +4375,7 @@ ck60:	txa
 
 	jmp error5		; no...device not present
 ; -------------------------------------------------------------------------------------------------
+; ##### close #####
 ;*************************************
 ;* nclose -- close logical file      *
 ;*                                   *
@@ -4396,100 +4397,109 @@ ck60:	txa
 ;* a secondary address was specified *
 ;* in its open command.              *
 ;*************************************
-; F5F4 Close a logical file
-nclose:  php                                     ; F5F4 08                       .
-	jsr     LF64A                           ; F5F5 20 4A F6                  J.
-	beq     LF5FD                           ; F5F8 F0 03                    ..
-	plp                                     ; F5FA 28                       (
-	clc                                     ; F5FB 18                       .
-	rts                                     ; F5FC 60                       `
+; F5F4
+nclose:	php			; save cy flag
+	jsr jltlk		; look file up
+	beq jx110		; was open...continue
+	plp
+	clc			; was never open...no error
+	rts
 
-; -------------------------------------------------------------------------------------------------
-; F5FD
-LF5FD:  jsr     jz100                           ; F5FD 20 57 F6                  W.
-	plp                                     ; F600 28                       (
-	txa                                     ; F601 8A                       .
-	pha                                     ; F602 48                       H
-	bcc     LF624                           ; F603 90 1F                    ..
-	lda     fa                              ; F605 A5 9F                    ..
-	beq     LF624                           ; F607 F0 1B                    ..
-	cmp     #$03                            ; F609 C9 03                    ..
-	beq     LF624                           ; F60B F0 17                    ..
-	bcs     LF621                           ; F60D B0 12                    ..
-	cmp     #$02                            ; F60F C9 02                    ..
-	bne     LF61A                           ; F611 D0 07                    ..
-	lda     #$00                            ; F613 A9 00                    ..
-	sta     acia+cdr                        ; F615 8D 02 DD                 ...
-	beq     LF624                           ; F618 F0 0A                    ..
-LF61A:  pla                                     ; F61A 68                       h
-	jsr     LF625                           ; F61B 20 25 F6                  %.
-	jsr     xtape                            ; F61E 20 68 FE                  h.
-LF621:  jsr     clsei                           ; F621 20 C6 F8                  ..
-LF624:  pla                                     ; F624 68                       h
-LF625:  tax                                     ; F625 AA                       .
-	dec     ldtnd                           ; F626 CE 60 03                 .`.
-	cpx     ldtnd                           ; F629 EC 60 03                 .`.
-	beq     LF643                           ; F62C F0 15                    ..
-	ldy     ldtnd                           ; F62E AC 60 03                 .`.
-	lda     lat,y                           ; F631 B9 34 03                 .4.
-	sta     lat,x                           ; F634 9D 34 03                 .4.
-	lda     fat,y                           ; F637 B9 3E 03                 .>.
-	sta     fat,x                           ; F63A 9D 3E 03                 .>.
-	lda     sat,y                           ; F63D B9 48 03                 .H.
-	sta     sat,x                           ; F640 9D 48 03                 .H.
-LF643:  clc                                     ; F643 18                       .
-	rts                                     ; F644 60                       `
+jx110:	jsr jz100		; extract table data
+	plp			; retrieve cy flag
+	txa			; save table index
+	pha
+	bcc jx150		; close out table entries only
 
-; -------------------------------------------------------------------------------------------------
-; F645
-lookup: lda     #$00                            ; F645 A9 00                    ..
-	sta     status                          ; F647 85 9C                    ..
-	txa                                     ; F649 8A                       .
-LF64A:  ldx     ldtnd                           ; F64A AE 60 03                 .`.
-LF64D:  dex                                     ; F64D CA                       .
-	bmi     LF67D                           ; F64E 30 2D                    0-
-	cmp     lat,x                           ; F650 DD 34 03                 .4.
-	bne     LF64D                           ; F653 D0 F8                    ..
-	clc                                     ; F655 18                       .
-	rts                                     ; F656 60                       `
+	lda fa			; check device number
+	beq jx150		; is keyboard...done
+	cmp #3
+	beq jx150		; is screen...done
+	bcs jx120		; is ieee...process
+	cmp #2			; rs232?
+	bne jx115		; no...
 
-; -------------------------------------------------------------------------------------------------
-; F657
-jz100:  lda     lat,x                           ; F657 BD 34 03                 .4.
-	sta     la                              ; F65A 85 9E                    ..
-	lda     fat,x                           ; F65C BD 3E 03                 .>.
-	sta     fa                              ; F65F 85 9F                    ..
-	lda     sat,x                           ; F661 BD 48 03                 .H.
-	sta     sa                              ; F664 85 A0                    ..
-	rts                                     ; F666 60                       `
+; close rs-232 file
+cls232:	lda #0
+	sta acia+cdr		; do a soft reset
+	beq jx150		; jmp...remove file
 
-; -------------------------------------------------------------------------------------------------
-; F667
-lkupsa: tya                                     ; F667 98                       .
-	ldx     ldtnd                           ; F668 AE 60 03                 .`.
-LF66B:  dex                                     ; F66B CA                       .
-	bmi     LF67D                           ; F66C 30 0F                    0.
-	cmp     sat,x                           ; F66E DD 48 03                 .H.
-	bne     LF66B                           ; F671 D0 F8                    ..
-	clc                                     ; F673 18                       .
-LF674:  jsr     jz100                           ; F674 20 57 F6                  W.
-	tay                                     ; F677 A8                       .
-	lda     la                              ; F678 A5 9E                    ..
-	ldx     fa                              ; F67A A6 9F                    ..
-	rts                                     ; F67C 60                       `
+; close cassette file
+jx115:	pla			; cassette now closes the channel...
+	jsr jx151		; before transmitting out the final data
+	jsr xtape		; goto tape indirect
 
-; -------------------------------------------------------------------------------------------------
-; F67D
-LF67D:  sec                                     ; F67D 38                       8
-	rts                                     ; F67E 60                       `
+; close an ieee file
+jx120:	jsr clsei
 
-; -------------------------------------------------------------------------------------------------
-; F67F
-lkupla: tax                                     ; F67F AA                       .
-	jsr     lookup                          ; F680 20 45 F6                  E.
-	bcc     LF674                           ; F683 90 EF                    ..
-	rts                                     ; F685 60                       `
+; entry to remove a give logical file from table of logical, primary, and secondary addresses
+jx150:	pla			; get table index off stack
+jx151:	tax			; entry for cassette special
+	dec ldtnd
+	cpx ldtnd		; is deleted file at end?
+	beq jx160		; yes...done
 
+; delete entry in middle by moving last entry to that position.
+	ldy ldtnd
+	lda lat,y
+	sta lat,x
+	lda fat,y
+	sta fat,x
+	lda sat,y
+	sta sat,x
+jx160:	clc
+jx170:	rts			; close exit
+
+; lookup tablized logical file data
+lookup:	lda #0
+	sta status
+	txa
+jltlk:	ldx ldtnd
+jx600:	dex
+	bmi lkups4
+	cmp lat,x
+	bne jx600
+	clc
+	rts
+
+; routine to fetch table entries
+jz100:	lda lat,x
+	sta la
+	lda fat,x
+	sta fa
+	lda sat,x
+	sta sa
+jz101:	rts
+
+; sa is passed in .y
+; routine looks for match in tables
+; carry set if not present
+; carry clear:
+; .a=la,.x=fa,.y=sa
+lkupsa:	tya
+	ldx ldtnd
+lkups2:	dex
+	bmi lkups4
+	cmp sat,x
+	bne lkups2
+	clc
+lkups3:	jsr jz100		; get table data
+	tay
+	lda la
+	ldx fa
+	rts
+lkups4:	sec
+	rts			; not found exit
+
+; la is passed in .a
+; routine looks for match in tables
+; carry set if not found
+; carry clear:
+; .a=la,.x=fa,.y=sa
+lkupla:	tax
+	jsr lookup
+	bcc lkups3
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;******************************************
 ;* nclall -- close all logical files      *
