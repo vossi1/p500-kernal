@@ -12,7 +12,8 @@
 ; v1.9 movchar single line screen, slow scroll preserve flags patches rev -03 kernal
 ; v2.0 added complete rev -03 new patched key functions in the editor
 ; v2.1 optional solid Atari Style cursor ;)
-; v2.2 optional IEEE rev -03 patch with ren 
+; v2.2 optional IEEE rev -03 patch with ren
+; v2.3 dclose patch from b-series rev -03 kernal
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -4501,6 +4502,7 @@ lkupla:	tax
 	bcc lkups3
 	rts
 ; -------------------------------------------------------------------------------------------------
+; ##### clall #####
 ;******************************************
 ;* nclall -- close all logical files      *
 ;*      deletes all table entries and     *
@@ -4516,42 +4518,52 @@ lkupla:	tax
 ;    c-set => .a = fa (device to be closed)
 ;------------------------------------------
 ; F686 Close all logical files
-nclall: ror     xsav                            ; F686 6E 65 03                 ne.
-	sta     savx                            ; F689 8D 66 03                 .f.
-LF68C:  ldx     ldtnd                           ; F68C AE 60 03                 .`.
-LF68F:  dex                                     ; F68F CA                       .
-	bmi     LF6A8                           ; F690 30 16                    0.
-	bit     xsav                            ; F692 2C 65 03                 ,e.
-	bpl     LF69F                           ; F695 10 08                    ..
-	lda     savx                            ; F697 AD 66 03                 .f.
-	cmp     fat,x                           ; F69A DD 3E 03                 .>.
-	bne     LF68F                           ; F69D D0 F0                    ..
-LF69F:  lda     lat,x                           ; F69F BD 34 03                 .4.
-	sec                                     ; F6A2 38                       8
-	jsr     close                          ; F6A3 20 C3 FF                  ..
-	bcc     LF68C                           ; F6A6 90 E4                    ..
-LF6A8:  lda     #$00                            ; F6A8 A9 00                    ..
-	sta     ldtnd                           ; F6AA 8D 60 03                 .`.
+nclall:	ror xsav		; save carry
+	sta savx		; save .a
+ncl010:	ldx ldtnd		; scan index
+ncl020:	dex
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+	bmi nclrch		; all done...clear channels (dclose patch 5/31/83)
+} else{
+	bmi ncl040		; all done
+}
+	bit xsav		; check for fixed fa
+	bpl ncl030		; none...
+	lda savx
+	cmp fat,x
+	bne ncl020		; no match...
+ncl030:	lda lat,x		; close this la
+	sec			; c-set required to close
+	jsr close
+	bcc ncl010
+
+ncl040:	lda #0			; original entry for nclall
+	sta ldtnd		; forget all files
+; -------------------------------------------------------------------------------------------------
 ;********************************************
 ;* nclrch -- clear channels                 *
 ;*   unlisten or untalk ieee devices, but   *
 ;* leave others alone.  default channels    *
 ;* are restored.                            *
 ;********************************************
-; F6AD Unlisten/untalk on IEC
-nclrch:  ldx     #$03                            ; F6AD A2 03                    ..
-	cpx     dflto                           ; F6AF E4 A2                    ..
-	bcs     LF6B6                           ; F6B1 B0 03                    ..
-	jsr     unlsn                          ; F6B3 20 AE FF                  ..
-LF6B6:  cpx     dfltn                           ; F6B6 E4 A1                    ..
-	bcs     LF6BD                           ; F6B8 B0 03                    ..
-	jsr     untlk                         ; F6BA 20 AB FF                  ..
-LF6BD:  ldx     #$03                            ; F6BD A2 03                    ..
-	stx     dflto                           ; F6BF 86 A2                    ..
-	lda     #$00                            ; F6C1 A9 00                    ..
-	sta     dfltn                           ; F6C3 85 A1                    ..
-	rts                                     ; F6C5 60                       `
+; F6AD
+nclrch:	ldx #3
+	cpx dflto		; is output channel ieee?
+	bcs jx750		; no...
 
+	jsr unlsn		; yes...unlisten it
+
+jx750:	cpx dfltn		; is input channel ieee?
+	bcs clall2		; no...
+
+	jsr untlk		; yes...untalk it
+
+; restore default values
+clall2:	ldx #3
+	stx dflto		; output chan=3=screen
+	lda #0
+	sta dfltn		; input chan=0=keyboard
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;***********************************
 ;*                                 *
