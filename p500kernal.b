@@ -2973,7 +2973,7 @@ fligm:
 ;* for syntax & semantics see cbm kernal manual *
 ;* copyright (c) 1981 by cbm                    *
 ;************************************************
-; EE00 Reset entry
+; EE00 Reset Entry
 *= kernal+$E00
 
 ; ***** Warm start entry *******
@@ -3718,9 +3718,10 @@ unls1:	jsr list1		; send it
 	lda #$FF-te-ren		; set for recieve all lines high
 	jmp setlns		; go setup proper exit state
 ; -------------------------------------------------------------------------------------------------
-; F2C0 tbyte -- output byte onto ieee bus.
+; tbyte -- output byte onto ieee bus.
 ;   entry a = data byte to be output.
 ;   uses a register. 1 byte of stack space.
+; F2C0
 tbyte:	eor #$FF	; compliment data
 	sta cia+pra
 
@@ -3766,9 +3767,10 @@ tby7:	lda #$FF		; release data bus
 	sta cia+pra		; bus failure exit
 	rts
 ; -------------------------------------------------------------------------------------------------
-; F311 rbyte -- input byte from ieee bus.
+; rbyte -- input byte from ieee bus.
 ;   uses a register. 1 byte of stack space.
 ;   exit a = input data byte.
+; F311
 nacptr:	; ********************************
 nrbyte:
 	lda tpi1+pa		; set control lines
@@ -3837,7 +3839,7 @@ timero:	lda #$80		; set time for at least 32us
 ; F385 ##### rs232 #####
 rs232:	jmp error9		; bad device number
 ; -------------------------------------------------------------------------------------------------
-; F388 opn232 - open an rs-232 channel
+; opn232 - open an rs-232 channel
 ;   if sa=1 then output channel
 ;   if sa=2 then input  channel
 ;   if sa=3 then bidirectional channel
@@ -3859,6 +3861,7 @@ rs232:	jmp error9		; bad device number
 ;                (0)   = 0   (dtr off)
 ;  4. do buffer alocatation, if needed
 ;---------------------------------------------
+; F388
 opn232:	jsr rst232		; reset rs232 status
 	ldy #0
 
@@ -3895,11 +3898,12 @@ opn045:	bcc opn050
 	jmp errorx
 opn050:	rts			; c-clr already allocated
 ; -------------------------------------------------------------------------------------------------
-; F3CE toasci - convert cbm text code to
+; toasci - convert cbm text code to
 ;  ascii for valid ascii ranges.
 ; entry: .a - cbm text code
 ; exit : .a - ascii code
 ;----------------------------------------
+; F3CE
 toasci:	cmp #'a'		; convert $41 to $5a
 	bcc toa020
 	cmp #$5B
@@ -3912,11 +3916,12 @@ toa010:	cmp #$C1		; convert $c1 to $da
 	and #$7F		; to upper case ascii
 toa020:	rts
 ; -------------------------------------------------------------------------------------------------
-; F3E3 tocbm - convert ascii code to cbm
+; tocbm - convert ascii code to cbm
 ;  text code for valid ascii ranges.
 ; entry: .a - ascii code
 ; exit : .a - cbm text code
 ;----------------------------------------
+; F3E3
 tocbm:	cmp #'a'		; convert upper case ascii
 	bcc toc020
 	cmp #$5B
@@ -3929,10 +3934,11 @@ toc010:	cmp #$61		; convert lower case ascii
 	and #$FF-$20		; to $41 - $5a
 toc020:	rts
 ; -------------------------------------------------------------------------------------------------
-; F3F8 xon232 - turn 6551 transmitter on, no transmit interrupts
+; xon232 - turn 6551 transmitter on, no transmit interrupts
 ;        cdr bits(3-2) = 10
 ;            bit(1)    = 1
 ;---------------------------------------------------------------
+; F3F8
 xon232:	lda acia+cdr
 	ora #$09
 	and #$FB
@@ -3944,7 +3950,7 @@ xon232:	lda acia+cdr
 req256:	ldx #$00
 	ldy #$01		; one page = 256 bytes
 ; -------------------------------------------------------------------------------------------------
-; F407 alocat - alocatate space
+; alocat - alocatate space
 ;  entry:
 ; *  .a- if .a=$ff then don't care what segment
 ; *  .a- if .a=$80 then we want bottom of memory
@@ -3965,6 +3971,7 @@ req256:	ldx #$00
 ;
 ; *=> not implemented yet  10/30/81 rsr (only top alocatation)
 ;-----------------------------------------------------------------------
+; F407
 alocat:
 tttop:	txa			; calc new hiadr
 	sec
@@ -3992,13 +3999,14 @@ topxit:	stx hiadr		; store new end of system memory ($)
 	clc
 	rts
 ; -------------------------------------------------------------------------------------------------
-; F435 rst232 - reset rs232 and dcd/dsr status
+; rst232 - reset rs232 and dcd/dsr status
 ;          note, the dcd and dsr bits of rsstat reflect whether a
 ;          dsr or dcd error occured since the last time the user
 ;          examined rsstat.
 ;          dcdsr has the dcd/dsr states prior to their last state
 ;          changes.
 ;-----------------------------------------------------------------
+; F435
 rst232:	php
 	sei			; disable ints
 	lda acia+srsn
@@ -4975,6 +4983,8 @@ saving:	lda msgflg
 	jsr spmsg
 	jmp outfn		; <file name>
 ; -------------------------------------------------------------------------------------------------
+; ##### time #####
+;----------------------------------------
 ; time and alarm routines for 6526
 ;      rsr 11/12/81
 ;
@@ -4984,31 +4994,30 @@ saving:	lda msgflg
 ;  .a = (bit7=t1,bits6-0 seconds)
 ;----------------------------------------
 ; F8ED
-rdtim:  lda     cia+tod10                      ; F8ED AD 08 DC                 ...
-	pha                                     ; F8F0 48                       H
-	pha                                     ; F8F1 48                       H
-	asl                                     ; F8F2 0A                       .
-	asl                                     ; F8F3 0A                       .
-	asl                                     ; F8F4 0A                       .
-	and     #$60                            ; F8F5 29 60                    )`
-	ora     cia+todhr                      ; F8F7 0D 0B DC                 ...
-	tay                                     ; F8FA A8                       .
-	pla                                     ; F8FB 68                       h
-	ror                                     ; F8FC 6A                       j
-	ror                                     ; F8FD 6A                       j
-	and     #$80                            ; F8FE 29 80                    ).
-	ora     cia+todsec                     ; F900 0D 09 DC                 ...
-	sta     sal                             ; F903 85 93                    ..
-	ror                                     ; F905 6A                       j
-	and     #$80                            ; F906 29 80                    ).
-	ora     cia+todmin                     ; F908 0D 0A DC                 ...
-	tax                                     ; F90B AA                       .
-	pla                                     ; F90C 68                       h
-	cmp     cia+tod10                      ; F90D CD 08 DC                 ...
-	bne     rdtim                           ; F910 D0 DB                    ..
-	lda     sal                             ; F912 A5 93                    ..
-	rts                                     ; F914 60                       `
-
+rdtim:	lda cia+tod10
+	pha			; save for later
+	pha
+	asl			; shift to add to todhrs
+	asl
+	asl
+	and #$60		; bit posistions 5,6
+	ora cia+todhr
+	tay			; return in .y
+	pla
+	ror			; shift to add to todsec
+	ror
+	and #$80
+	ora cia+todsec
+	sta sal			; save for later
+	ror			; shit to add to todmin
+	and #$80
+	ora cia+todmin
+	tax			; return in .x
+	pla
+	cmp cia+tod10		; watch out for rollover
+	bne rdtim		; ...it changed do again...
+	lda sal
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;----------------------------------------
 ; settim - set tod and alarm
@@ -5016,33 +5025,32 @@ rdtim:  lda     cia+tod10                      ; F8ED AD 08 DC                 .
 ;  c-clr => set tod
 ;  registers same as rdtim
 ;----------------------------------------
-; F915 Set the time
-settim: pha                                     ; F915 48                       H
-	pha                                     ; F916 48                       H
-	ror                                     ; F917 6A                       j
-	and     #$80                            ; F918 29 80                    ).
-	ora     cia+crb                        ; F91A 0D 0F DC                 ...
-	sta     cia+crb                        ; F91D 8D 0F DC                 ...
-	tya                                     ; F920 98                       .
-	rol                                     ; F921 2A                       *
-	rol                                     ; F922 2A                       *
-	rol     sal                             ; F923 26 93                    &.
-	rol                                     ; F925 2A                       *
-	rol     sal                             ; F926 26 93                    &.
-	txa                                     ; F928 8A                       .
-	rol                                     ; F929 2A                       *
-	rol     sal                             ; F92A 26 93                    &.
-	pla                                     ; F92C 68                       h
-	rol                                     ; F92D 2A                       *
-	rol     sal                             ; F92E 26 93                    &.
-	sty     cia+todhr                      ; F930 8C 0B DC                 ...
-	stx     cia+todmin                     ; F933 8E 0A DC                 ...
-	pla                                     ; F936 68                       h
-	sta     cia+todsec                     ; F937 8D 09 DC                 ...
-	lda     sal                             ; F93A A5 93                    ..
-	sta     cia+tod10                      ; F93C 8D 08 DC                 ...
-	rts                                     ; F93F 60                       `
-
+; F915
+settim	pha			; save for later
+	pha
+	ror			; set bit 8
+	and #$80
+	ora cia+crb
+	sta cia+crb
+	tya			; get bits from todhrs
+	rol
+	rol
+	rol sal			; bit t8 (don't need to clear sal)
+	rol
+	rol sal			; bit t4
+	txa			; get bit from todmin
+	rol
+	rol sal			; bit t2
+	pla			; get bit from todsec
+	rol
+	rol sal			; bit t1
+	sty cia+todhr
+	stx cia+todmin
+	pla
+	sta cia+todsec
+	lda sal
+	sta cia+tod10
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;************************************
 ;* error handler                    *
@@ -5199,7 +5207,6 @@ sloop3: ldy eah
 ; F9FB Warm start entry
 swarm:  jmp (evect)             ; jump to basic warm start $BBA0
 ; -------------------------------------------------------------------------------------------------
-;-----------------------------------------
 ; ioinit - initilize i/o system
 ;   6509/6525/6525/6526
 ;   must be entered with irq's disabled
