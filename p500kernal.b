@@ -4717,7 +4717,7 @@ tranr:  lda fa
 ;*   .y=end address high              *
 ;*                                    *
 ;**************************************
-; F74D Load from logical file
+; F74D
 nload:	stx relsal		; save alt address
 	sty relsah
 	sta verck		; set verify flag (n)
@@ -4878,6 +4878,7 @@ ld410:	jmp spmsg
 ; rsr  fix segmentation 10/15/81
 ; rsr  6509 changes  10/15/81
 ; -------------------------------------------------------------------------------------------------
+; ##### save #####
 ;***************************************
 ;* nsave              10/30/81         *
 ;*                                     *
@@ -4888,90 +4889,91 @@ ld410:	jmp spmsg
 ;* .x => zpage address of start vector *
 ;* .y => zpage address of end vector   *
 ;***************************************
-; F853 Save to logical file
-nsave:   lda     e6509,x                         ; F853 B5 00                    ..
-	sta     stal                            ; F855 85 99                    ..
-	lda     i6509,x                         ; F857 B5 01                    ..
-	sta     stah                            ; F859 85 9A                    ..
-	lda     $02,x                           ; F85B B5 02                    ..
-	sta     stas                            ; F85D 85 9B                    ..
-	tya                                     ; F85F 98                       .
-	tax                                     ; F860 AA                       .
-	lda     e6509,x                         ; F861 B5 00                    ..
-	sta     eal                             ; F863 85 96                    ..
-	lda     i6509,x                         ; F865 B5 01                    ..
-	sta     eah                             ; F867 85 97                    ..
-	lda     $02,x                           ; F869 B5 02                    ..
-	sta     eas                             ; F86B 85 98                    ..
-	lda     fa                              ; F86D A5 9F                    ..
-	bne     save2                           ; F86F D0 03                    ..
-save1:  jmp     error9                          ; F871 4C 58 F9                 LX.
+; F853
+nsave:	lda 0,x			; get start vector
+	sta stal
+	lda 1,x
+	sta stah
+	lda 2,x
+	sta stas
+	tya
+	tax
+	lda 0,x			; get end vector
+	sta eal
+	lda 1,x
+	sta eah
+	lda 2,x
+	sta eas
 
-; -------------------------------------------------------------------------------------------------
-; F874 
-save2:  cmp     #$03                            ; F874 C9 03                    ..
-	beq     save1                           ; F876 F0 F9                    ..
-	bcc     save8                           ; F878 90 63                    .c
-	lda     #$61                            ; F87A A9 61                    .a
-	sta     sa                              ; F87C 85 A0                    ..
-	ldy     fnlen                           ; F87E A4 9D                    ..
-	bne     save3                           ; F880 D0 03                    ..
-	jmp     error8                          ; F882 4C 55 F9                 LU.
+	lda fa
+	bne sv20
 
-; -------------------------------------------------------------------------------------------------
-; F885 Open file on IEC for writing
-save3:  jsr     openi                           ; F885 20 0E F7                  ..
-	jsr     saving                          ; F888 20 E0 F8                  ..
-	lda     fa                              ; F88B A5 9F                    ..
-	jsr     listn                         ; F88D 20 B1 FF                  ..
-	lda     sa                              ; F890 A5 A0                    ..
-	jsr     secnd                          ; F892 20 93 FF                  ..
-	ldx     i6509                           ; F895 A6 01                    ..
-	jsr     rd300                           ; F897 20 70 FE                  p.
-	lda     sal                             ; F89A A5 93                    ..
-	jsr     ciout                          ; F89C 20 A8 FF                  ..
-	lda     sah                             ; F89F A5 94                    ..
-	jsr     ciout                          ; F8A1 20 A8 FF                  ..
-	ldy     #$00                            ; F8A4 A0 00                    ..
-save4:  jsr     cmpste                          ; F8A6 20 7F FE                  ..
-	bcs     save5                           ; F8A9 B0 16                    ..
-	lda     (sal),y                         ; F8AB B1 93                    ..
-	jsr     ciout                          ; F8AD 20 A8 FF                  ..
-	jsr     incsal                          ; F8B0 20 8D FE                  ..
-	jsr     stop                           ; F8B3 20 E1 FF                  ..
-	bne     save4                           ; F8B6 D0 EE                    ..
-	stx     i6509                           ; F8B8 86 01                    ..
-break:  jsr     clsei                           ; F8BA 20 C6 F8                  ..
-	lda     #$00                            ; F8BD A9 00                    ..
-	sec                                     ; F8BF 38                       8
-	rts                                     ; F8C0 60                       `
+sv10:	jmp error9		; bad device #
 
-; -------------------------------------------------------------------------------------------------
-; F8C1 
-save5:  stx     i6509                           ; F8C1 86 01                    ..
-	jsr     unlsn                          ; F8C3 20 AE FF                  ..
-; F8C6 Close IEC program file
-clsei:  bit     sa                              ; F8C6 24 A0                    $.
-	bmi     save6                           ; F8C8 30 11                    0.
-	lda     fa                              ; F8CA A5 9F                    ..
-	jsr     listn                         ; F8CC 20 B1 FF                  ..
-	lda     sa                              ; F8CF A5 A0                    ..
-	and     #$EF                            ; F8D1 29 EF                    ).
-	ora     #$E0                            ; F8D3 09 E0                    ..
-	jsr     secnd                          ; F8D5 20 93 FF                  ..
-	jsr     unlsn                          ; F8D8 20 AE FF                  ..
-save6:  clc                                     ; F8DB 18                       .
-save7:  rts                                     ; F8DC 60                       `
+sv20:	cmp #3
+	beq sv10
+	bcc sv100
+	lda #$61
+	sta sa
+	ldy fnlen
+	bne sv25
 
-; -------------------------------------------------------------------------------------------------
-; F8DD Open device number < 3 for writing
-save8:  jsr     xtape                            ; F8DD 20 68 FE                  h.
-; F8E0 In direct mode, print "saving ..."
-saving: lda     msgflg                          ; F8E0 AD 61 03                 .a.
-	bpl     save7                           ; F8E3 10 F7                    ..
-	ldy     #$23                            ; F8E5 A0 23                    .#
-	jsr     spmsg                           ; F8E7 20 23 F2                  #.
-	jmp     outfn                           ; F8EA 4C 35 F8                 L5.
+	jmp error8		; missing file name
+
+sv25:	jsr openi
+	jsr saving
+	lda fa
+	jsr listn
+	lda sa
+	jsr secnd
+	ldx i6509		; indirects switched by rd300
+	jsr rd300
+	lda sal
+	jsr ciout
+	lda sah
+	jsr ciout
+
+	ldy #0
+sv30:	jsr cmpste		; compare start to end
+	bcs sv50		; have reached end
+	lda (sal),y
+	jsr ciout
+	jsr incsal
+	jsr stop
+	bne sv30
+
+	stx i6509		; restore indirects
+break:	jsr clsei
+	lda #0
+	sec
+	rts
+
+sv50:	stx i6509		; restore indirects
+	jsr unlsn
+
+clsei:	bit sa
+	bmi clsei2
+	lda fa
+	jsr listn
+	lda sa
+	and #$ef
+	ora #$e0
+	jsr secnd
+	jsr unlsn
+
+clsei2:
+sv110:	clc
+sv115:	rts
+
+sv100:	jsr xtape		; goto tape device
+
+; subroutine to output: 'saving <file name>'
+saving:	lda msgflg
+	bpl sv115		; no print
+
+	ldy #ms11-ms1		; 'saving'
+	jsr spmsg
+	jmp outfn		; <file name>
 ; -------------------------------------------------------------------------------------------------
 ; time and alarm routines for 6526
 ;      rsr 11/12/81
@@ -4981,7 +4983,7 @@ saving: lda     msgflg                          ; F8E0 AD 61 03                 
 ;  .x = (bit7=t2,bits6-0 minutes)
 ;  .a = (bit7=t1,bits6-0 seconds)
 ;----------------------------------------
-; F8ED Read the time from the TOD clock
+; F8ED
 rdtim:  lda     cia+tod10                      ; F8ED AD 08 DC                 ...
 	pha                                     ; F8F0 48                       H
 	pha                                     ; F8F1 48                       H
