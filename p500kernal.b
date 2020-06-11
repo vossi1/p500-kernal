@@ -5019,7 +5019,6 @@ rdtim:	lda cia+tod10
 	lda sal
 	rts
 ; -------------------------------------------------------------------------------------------------
-;----------------------------------------
 ; settim - set tod and alarm
 ;  c-set => set alarm
 ;  c-clr => set tod
@@ -5105,15 +5104,14 @@ erexit:	pla
 ;* keyboard row in .a.                 *
 ;***************************************
 ; F972 Check the stop key
-nstop:   lda     stkey                           ; F972 A5 A9                    ..
-	and     #$01                            ; F974 29 01                    ).
-	bne     LF97F                           ; F976 D0 07                    ..
-	php                                     ; F978 08                       .
-	jsr     clrch                          ; F979 20 CC FF                  ..
-	sta     ndx                             ; F97C 85 D1                    ..
-	plp                                     ; F97E 28                       (
-LF97F:  rts                                     ; F97F 60                       `
-
+nstop:	lda stkey		; value of last row
+	and #$01		; check stop key position
+	bne stop2		; not down
+	php
+	jsr clrch		; clear channels
+	sta ndx			; flush queue
+	plp
+stop2:	rts
 ; -------------------------------------------------------------------------------------------------
 ; udtim - update the stop key location
 ;   expects keyboard outputs set to
@@ -5121,21 +5119,23 @@ LF97F:  rts                                     ; F97F 60                       
 ;   for stop key down.
 ;---------------------------------------
 ; F980 
-udtim:  lda     tpi2+pc                         ; F980 AD 02 DF                 ...
-	lsr                                     ; F983 4A                       J
-	bcs     LF998                           ; F984 B0 12                    ..
-	lda     #$FE                            ; F986 A9 FE                    ..
-	sta     tpi2+pb                         ; F988 8D 01 DF                 ...
-	lda     #$10                            ; F98B A9 10                    ..
-	and     tpi2+pc                         ; F98D 2D 02 DF                 -..
-	bne     LF993                           ; F990 D0 01                    ..
-	sec                                     ; F992 38                       8
-LF993:  lda     #$FF                            ; F993 A9 FF                    ..
-	sta     tpi2+pb                         ; F995 8D 01 DF                 ...
-LF998:  rol                                     ; F998 2A                       *
-	sta     stkey                           ; F999 85 A9                    ..
-	rts                                     ; F99B 60                       `
+udtim:	lda tpi2+pc		; check keyboard
+	lsr
+	bcs udexit		; no  stop key
+	lda #$FE		; check for shift
+	sta tpi2+pb
+	lda #$10
+	and tpi2+pc
+	bne udttt		; no shift key
+	sec			; shift key mark
+udttt:	lda #$FF		; clear
+	sta tpi2+pb
+udexit:	rol			; move bit 0 back
+	sta stkey
+	rts
 ; -------------------------------------------------------------------------------------------------
+; ##### init #####
+;------------------------------------------------
 ; start - system reset routine
 ;  kernal checks on 4k boundries from $1000-$8000
 ;    first occurance has priority.
@@ -5150,75 +5150,97 @@ LF998:  rol                                     ; F998 2A                       
 ;    $x009 - 'x'  x=4k bank (1-8)
 ;------------------------------------------------
 ; F99C Test bytes for ROMs
-patall: !byte $C2,$CD
-; F99E System reset routine
-start:	ldx #$FE		; $1ff reserved for stackpointer
-	sei                     ; disable interrupts
-	txs                     ; init stack
-	cld                     ; clear decimal flag
+patall: !byte $C2,$CD		; $x004 rom pattern
+; F99E
+start:	ldx #$FE		; do all normal junk...
+	sei
+	txs
+	cld
+
+; check for warm start
 	lda #$FF
 	eor evect+2
-	eor evect+3             ; compare warm start flags if both are $A5
-	beq swarm               ; if yes, branches to warm start
-; F9AD System cold start
-scold:	lda #$06                ; set pointer to $0006 = position ROM ident bytes
+	eor evect+3		; compare warm start flags if both are $A5
+	beq swarm		; if yes...do warm start
+
+; F9AD Check for roms
+scold:	lda #$06		; set up indirect to $0006 = position ROM ident bytes
 	sta eal
-	lda #$00
+	lda #$00		; clear upper
 	sta eah
-	sta evect               ; set warm start vector lowbyte to $00
-	ldx #$30                ; init 4. rom ident byte compare value to $30 = '0'
-sloop0: ldy #$03                ; set counter to 4th ROM ident byte
+	sta evect		; set low byte of vector warm start to $00
+	ldx #$30		; existance flag 4. rom ident byte compare value to '0'
+sloop0: ldy #3			; set counter to 4th ROM ident byte
 	lda eah
-	bmi sloop2              ; no ROM found -> monitor cold boot
-	clc
-	adc #$10                ; next rom position to check highbyte +$10
+	bmi sloop2		; no roms but this one... -> monitor cold boot
+	clc			; calc new test point
+	adc #$10                ; 4k steps
 	sta eah
-	inx                     ; next 4. byte compare value $31, $32, $33...
+	inx			; next 4. byte compare value $31, $32, $33...
 	txa
-	cmp (eal),y             ; compare if 4. byte $31 at address $1006+3, $32 at $2006...
-	bne sloop0              ; 4. byte does not mach - > next ROM pos. $2000, $3000...
-	dey                     ; check next byte backwards if 4th byte matches
-sloop1: lda (eal),y             ; load 3., 2., 1. byte
+	cmp (eal),y		; compare if 4. byte $31 at address $1006+3, $32 at $2006...
+	bne sloop0		; 4. byte does not mach - > next ROM pos. $2000, $3000...
+	dey			; check next byte backwards if 4th byte matches
+sloop1: lda (eal),y		; load 3., 2., 1. byte
 	dey
-	bmi sloop3              ; 2. + 3. byte matches - autostart ROM found!
-	cmp patall,y            ; compare test bytes 'M', 'B'
-	beq sloop1              ; 3. byte OK -> check 2. byte
-	bne sloop0              ; 2. or 3. ident byte does not mach -> next ROM position
-sloop2: ldy #$E0                ; if no ROM found set start vector to $E000 = monitor cold boot
-	!byte $2C
+	bmi sloop3		; all done...correctly - 2.+3. byte matches -> autostart ROM found!
+	cmp patall,y		; compare test bytes 'M', 'B'
+	beq sloop1		; 3. byte OK -> check 2. byte
+	bne sloop0		; no good... 2. or 3. ident byte does not mach
+
+; monitor (could be test for keydown ***)
+sloop2: ldy #$E0                ; monitor vector
+	!byte $2C		; skip two bytes
 sloop3: ldy eah
-	sty evect+1             ; store rom address highbyte to warm start vector
+	sty evect+1             ; set high byte of vector
+
 	tax                     ; move 1. ident byte to x to set N-flag
-	bpl swarm               ; jump to warm start if value is positive ('c'=$43)
-	jsr ioinit              ; I/O register init $F9FE (TPI1, TPI2, CIA, TOD)
-	lda #$F0
+	bpl swarm               ; don't use kernal initilization
+				;   jump to warm start if value is positive ('c'=$43)
+
+; kernal cold start
+	jsr ioinit              ; initilize i/o -> $F9FE (TPI1, TPI2, CIA, TOD)
+	lda #$F0		; prevent damage to non-tested buffers
 	sta pkybuf+1            ; start F-keys
-	jsr jcint               ; initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
-	jsr ramtas              ; ram-test $FA94
-	jsr restor              ; init standard-vectors $FBB1 (copies $0300 Vector Table)
-	jsr jcint               ; initialize $E004 -> cint $E044 (editor, F-Keys, VIC)
+	jsr jcint               ; cinit call for non-cleared system $E004 -> cint $E044
+	jsr ramtas              ; ram-test and set -> $FA94
+	jsr restor              ; operationg system vectors -> $FBB1 (copies $0300 Vector Table)
+	jsr jcint               ; screen editor init $E004 -> cint $E044 (editor, F-Keys, VIC)
 	lda #warm		; Kernal initilize done flag
 	sta evect+2             ; save first warm start flag $A5
 ; F9FB Warm start entry
-swarm:  jmp (evect)             ; jump to basic warm start $BBA0
+swarm:  jmp (evect)             ; start exit -> basic warm start $BBA0
 ; -------------------------------------------------------------------------------------------------
 ; ioinit - initilize i/o system
 ;   6509/6525/6525/6526
 ;   must be entered with irq's disabled
 ;------------------------------------------
 ; F9FE I/O register init (TPI1, TPI2, CIA, TOD)
-ioinit: lda #$F3
+
+; 6509 initilization code
+;   see page 2 for assignments done by reset
+
+; 6525 tpi1 initilization code
+;   see page 12 for assignments
+
+ioinit: lda #%11110011		; cb,ca=hi ie3,4=neg ip=1 mc=1
 	sta tpi1+creg           ; TPI1 interrupt mode = on, parity / VIC bank 15 selected for both
 	lda #$FF
-	sta tpi1+mir            ; TPI1 enable all interrupts
-	lda #$5C
+	sta tpi1+mir            ; TPI1 mask on all irq's
+; pb4=output 1, to claim dbus
+	lda #%01011100  	; wrt=lo unused netr=off
 	sta tpi1+pb             ; TPI1 PB IEEE ifc=0, netw.=0, arb.sw.=1, cass. write=0,motor=1 
-	lda #$7D                ; TPI1 DDRB input: cassette switch, IEEE srq
-	sta tpi1+ddpb           ; TPI1 DDRB output: IEEE ifc, network, arb.sw., cass. motor,write
-	lda #$3D     
+	lda #%01111101  	; set directions
+	sta tpi1+ddpb		; TPI1 DDRB input: cassette switch, IEEE srq
+				; TPI1 DDRB output: IEEE ifc, network, arb.sw., cass. motor,write
+
+	lda #%00111101		; ieee controls off
 	sta tpi1+pa             ; TPI1 PA IEEE dc=1, te=0, ren=1, atn=1, dav=1, eo=1
-	lda #$3F                ; TPI1 DDRA input:  IEEE ndac, nfrd
-	sta tpi1+ddpa           ; TPI1 DDRA output: IEEE dc, te, ren, atn, dav, eoi
+	lda #%00111111  	; ieee control to transmitt
+	sta tpi1+ddpa		; TPI1 DDRA input:  IEEE ndac, nfrd
+				; TPI1 DDRA output: IEEE dc, te, ren, atn, dav, eoi
+; 6525 tpi2 initilization code
+;   see page 13 for assignments
 	lda #$FF     
 	sta tpi2+pa             ; TPI2 PA keyboard 8-15=1
 	sta tpi1+pb             ; TPI1 PB IEEE ifc=1, network=1, arb.sw.=1, cass. motor=1,write=1
