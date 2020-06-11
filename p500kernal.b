@@ -3834,7 +3834,7 @@ timero:	lda #$80		; set time for at least 32us
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; F385 ##### rs232 #####
-	jmp error9		; bad device number
+rs232:	jmp error9		; bad device number
 ; -------------------------------------------------------------------------------------------------
 ; F388 opn232 - open an rs-232 channel
 ;   if sa=1 then output channel
@@ -3858,80 +3858,92 @@ timero:	lda #$80		; set time for at least 32us
 ;                (0)   = 0   (dtr off)
 ;  4. do buffer alocatation, if needed
 ;---------------------------------------------
-opn232:	jsr     rdst232                         ; F388 20 35 F4                  5.
-	ldy     #$00                            ; F38B A0 00                    ..
-LF38D:  cpy     fnlen                           ; F38D C4 9D                    ..
-	beq     LF39C                           ; F38F F0 0B                    ..
-	jsr     fnadry                          ; F391 20 A0 FE                  ..
-	sta     m51ctr,y                        ; F394 99 76 03                 .v.
-	iny                                     ; F397 C8                       .
-	cpy     #$04                            ; F398 C0 04                    ..
-	bne     LF38D                           ; F39A D0 F1                    ..
-LF39C:  lda     m51ctr                          ; F39C AD 76 03                 .v.
-	sta     acia+ctr                       ; F39F 8D 03 DD                 ...
-	lda     m51cdr                          ; F3A2 AD 77 03                 .w.
-	and     #$F2                            ; F3A5 29 F2                    ).
-	ora     #$02                            ; F3A7 09 02                    ..
-	sta     acia+cdr                        ; F3A9 8D 02 DD                 ...
-	clc                                     ; F3AC 18                       .
-	lda     sa                              ; F3AD A5 A0                    ..
-	and     #$02                            ; F3AF 29 02                    ).
-	beq     LF3C8                           ; F3B1 F0 15                    ..
-	lda     ridbe                           ; F3B3 AD 7D 03                 .}.
-	sta     ridbs                           ; F3B6 8D 7C 03                 .|.
-	lda     ribuf+2                         ; F3B9 A5 A8                    ..
-	and     #$F0                            ; F3BB 29 F0                    ).
-	beq     LF3C8                           ; F3BD F0 09                    ..
-	jsr     req256                         ; F3BF 20 03 F4                  ..
-	sta     ribuf+2                         ; F3C2 85 A8                    ..
-	stx     ribuf                           ; F3C4 86 A6                    ..
-	sty     ribuf+1                         ; F3C6 84 A7                    ..
-LF3C8:  bcc     LF3CD                           ; F3C8 90 03                    ..
-	jmp     errorx                          ; F3CA 4C 5A F9                 LZ.
-LF3CD:  rts                                     ; F3CD 60                       `
+opn232:	jsr rst232		; reset rs232 status
+	ldy #0
 
-; -------------------------------------------------------------------------------------------------
-; F3CE Convert PETSCII into ASCII for RS232
-toascii:cmp     #$41                            ; F3CE C9 41                    .A
-	bcc     LF3E2                           ; F3D0 90 10                    ..
-	cmp     #$5B                            ; F3D2 C9 5B                    .[
-	bcs     LF3D8                           ; F3D4 B0 02                    ..
-	ora     #$20                            ; F3D6 09 20                    . 
-LF3D8:  cmp     #$C1                            ; F3D8 C9 C1                    ..
-	bcc     LF3E2                           ; F3DA 90 06                    ..
-	cmp     #$DB                            ; F3DC C9 DB                    ..
-	bcs     LF3E2                           ; F3DE B0 02                    ..
-	and     #$7F                            ; F3E0 29 7F                    ).
-LF3E2:  rts                                     ; F3E2 60                       `
+opn020:	cpy fnlen		; filename all out ?
+	beq opn030		; yes...
 
-; -------------------------------------------------------------------------------------------------
-; F3E3 Convert ASCII to PETSCII for RS232
-tocbm:  cmp     #$41                            ; F3E3 C9 41                    .A
-	bcc     LF3F7                           ; F3E5 90 10                    ..
-	cmp     #$5B                            ; F3E7 C9 5B                    .[
-	bcs     LF3ED                           ; F3E9 B0 02                    ..
-	ora     #$80                            ; F3EB 09 80                    ..
-LF3ED:  cmp     #$61                            ; F3ED C9 61                    .a
-	bcc     LF3F7                           ; F3EF 90 06                    ..
-	cmp     #$7B                            ; F3F1 C9 7B                    .{
-	bcs     LF3F7                           ; F3F3 B0 02                    ..
-	and     #$DF                            ; F3F5 29 DF                    ).
-LF3F7:  rts                                     ; F3F7 60                       `
+	jsr fnadry
+	sta m51ctr,y
+	iny
+	cpy #4			; only four bytes in all
+	bne opn020
 
+opn030:	lda m51ctr		; set the register
+	sta acia+ctr
+	lda m51cdr		; clear up conflicts
+	and #$F2
+	ora #$02
+	sta acia+cdr		; everything off
+	clc
+	lda sa			; check for buffers needed
+	and #$02
+	beq opn045		; no input
+
+	lda ridbe		; set up pointers
+	sta ridbs
+	lda ribuf+2		; check for allocation
+	and #$F0		; $ff not allocated flag (see alloc error codes, too)
+	beq opn045		; already allocated
+	jsr req256		; request 256 bytes for storage
+	sta ribuf+2		; save starting
+	stx ribuf
+	sty ribuf+1
+opn045:	bcc opn050
+	jmp errorx
+opn050:	rts			; c-clr already allocated
 ; -------------------------------------------------------------------------------------------------
-; F3F8 Allow RS232 interrupts
-xon232: lda     acia+cdr                        ; F3F8 AD 02 DD                 ...
-	ora     #$09                            ; F3FB 09 09                    ..
-	and     #$FB                            ; F3FD 29 FB                    ).
-	sta     acia+cdr                        ; F3FF 8D 02 DD                 ...
-	rts                                     ; F402 60                       `
+; F3CE toasci - convert cbm text code to
+;  ascii for valid ascii ranges.
+; entry: .a - cbm text code
+; exit : .a - ascii code
+;----------------------------------------
+toasci:	cmp #'a'		; convert $41 to $5a
+	bcc toa020
+	cmp #$5B
+	bcs toa010
+	ora #$20		; to lower case ascii
+toa010:	cmp #$C1		; convert $c1 to $da
+	bcc toa020
+	cmp #$DB
+	bcs toa020
+	and #$7F		; to upper case ascii
+toa020:	rts
+; -------------------------------------------------------------------------------------------------
+; F3E3 tocbm - convert ascii code to cbm
+;  text code for valid ascii ranges.
+; entry: .a - ascii code
+; exit : .a - cbm text code
+;----------------------------------------
+tocbm:	cmp #'a'		; convert upper case ascii
+	bcc toc020
+	cmp #$5B
+	bcs toc010
+	ora #$80		; to $c1 to $da
+toc010:	cmp #$61		; convert lower case ascii
+	bcc toc020
+	cmp #$7B
+	bcs toc020
+	and #$FF-$20		; to $41 - $5a
+toc020:	rts
+; -------------------------------------------------------------------------------------------------
+; F3F8 xon232 - turn 6551 transmitter on, no transmit interrupts
+;        cdr bits(3-2) = 10
+;            bit(1)    = 1
+;---------------------------------------------------------------
+xon232:	lda acia+cdr
+	ora #$09
+	and #$FB
+	sta acia+cdr
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; F403 req256 - request 256 bytes of space
 ;  (don't care where we get it...)
 req256:	ldx #$00
 	ldy #$01		; one page = 256 bytes
 ; -------------------------------------------------------------------------------------------------
-; alocat - alocatate space
+; F407 alocat - alocatate space
 ;  entry:
 ; *  .a- if .a=$ff then don't care what segment
 ; *  .a- if .a=$80 then we want bottom of memory
@@ -3952,7 +3964,6 @@ req256:	ldx #$00
 ;
 ; *=> not implemented yet  10/30/81 rsr (only top alocatation)
 ;-----------------------------------------------------------------------
-; F407 alocatate buffer space X=low, Y=high bytes
 alocat:
 tttop:	txa			; calc new hiadr
 	sec
@@ -3980,24 +3991,23 @@ topxit:	stx hiadr		; store new end of system memory ($)
 	clc
 	rts
 ; -------------------------------------------------------------------------------------------------
-; rst232 - reset rs232 and dcd/dsr status
+; F435 rst232 - reset rs232 and dcd/dsr status
 ;          note, the dcd and dsr bits of rsstat reflect whether a
 ;          dsr or dcd error occured since the last time the user
 ;          examined rsstat.
 ;          dcdsr has the dcd/dsr states prior to their last state
 ;          changes.
 ;-----------------------------------------------------------------
-; F435 Read the RS232 status
-rdst232:php                                     ; F435 08                       .
-	sei                                     ; F436 78                       x
-	lda     acia+srsn                     ; F437 AD 01 DD                 ...
-	and     #$60                            ; F43A 29 60                    )`
-	sta     rsstat                          ; F43C 8D 7A 03                 .z.
-	sta     dcdsr                           ; F43F 8D 7B 03                 .{.
-	plp                                     ; F442 28                       (
-	rts                                     ; F443 60                       `
-
+rst232:	php
+	sei			; disable ints
+	lda acia+srsn
+	and #$60
+	sta rsstat
+	sta dcdsr
+	plp
+	rts
 ; -------------------------------------------------------------------------------------------------
+; ##### channelio #####
 ;*****************************************
 ;* getin -- get character from channel   *
 ;*      channel is determined by dfltn.  *
@@ -4012,57 +4022,58 @@ rdst232:php                                     ; F435 08                       
 ;*           = 0, otherwise.             *
 ;*        z  = 1, if kbd and queue empty.*
 ;*****************************************
-; F444 GETIN: Input 1 byte from the current input device
-ngetin:  lda     dfltn                           ; F444 A5 A1                    ..
-	bne     getinc2                         ; F446 D0 0C                    ..
-	lda     ndx                             ; F448 A5 D1                    ..
-	ora     kyndx                           ; F44A 05 D6                    ..
-	beq     LF4A1                           ; F44C F0 53                    .S
-	sei                                     ; F44E 78                       x
-	jsr     jlp2                          ; F44F 20 07 E0                  ..
-	clc                                     ; F452 18                       .
-	rts                                     ; F453 60                       `
+; F444
+ngetin:	lda dfltn		; check device
+	bne gn10		; not keyboard
 
-; -------------------------------------------------------------------------------------------------
-; F454 Check for input from device 2 (RS232)
-getinc2:cmp     #$02                            ; F454 C9 02                    ..
-	beq     getin2                          ; F456 F0 03                    ..
-	jmp     basin                          ; F458 4C CF FF                 L..
+	lda ndx			; queue index
+	ora kyndx		; check function key que
+	beq gn20		; nobody there...exit
 
-; -------------------------------------------------------------------------------------------------
-; F45B GETIN routine for device 2 (RS232)
-getin2: sty     xsav                            ; F45B 8C 65 03                 .e.
-	stx     savx                            ; F45E 8E 66 03                 .f.
-	ldy     ridbs                           ; F461 AC 7C 03                 .|.
-	cpy     ridbe                           ; F464 CC 7D 03                 .}.
-	bne     gn232a                          ; F467 D0 16                    ..
-	lda     acia+cdr                        ; F469 AD 02 DD                 ...
-	and     #$FD                            ; F46C 29 FD                    ).
-	ora     #$01                            ; F46E 09 01                    ..
-	sta     acia+cdr                        ; F470 8D 02 DD                 ...
-	lda     rsstat                          ; F473 AD 7A 03                 .z.
-	ora     #$10                            ; F476 09 10                    ..
-	sta     rsstat                          ; F478 8D 7A 03                 .z.
-	lda     #$00                            ; F47B A9 00                    ..
-	beq     LF49B                           ; F47D F0 1C                    ..
-; F47F Get one byte from RS232 input buffer
-gn232a: lda     rsstat                          ; F47F AD 7A 03                 .z.
-	and     #$EF                            ; F482 29 EF                    ).
-	sta     rsstat                          ; F484 8D 7A 03                 .z.
-	ldx     i6509                           ; F487 A6 01                    ..
-	lda     ribuf+2                         ; F489 A5 A8                    ..
-	sta     i6509                           ; F48B 85 01                    ..
-	lda     (ribuf),y                       ; F48D B1 A6                    ..
-	stx     i6509                           ; F48F 86 01                    ..
-	inc     ridbs                           ; F491 EE 7C 03                 .|.
-	bit     sa                              ; F494 24 A0                    $.
-	bpl     LF49B                           ; F496 10 03                    ..
-	jsr     tocbm                           ; F498 20 E3 F3                  ..
-LF49B:  ldy     xsav                            ; F49B AC 65 03                 .e.
-	ldx     savx                            ; F49E AE 66 03                 .f.
-LF4A1:  clc                                     ; F4A1 18                       .
-	rts                                     ; F4A2 60                       `
+	sei
+	jsr jlp2		; go remove a character
+	clc
+	rts
 
+; Check for input from device 2 = RS232
+gn10:	cmp #2			; is it rs-232
+	beq gn232
+	jmp basin		; no...use basin
+
+; getin RS232
+gn232:	sty xsav		; save .y...
+	stx savx		; ..and .x
+	ldy ridbs		; get last byte address
+	cpy ridbe		; see if buffer emptyy
+	bne gn15		; rs232 buffer not empty...
+
+	lda acia+cdr		; make sure receiver is on
+	and #$FD
+	ora #$01		; bits(10) = 01 now
+	sta acia+cdr
+	lda rsstat		; set empty input buffer condition
+	ora #$10
+	sta rsstat
+	lda #0			; return a null byte
+	beq gnexit		; always
+
+; Get one byte from RS232 input buffer
+gn15:	lda rsstat		; clear empty buffer status
+	and #$ef
+	sta rsstat
+	ldx i6509
+	lda ribuf+2
+	sta i6509		; point at buffer
+	lda (ribuf),y		; get last char
+	stx i6509		; restore
+	inc ridbs		; inc to next posistion
+	bit sa			; check for ascii flag
+	bpl gnexit		; not on...
+	jsr tocbm		; convert to cbm code
+gnexit:	ldy xsav		; restore .y
+	ldx savx
+gn20:	clc			; good return
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;***************************************
 ;* basin-- input character from channel*
@@ -4086,62 +4097,59 @@ LF4A1:  clc                                     ; F4A1 18                       
 ;*       all other errors must be de-  *
 ;*       tected by checking status !   *
 ;***************************************
-; F4A3 BASIN: Input 1 byte from the current input device
-nbasin:  lda     dfltn                           ; F4A3 A5 A1                    ..
-	bne     basinc3                         ; F4A5 D0 0B                    ..
-	lda     pntr                            ; F4A7 A5 CB                    ..
-	sta     lstp                            ; F4A9 85 CE                    ..
-	lda     tblx                            ; F4AB A5 CA                    ..
-	sta     lsxp                            ; F4AD 85 CF                    ..
-	jmp     basin3                          ; F4AF 4C BC F4                 L..
+; F4A3
+nbasin:	lda dfltn		; check device
+	bne bn10		; is not keyboard...
 
-; -------------------------------------------------------------------------------------------------
-; F4B2 Check for input from device 3 (screen)
-basinc3:cmp     #$03                            ; F4B2 C9 03                    ..
-	bne     LF4C1                           ; F4B4 D0 0B                    ..
-	sta     crsw                            ; F4B6 85 D0                    ..
-	lda     scrt                            ; F4B8 A5 DF                    ..
-	sta     indx                            ; F4BA 85 D5                    ..
-; F4BC BASIN: input from device 3 (screen)
-basin3: jsr     jloop5                         ; F4BC 20 0A E0                  ..
-	clc                                     ; F4BF 18                       .
-	rts                                     ; F4C0 60                       `
+; input from keyboard
+	lda pntr		; save current...
+	sta lstp		; ... cursor column
+	lda tblx		; save current...
+	sta lsxp		; ... line number
+	jmp bn15		; blink cursor until return
 
-; -------------------------------------------------------------------------------------------------
-; F4C1 BASIN dispatcher, check inut devices
-LF4C1:  bcs     LF4CA                           ; F4C1 B0 07                    ..
-	cmp     #$02                            ; F4C3 C9 02                    ..
-	beq     basin2                          ; F4C5 F0 10                    ..
-	jsr     xtape                            ; F4C7 20 68 FE                  h.
-LF4CA:  lda     status                          ; F4CA A5 9C                    ..
-	beq     basind                          ; F4CC F0 04                    ..
-LF4CE:  lda     #$0D                            ; F4CE A9 0D                    ..
-LF4D0:  clc                                     ; F4D0 18                       .
-LF4D1:  rts                                     ; F4D1 60                       `
+bn10:	cmp #3			; is input from screen?
+	bne bn20		; no...
 
-; -------------------------------------------------------------------------------------------------
-; F4D2 BASIN entry for IEC devices
-basind: jsr     acptr                          ; F4D2 20 A5 FF                  ..
-	clc                                     ; F4D5 18                       .
-	rts                                     ; F4D6 60                       `
+	sta crsw		; fake a carriage return
+	lda scrt		; say we ended...
+	sta indx		; ...up on this line
+bn15:	jsr jloop5		; pick up characters
+	clc
+	rts
 
-; -------------------------------------------------------------------------------------------------
-; F4D7 BASIN routine for device 2 (RS232)
-basin2: jsr     getin                          ; F4D7 20 E4 FF                  ..
-	bcs     LF4D1                           ; F4DA B0 F5                    ..
-	cmp     #$00                            ; F4DC C9 00                    ..
-	bne     LF4D0                           ; F4DE D0 F0                    ..
-	lda     rsstat                          ; F4E0 AD 7A 03                 .z.
-	and     #$10                            ; F4E3 29 10                    ).
-	beq     LF4D0                           ; F4E5 F0 E9                    ..
-	lda     rsstat                          ; F4E7 AD 7A 03                 .z.
-	and     #$60                            ; F4EA 29 60                    )`
-	bne     LF4CE                           ; F4EC D0 E0                    ..
-	jsr     stop                           ; F4EE 20 E1 FF                  ..
-	bne     basin2                          ; F4F1 D0 E4                    ..
-	sec                                     ; F4F3 38                       8
-	rts                                     ; F4F4 60                       `
+bn20:	bcs bn30		; devices >3
+	cmp #2			; rs232?
+	beq bn50
 
+	jsr xtape		; go to tape indirect
+
+; input from ieee bus
+bn30:	lda status		; status from last
+	beq bn35		; was good
+bn31:	lda #$0D		; bad...all done
+bn32:	clc			; valid data
+bn33:	rts
+
+bn35:	jsr acptr		; good...handshake
+	clc
+	rts
+
+; input from rs232
+bn50:	jsr getin		; get data
+	bcs bn33		; error return
+	cmp #00			; non-null means good data always
+	bne bn32		; have valid data
+	lda rsstat		; check for valid null byte
+	and #$10
+	beq bn32		; ok
+	lda rsstat		; buffer empty, check for errors in dsr, dcd
+	and #dsrerr+dcderr
+	bne bn31		; have error...send c/r's
+	jsr stop		; check for stop key depressed
+	bne bn50		; no, stay in loop 'til we get something
+	sec			; .a=0, stop key error
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;***************************************
 ;* bsout -- out character to channel   *
@@ -4198,7 +4206,7 @@ LF518:  stx     t1                              ; F518 8E 63 03                 
 	pla                                     ; F525 68                       h
 	bit     sa                              ; F526 24 A0                    $.
 	bpl     LF52D                           ; F528 10 03                    ..
-	jsr     toascii                         ; F52A 20 CE F3                  ..
+	jsr     toasci                         ; F52A 20 CE F3                  ..
 LF52D:  sta     acia+drsn                       ; F52D 8D 00 DD                 ...
 	pha                                     ; F530 48                       H
 LF531:  lda     rsstat                          ; F531 AD 7A 03                 .z.
@@ -4257,7 +4265,7 @@ LF558:  jsr     fz100                           ; F558 20 57 F6                 
 	and     acia+cdr                        ; F576 2D 02 DD                 -..
 	ora     #$01                            ; F579 09 01                    ..
 	pha                                     ; F57B 48                       H
-	jsr     rdst232                         ; F57C 20 35 F4                  5.
+	jsr     rst232                         ; F57C 20 35 F4                  5.
 	pla                                     ; F57F 68                       h
 	sta     acia+cdr                        ; F580 8D 02 DD                 ...
 LF583:  lda     #$02                            ; F583 A9 02                    ..
@@ -4326,7 +4334,7 @@ LF5BC:  cmp     #$03                            ; F5BC C9 03                    
 	lda     sa                              ; F5C6 A5 A0                    ..
 	lsr                                     ; F5C8 4A                       J
 	bcc     LF5B9                           ; F5C9 90 EE                    ..
-	jsr     rdst232                         ; F5CB 20 35 F4                  5.
+	jsr     rst232                         ; F5CB 20 35 F4                  5.
 	jsr     xon232                          ; F5CE 20 F8 F3                  ..
 	lda     #$02                            ; F5D1 A9 02                    ..
 	bne     LF5D8                           ; F5D3 D0 03                    ..
