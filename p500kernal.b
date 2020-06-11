@@ -4167,64 +4167,74 @@ bn50:	jsr getin		; get data
 ;*       note, other errors must be de-*
 ;*       tected by checking status !   *
 ;***************************************
-; F4F5 Output 1 byte on current output device
-nbsout:  pha                                     ; F4F5 48                       H
-	lda     dflto                           ; F4F6 A5 A2                    ..
-	cmp     #$03                            ; F4F8 C9 03                    ..
-	bne     LF502                           ; F4FA D0 06                    ..
-	pla                                     ; F4FC 68                       h
-	jsr     jprt                          ; F4FD 20 0D E0                  ..
-	clc                                     ; F500 18                       .
-	rts                                     ; F501 60                       `
+; F4F5
+nbsout	pha             ;preserve .a
+	lda dflto       ;check device
+	cmp #3          ;is it the screen?
+	bne bo10        ;no...
+;
+;print to crt
+;
+	pla             ;restore data
+	jsr jprt         ;print on crt
+	clc
+	rts
+;
+bo10
+	bcc bo20        ;device 1 or 2
+;
+;print to ieee   bus
+;
+	pla
+	jsr ciout
+	clc
+	rts
+;
+;print to cassette devices
+;
+bo20	cmp #2          ;rs232?
+	beq bo50
+;
+	pla
+	jsr xtape			; go to tape indirect
 
-; -------------------------------------------------------------------------------------------------
-; F502
-LF502:  bcc     LF50A                           ; F502 90 06                    ..
-	pla                                     ; F504 68                       h
-	jsr     ciout                          ; F505 20 A8 FF                  ..
-	clc                                     ; F508 18                       .
-	rts                                     ; F509 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; F50A
-LF50A:  cmp     #$02                            ; F50A C9 02                    ..
-	beq     LF518                           ; F50C F0 0A                    ..
-	pla                                     ; F50E 68                       h
-	jsr     xtape                            ; F50F 20 68 FE                  h.
-LF512:  pla                                     ; F512 68                       h
-	bcc     LF517                           ; F513 90 02                    ..
-	lda     #$00                            ; F515 A9 00                    ..
-LF517:  rts                                     ; F517 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; F518
-LF518:  stx     t1                              ; F518 8E 63 03                 .c.
-	sty     t2                              ; F51B 8C 64 03                 .d.
-	lda     rsstat                          ; F51E AD 7A 03                 .z.
-	and     #$60                            ; F521 29 60                    )`
-	bne     LF547                           ; F523 D0 22                    ."
-	pla                                     ; F525 68                       h
-	bit     sa                              ; F526 24 A0                    $.
-	bpl     LF52D                           ; F528 10 03                    ..
-	jsr     toasci                         ; F52A 20 CE F3                  ..
-LF52D:  sta     acia+drsn                       ; F52D 8D 00 DD                 ...
-	pha                                     ; F530 48                       H
-LF531:  lda     rsstat                          ; F531 AD 7A 03                 .z.
-	and     #$60                            ; F534 29 60                    )`
-	bne     LF547                           ; F536 D0 0F                    ..
-	lda     acia+srsn                     ; F538 AD 01 DD                 ...
-	and     #$10                            ; F53B 29 10                    ).
-	bne     LF547                           ; F53D D0 08                    ..
-	jsr     stop                           ; F53F 20 E1 FF                  ..
-	bne     LF531                           ; F542 D0 ED                    ..
-	sec                                     ; F544 38                       8
-	bcs     LF512                           ; F545 B0 CB                    ..
-LF547:  pla                                     ; F547 68                       h
-	ldx     t1                              ; F548 AE 63 03                 .c.
-	ldy     t2                              ; F54B AC 64 03                 .d.
-	clc                                     ; F54E 18                       .
-	rts                                     ; F54F 60                       `
-
+rstbo	pla             ;restore .a (error exit for 232)
+	bcc rstor1      ;no error
+	lda #00         ;stop error if c-set
+rstor1	rts
+;
+;output to rs232
+;
+bo50	stx t1          ;put in a temp
+	sty t2
+;
+bo55	lda rsstat      ;check for dsr,dcd errors
+	and #$60
+	bne bo90        ;bad....
+;
+bo70	pla             ;restore data
+	bit sa          ;check for cbm to ascii conversion
+	bpl bo80        ;none
+	jsr toasci      ;convert cbm to ascii
+bo80	sta acia+drsn   ;sending data
+	pha
+;
+bo60	lda rsstat
+	and #$60        ;dcd,dsr errors?
+	bne bo90        ;yes...
+bo64	lda acia+srsn
+	and #$10        ;transmit buffer empty?
+	bne bo90        ;yes, transmit done!
+	jsr stop        ;check for stop key
+	bne bo60        ;try again
+bo66	sec             ;stop key/error return
+	bcs rstbo       ;exit....
+;
+bo90	pla
+	ldx t1          ;go restore
+	ldy t2
+	clc
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;***************************************
 ;* nchkin -- open channel for input    *
