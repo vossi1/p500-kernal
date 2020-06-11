@@ -4565,6 +4565,7 @@ clall2:	ldx #3
 	sta dfltn		; input chan=0=keyboard
 	rts
 ; -------------------------------------------------------------------------------------------------
+; ##### open #####
 ;***********************************
 ;*                                 *
 ;* open function                   *
@@ -4580,11 +4581,10 @@ clall2:	ldx #3
 ;* tor.                            *
 ;*                                 *
 ;***********************************
-; F6C6 Open a logical file, output the filename
-nopen:   bcc     LF6CB                           ; F6C6 90 03                    ..
-	jmp     tranr                           ; F6C8 4C 41 F7                 LA.
+; F6C6
+nopen:	bcc     op000		; do open
+	jmp     tranr		; do transmit
 
-; -------------------------------------------------------------------------------------------------
 ;***********************************
 ;*                                 *
 ;* create an entry in the logical  *
@@ -4598,78 +4598,89 @@ nopen:   bcc     LF6CB                           ; F6C6 90 03                   
 ;*                                 *
 ;***********************************
 ; F6CB
-LF6CB:  ldx     la                              ; F6CB A6 9E                    ..
-	jsr     lookup                          ; F6CD 20 45 F6                  E.
-	bne     LF6D5                           ; F6D0 D0 03                    ..
-	jmp     error2                          ; F6D2 4C 43 F9                 LC.
+op000:	ldx la			; check file #
 
-; -------------------------------------------------------------------------------------------------
-; F6D5
-LF6D5:  ldx     ldtnd                           ; F6D5 AE 60 03                 .`.
-	cpx     #$0A                            ; F6D8 E0 0A                    ..
-	bcc     LF6DF                           ; F6DA 90 03                    ..
-	jmp     error1                          ; F6DC 4C 40 F9                 L@.
+; bne op98 ;is not the keyboard
+; jmp error6 ;not input file...
 
-; -------------------------------------------------------------------------------------------------
-; F6DF
-LF6DF:  inc     ldtnd                           ; F6DF EE 60 03                 .`.
-	lda     la                              ; F6E2 A5 9E                    ..
-	sta     lat,x                           ; F6E4 9D 34 03                 .4.
-	lda     sa                              ; F6E7 A5 A0                    ..
-	ora     #$60                            ; F6E9 09 60                    .`
-	sta     sa                              ; F6EB 85 A0                    ..
-	sta     sat,x                           ; F6ED 9D 48 03                 .H.
-	lda     fa                              ; F6F0 A5 9F                    ..
-	sta     fat,x                           ; F6F2 9D 3E 03                 .>.
-	beq     LF70C                           ; F6F5 F0 15                    ..
-	cmp     #$03                            ; F6F7 C9 03                    ..
-	beq     LF70C                           ; F6F9 F0 11                    ..
-	bcc     LF702                           ; F6FB 90 05                    ..
-	jsr     openi                           ; F6FD 20 0E F7                  ..
-	bcc     LF70C                           ; F700 90 0A                    ..
-LF702:  cmp     #$02                            ; F702 C9 02                    ..
-	bne     LF709                           ; F704 D0 03                    ..
-	jmp     opn232                         ; F706 4C 88 F3                 L..
+op98:	jsr lookup		; see if in table
+	bne op100		; not found...o.k.
 
-; -------------------------------------------------------------------------------------------------
-; F709
-LF709:  jsr     xtape                            ; F709 20 68 FE                  h.
-LF70C:  clc                                     ; F70C 18                       .
-	rts                                     ; F70D 60                       `
+	jmp error2		; file open
 
-; -------------------------------------------------------------------------------------------------
-; F70E Open on IEC
-openi:  lda     sa                              ; F70E A5 A0                    ..
-	bmi     LF73F                           ; F710 30 2D                    0-
-	ldy     fnlen                           ; F712 A4 9D                    ..
-	beq     LF73F                           ; F714 F0 29                    .)
-	lda     fa                              ; F716 A5 9F                    ..
-	jsr     listn                         ; F718 20 B1 FF                  ..
-	lda     sa                              ; F71B A5 A0                    ..
-	ora     #$F0                            ; F71D 09 F0                    ..
-; F71F Output sa and filename on IEC
-openib: jsr     secnd                          ; F71F 20 93 FF                  ..
-	lda     status                          ; F722 A5 9C                    ..
-	bpl     LF72B                           ; F724 10 05                    ..
-	pla                                     ; F726 68                       h
-	pla                                     ; F727 68                       h
-	jmp     error5                          ; F728 4C 4C F9                 LL.
+op100:	ldx ldtnd		; logical device table end
+	cpx #10			; maximum # of open files
+	bcc op110		; less than 10...o.k.
 
-; -------------------------------------------------------------------------------------------------
-; F72B
-LF72B:  lda     fnlen                           ; F72B A5 9D                    ..
-	beq     LF73C                           ; F72D F0 0D                    ..
-; F72F Output filename on IEC
-openfn: ldy     #$00                            ; F72F A0 00                    ..
-LF731:  jsr     fnadry                          ; F731 20 A0 FE                  ..
-	jsr     ciout                          ; F734 20 A8 FF                  ..
-	iny                                     ; F737 C8                       .
-	cpy     fnlen                           ; F738 C4 9D                    ..
-	bne     LF731                           ; F73A D0 F5                    ..
-LF73C:  jsr     unlsn                          ; F73C 20 AE FF                  ..
-LF73F:  clc                                     ; F73F 18                       .
-	rts                                     ; F740 60                       `
+	jmp error1		; too many files
 
+op110:	inc ldtnd		; new file
+	lda la
+	sta lat,x		; store logical file #
+	lda sa
+	ora #$60		; make sa an ieee command
+	sta sa
+	sta sat,x		; store command #
+	lda fa
+	sta fat,x		; store device #
+
+; perform device specific open tasks
+	beq op175		; is keyboard...done.
+	cmp #3
+	beq op175		; is screen...done.
+	bcc op150		; are cassettes 1 & 2
+
+	jsr openi		; is on ieee...open it
+	bcc op175		; branch always...done
+
+; perform tape open stuff
+op150:	cmp #2
+	bne op152
+
+	jmp opn232
+
+op152:	jsr xtape		; goto tape device indirect
+
+op175:	clc			; flag good open
+op180:	rts			; exit in peace
+
+openi:	lda sa
+	bmi op50		; no sa...done
+
+	ldy fnlen
+	beq op50		; no file name...done
+
+	lda fa
+	jsr listn		; device la to listen
+
+	lda sa
+	ora #$f0
+openib:	jsr secnd
+
+	lda status		; anybody home?
+	bpl op35		; yes...continue
+
+; this routine is called by other kernal routines which are called directly by os.
+; kill return address to return to os.
+	pla
+	pla
+	jmp error5		; device not present
+
+op35:	lda fnlen
+	beq op45		; no name...done sequence
+
+; send file name over ieee
+	ldy #0
+op40:	jsr fnadry
+	jsr ciout
+	iny
+	cpy fnlen
+	bne op40
+
+op45:	jsr unlsn
+
+op50:	clc			; no  error
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;*****************************************
 ;*  transmit command to device           *
@@ -4678,13 +4689,12 @@ LF73F:  clc                                     ; F73F 18                       
 ;*   to contain the command string.      *
 ;*   fa must be set for the device.      *
 ;*****************************************
-; F741 Output sa 15 + name on IEC
-tranr:  lda     fa                              ; F741 A5 9F                    ..
-	jsr     listn                         ; F743 20 B1 FF                  ..
-	lda     #$6F                            ; F746 A9 6F                    .o
-	sta     sa                              ; F748 85 A0                    ..
-	jmp     openib                          ; F74A 4C 1F F7                 L..
-
+; F741
+tranr:  lda fa
+	jsr listn
+	lda #$6F
+	sta sa
+	jmp openib
 ; -------------------------------------------------------------------------------------------------
 ;**************************************
 ;* load ram function     10/30/81     *
