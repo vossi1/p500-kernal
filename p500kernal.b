@@ -4168,74 +4168,70 @@ bn50:	jsr getin		; get data
 ;*       tected by checking status !   *
 ;***************************************
 ; F4F5
-nbsout	pha             ;preserve .a
-	lda dflto       ;check device
-	cmp #3          ;is it the screen?
-	bne bo10        ;no...
-;
-;print to crt
-;
-	pla             ;restore data
-	jsr jprt         ;print on crt
+nbsout:	pha			; preserve .a
+	lda dflto		; check device
+	cmp #3			; is it the screen?
+	bne bo10		; no...
+
+; print to crt
+	pla			; restore data
+	jsr jprt		; print on crt
 	clc
 	rts
-;
-bo10
-	bcc bo20        ;device 1 or 2
-;
-;print to ieee   bus
-;
+
+bo10:	bcc bo20		; device 1 or 2
+
+; print to ieee   bus
 	pla
 	jsr ciout
 	clc
 	rts
-;
-;print to cassette devices
-;
-bo20	cmp #2          ;rs232?
-	beq bo50
-;
-	pla
-	jsr xtape			; go to tape indirect
 
-rstbo	pla             ;restore .a (error exit for 232)
-	bcc rstor1      ;no error
-	lda #00         ;stop error if c-set
-rstor1	rts
-;
-;output to rs232
-;
-bo50	stx t1          ;put in a temp
+; print to cassette devices
+bo20:	cmp #2			; rs232?
+	beq bo50
+
+	pla
+	jsr xtape		; go to tape indirect
+
+rstbo:	pla			; restore .a (error exit for 232)
+	bcc rstor1		; no error
+	lda #00			; stop error if c-set
+rstor1:	rts
+
+; output to rs232
+bo50:	stx t1			; put in a temp
 	sty t2
-;
-bo55	lda rsstat      ;check for dsr,dcd errors
+
+bo55:	lda rsstat		; check for dsr,dcd errors
 	and #$60
-	bne bo90        ;bad....
-;
-bo70	pla             ;restore data
-	bit sa          ;check for cbm to ascii conversion
-	bpl bo80        ;none
-	jsr toasci      ;convert cbm to ascii
-bo80	sta acia+drsn   ;sending data
+	bne bo90		; bad....
+
+bo70:	pla			; restore data
+	bit sa			; check for cbm to ascii conversion
+	bpl bo80		; none
+	jsr toasci		; convert cbm to ascii
+bo80:	sta acia+drsn		; sending data
 	pha
-;
-bo60	lda rsstat
-	and #$60        ;dcd,dsr errors?
-	bne bo90        ;yes...
-bo64	lda acia+srsn
-	and #$10        ;transmit buffer empty?
-	bne bo90        ;yes, transmit done!
-	jsr stop        ;check for stop key
-	bne bo60        ;try again
-bo66	sec             ;stop key/error return
-	bcs rstbo       ;exit....
-;
-bo90	pla
+
+bo60:	lda rsstat
+	and #$60		; dcd,dsr errors?
+	bne bo90		; yes...
+bo64:	lda acia+srsn
+	and #$10		; transmit buffer empty?
+	bne bo90		; yes, transmit done!
+	jsr stop		; check for stop key
+	bne bo60		; try again
+bo66:	sec			; stop key/error return
+	bcs rstbo		; exit....
+
+bo90:	pla
 	ldx t1          ;go restore
 	ldy t2
 	clc
 	rts
 ; -------------------------------------------------------------------------------------------------
+; ##### openchannel #####
 ;***************************************
 ;* nchkin -- open channel for input    *
 ;*                                     *
@@ -4251,61 +4247,70 @@ bo90	pla
 ;* (screen), require no table entries  *
 ;* and are handled separate.           *
 ;***************************************
-; F550 Open an input channel (la in X)
-nchkin:  jsr     lookup                          ; F550 20 45 F6                  E.
-	beq     LF558                           ; F553 F0 03                    ..
-	jmp     error3                          ; F555 4C 46 F9                 LF.
+; F550
+nchkin	jsr lookup      ;see if file known
+	beq jx310       ;yup...
+;
+	jmp error3      ;no...file not open
+;
+jx310	jsr jz100       ;extract file info
+;
+	lda fa
+	beq jx320       ;is keyboard...done.
+;
+;could be screen, keyboard, or serial
+;
+	cmp #3
+	beq jx320       ;is screen...done.
+	bcs jx330       ;is serial...address it
+	cmp #2          ;rs232?
+	bne jx315       ;no...
+;
+; rs232 channel
+;
+	lda sa
+	and #02         ;check for input
+	beq jx316       ;not input file
+	and acia+cdr    ;check if running
+	beq jx312       ;is...done ?? (rceiver on => yes)
+	eor #$ff        ;flip all bits
+	and acia+cdr    ;turn on...
+	ora #$01        ;turn on dtr ;bits(10)=01
+	pha
+	jsr rst232      ;reset rs232 status
+	pla
+	sta acia+cdr    ;set command
+jx312	lda #2          ;device
+	bne jx320       ;bra...done
+;
+;some extra checks for tape
 
-; -------------------------------------------------------------------------------------------------
-; F558
-LF558:  jsr     fz100                           ; F558 20 57 F6                  W.
-	lda     fa                              ; F55B A5 9F                    ..
-	beq     LF58D                           ; F55D F0 2E                    ..
-	cmp     #$03                            ; F55F C9 03                    ..
-	beq     LF58D                           ; F561 F0 2A                    .*
-	bcs     LF591                           ; F563 B0 2C                    .,
-	cmp     #$02                            ; F565 C9 02                    ..
-	bne     LF587                           ; F567 D0 1E                    ..
-	lda     sa                              ; F569 A5 A0                    ..
-	and     #$02                            ; F56B 29 02                    ).
-	beq     LF58A                           ; F56D F0 1B                    ..
-	and     acia+cdr                        ; F56F 2D 02 DD                 -..
-	beq     LF583                           ; F572 F0 0F                    ..
-	eor     #$FF                            ; F574 49 FF                    I.
-	and     acia+cdr                        ; F576 2D 02 DD                 -..
-	ora     #$01                            ; F579 09 01                    ..
-	pha                                     ; F57B 48                       H
-	jsr     rst232                         ; F57C 20 35 F4                  5.
-	pla                                     ; F57F 68                       h
-	sta     acia+cdr                        ; F580 8D 02 DD                 ...
-LF583:  lda     #$02                            ; F583 A9 02                    ..
-	bne     LF58D                           ; F585 D0 06                    ..
-LF587:  jsr     xtape                            ; F587 20 68 FE                  h.
-LF58A:  jmp     error6                          ; F58A 4C 4F F9                 LO.
-
-; -------------------------------------------------------------------------------------------------
-; F58D
-LF58D:  sta     dfltn                           ; F58D 85 A1                    ..
-	clc                                     ; F58F 18                       .
-	rts                                     ; F590 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; F591
-LF591:  tax                                     ; F591 AA                       .
-	jsr     talk                           ; F592 20 B4 FF                  ..
-	lda     sa                              ; F595 A5 A0                    ..
-	bpl     LF59F                           ; F597 10 06                    ..
-	jsr     tkatn                           ; F599 20 8A F2                  ..
-	jmp     LF5A2                           ; F59C 4C A2 F5                 L..
-
-; -------------------------------------------------------------------------------------------------
-; F59F
-LF59F:  jsr     ktksa                           ; F59F 20 96 FF                  ..
-LF5A2:  txa                                     ; F5A2 8A                       .
-	bit     status                          ; F5A3 24 9C                    $.
-	bpl     LF58D                           ; F5A5 10 E6                    ..
-	jmp     error5                          ; F5A7 4C 4C F9                 LL.
-
+jx315:	jsr xtape       ;goto tape indirect
+;
+jx316	jmp error6      ;not input file
+;
+jx320	sta dfltn       ;all input come from here
+;
+	clc             ;good exit
+	rts
+;
+;an serial device has to be a talker
+;
+jx330	tax             ;device # for dflto
+	jsr talk        ;tell him to talk
+;
+	lda sa          ;a second?
+	bpl jx340       ;yes...send it
+	jsr tkatn       ;no...let go
+	jmp jx350
+;
+jx340	jsr tksa        ;send second
+;
+jx350	txa
+	bit status      ;did he listen?
+	bpl jx320       ;yes
+;
+	jmp error5      ;device not present
 ; -------------------------------------------------------------------------------------------------
 ;***************************************
 ;* chkout -- open channel for output   *
@@ -4329,7 +4334,7 @@ nckout:  jsr     lookup                          ; F5AA 20 45 F6                
 
 ; -------------------------------------------------------------------------------------------------
 ; F5B2
-LF5B2:  jsr     fz100                           ; F5B2 20 57 F6                  W.
+LF5B2:  jsr     jz100                           ; F5B2 20 57 F6                  W.
 	lda     fa                              ; F5B5 A5 9F                    ..
 	bne     LF5BC                           ; F5B7 D0 03                    ..
 LF5B9:  jmp     error7                          ; F5B9 4C 52 F9                 LR.
@@ -4399,7 +4404,7 @@ nclose:  php                                     ; F5F4 08                      
 
 ; -------------------------------------------------------------------------------------------------
 ; F5FD
-LF5FD:  jsr     fz100                           ; F5FD 20 57 F6                  W.
+LF5FD:  jsr     jz100                           ; F5FD 20 57 F6                  W.
 	plp                                     ; F600 28                       (
 	txa                                     ; F601 8A                       .
 	pha                                     ; F602 48                       H
@@ -4448,7 +4453,7 @@ LF64D:  dex                                     ; F64D CA                       
 
 ; -------------------------------------------------------------------------------------------------
 ; F657
-fz100:  lda     lat,x                           ; F657 BD 34 03                 .4.
+jz100:  lda     lat,x                           ; F657 BD 34 03                 .4.
 	sta     la                              ; F65A 85 9E                    ..
 	lda     fat,x                           ; F65C BD 3E 03                 .>.
 	sta     fa                              ; F65F 85 9F                    ..
@@ -4465,7 +4470,7 @@ LF66B:  dex                                     ; F66B CA                       
 	cmp     sat,x                           ; F66E DD 48 03                 .H.
 	bne     LF66B                           ; F671 D0 F8                    ..
 	clc                                     ; F673 18                       .
-LF674:  jsr     fz100                           ; F674 20 57 F6                  W.
+LF674:  jsr     jz100                           ; F674 20 57 F6                  W.
 	tay                                     ; F677 A8                       .
 	lda     la                              ; F678 A5 9E                    ..
 	ldx     fa                              ; F67A A6 9F                    ..
@@ -4710,7 +4715,7 @@ load4:  jsr     srching                         ; F778 20 22 F8                 
 	lda     fa                              ; F77E A5 9F                    ..
 	jsr     talk                           ; F780 20 B4 FF                  ..
 	lda     sa                              ; F783 A5 A0                    ..
-	jsr     ktksa                           ; F785 20 96 FF                  ..
+	jsr     tksa                           ; F785 20 96 FF                  ..
 	jsr     acptr                          ; F788 20 A5 FF                  ..
 	sta     eal                             ; F78B 85 96                    ..
 	sta     stal                            ; F78D 85 99                    ..
@@ -6080,7 +6085,7 @@ aloca:	jmp alocat		; Allocation routine
 	jmp lkupla		; Match la--return sa,fa
 	jmp setmsg		; Control o.s. messages
 secnd:	jmp (isecnd)		; Send sa after listen
-ktksa:	jmp (itksa)		; Send sa after talk
+tksa:	jmp (itksa)		; Send sa after talk
 	jmp memtop		; set/read top of memory
 	jmp membot		; set/read bottom of memory
 	jmp jkey		; Scan keyboard
