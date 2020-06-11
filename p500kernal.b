@@ -4248,69 +4248,64 @@ bo90:	pla
 ;* and are handled separate.           *
 ;***************************************
 ; F550
-nchkin	jsr lookup      ;see if file known
-	beq jx310       ;yup...
-;
-	jmp error3      ;no...file not open
-;
-jx310	jsr jz100       ;extract file info
-;
-	lda fa
-	beq jx320       ;is keyboard...done.
-;
-;could be screen, keyboard, or serial
-;
-	cmp #3
-	beq jx320       ;is screen...done.
-	bcs jx330       ;is serial...address it
-	cmp #2          ;rs232?
-	bne jx315       ;no...
-;
-; rs232 channel
-;
-	lda sa
-	and #02         ;check for input
-	beq jx316       ;not input file
-	and acia+cdr    ;check if running
-	beq jx312       ;is...done ?? (rceiver on => yes)
-	eor #$ff        ;flip all bits
-	and acia+cdr    ;turn on...
-	ora #$01        ;turn on dtr ;bits(10)=01
-	pha
-	jsr rst232      ;reset rs232 status
-	pla
-	sta acia+cdr    ;set command
-jx312	lda #2          ;device
-	bne jx320       ;bra...done
-;
-;some extra checks for tape
+nchkin:	jsr lookup		; see if file known
+	beq jx310		; yup...
 
-jx315:	jsr xtape       ;goto tape indirect
-;
-jx316	jmp error6      ;not input file
-;
-jx320	sta dfltn       ;all input come from here
-;
-	clc             ;good exit
+	jmp error3		; no...file not open
+
+jx310:	jsr jz100		; extract file info
+	lda fa
+	beq jx320		; is keyboard...done.
+
+; could be screen, keyboard, or serial
+	cmp #3
+	beq jx320		; is screen...done.
+	bcs jx330		; is serial...address it
+	cmp #2			; rs232?
+	bne jx315		; no...
+
+; rs232 channel
+	lda sa
+	and #02			; check for input
+	beq jx316		; not input file
+	and acia+cdr		; check if running
+	beq jx312		; is...done ?? (rceiver on => yes)
+	eor #$FF		; flip all bits
+	and acia+cdr		; turn on...
+	ora #$01		; turn on dtr ;bits(10)=01
+	pha
+	jsr rst232		; reset rs232 status
+	pla
+	sta acia+cdr		; set command
+jx312:	lda #2			; device
+	bne jx320		; bra...done
+
+; some extra checks for tape
+jx315:	jsr xtape		; goto tape indirect
+
+jx316:	jmp error6		; not input file
+
+jx320:	sta dfltn		; all input come from here
+
+	clc			; good exit
 	rts
-;
-;an serial device has to be a talker
-;
-jx330	tax             ;device # for dflto
-	jsr talk        ;tell him to talk
-;
-	lda sa          ;a second?
-	bpl jx340       ;yes...send it
-	jsr tkatn       ;no...let go
+
+; an serial device has to be a talker
+jx330:	tax			; device # for dflto
+	jsr talk		; tell him to talk
+
+	lda sa			; a second?
+	bpl jx340		; yes...send it
+	jsr tkatn		; no...let go
 	jmp jx350
-;
-jx340	jsr tksa        ;send second
-;
-jx350	txa
-	bit status      ;did he listen?
-	bpl jx320       ;yes
-;
-	jmp error5      ;device not present
+
+jx340:	jsr tksa		; send second
+
+jx350:	txa
+	bit status		; did he listen?
+	bpl jx320		; yes
+
+	jmp error5		; device not present
 ; -------------------------------------------------------------------------------------------------
 ;***************************************
 ;* chkout -- open channel for output   *
@@ -4327,51 +4322,58 @@ jx350	txa
 ;* (screen), require no table entries  *
 ;* and are handled separate.           *
 ;***************************************
-; F5AA Open an output channel (la in X)
-nckout:  jsr     lookup                          ; F5AA 20 45 F6                  E.
-	beq     LF5B2                           ; F5AD F0 03                    ..
-	jmp     error3                          ; F5AF 4C 46 F9                 LF.
+; F5AA
+nckout:	jsr lookup		; is file in table?
+	beq ck5			; yes...
 
-; -------------------------------------------------------------------------------------------------
-; F5B2
-LF5B2:  jsr     jz100                           ; F5B2 20 57 F6                  W.
-	lda     fa                              ; F5B5 A5 9F                    ..
-	bne     LF5BC                           ; F5B7 D0 03                    ..
-LF5B9:  jmp     error7                          ; F5B9 4C 52 F9                 LR.
+	jmp error3		; no...file not open
 
-; -------------------------------------------------------------------------------------------------
-; F5BC
-LF5BC:  cmp     #$03                            ; F5BC C9 03                    ..
-	beq     LF5D8                           ; F5BE F0 18                    ..
-	bcs     LF5DC                           ; F5C0 B0 1A                    ..
-	cmp     #$02                            ; F5C2 C9 02                    ..
-	bne     LF5D5                           ; F5C4 D0 0F                    ..
-	lda     sa                              ; F5C6 A5 A0                    ..
-	lsr                                     ; F5C8 4A                       J
-	bcc     LF5B9                           ; F5C9 90 EE                    ..
-	jsr     rst232                         ; F5CB 20 35 F4                  5.
-	jsr     xon232                          ; F5CE 20 F8 F3                  ..
-	lda     #$02                            ; F5D1 A9 02                    ..
-	bne     LF5D8                           ; F5D3 D0 03                    ..
-LF5D5:  jsr     xtape                            ; F5D5 20 68 FE                  h.
-LF5D8:  sta     dflto                           ; F5D8 85 A2                    ..
-	clc                                     ; F5DA 18                       .
-	rts                                     ; F5DB 60                       `
+ck5:	jsr jz100		; extract table info
+	lda fa			; is it keyboard?
+	bne ck10		; no...something else.
 
-; -------------------------------------------------------------------------------------------------
-; F5DC
-LF5DC:  tax                                     ; F5DC AA                       .
-	jsr     listn                         ; F5DD 20 B1 FF                  ..
-	lda     sa                              ; F5E0 A5 A0                    ..
-	bpl     LF5E9                           ; F5E2 10 05                    ..
-	jsr     scatn                          ; F5E4 20 7E F2                  ~.
-	bne     LF5EC                           ; F5E7 D0 03                    ..
-LF5E9:  jsr     secnd                          ; F5E9 20 93 FF                  ..
-LF5EC:  txa                                     ; F5EC 8A                       .
-	bit     status                          ; F5ED 24 9C                    $.
-	bpl     LF5D8                           ; F5EF 10 E7                    ..
-	jmp     error5                          ; F5F1 4C 4C F9                 LL.
+ck20:	jmp error7		; yes...not output file
 
+;could be screen,serial,or tapes
+ck10:	cmp #3
+	beq ck30		; is screen...done
+	bcs ck40		; is serial...address it
+	cmp #2			; rs232?
+	bne ck15
+
+; rs232 output
+	lda sa			; check if output file
+	lsr
+	bcc ck20		; not so...
+	jsr rst232		; reset rs232 status
+	jsr xon232		; make sure transmit is on
+	lda #2			; device#
+	bne ck30		; bra...done
+
+; special tape channel handling
+ck15:	jsr xtape		; goto system tape indirect
+
+ck30:	sta dflto		; all output goes here
+
+	clc			; good exit
+	rts
+
+ck40:	tax			; save device for dflto
+	jsr listn		; tell him to listen
+
+	lda sa			; is there a second?
+	bpl ck50		; yes...
+
+	jsr scatn		; no...release lines
+	bne ck60		; branch always
+
+ck50:	jsr secnd		; send second...
+
+ck60:	txa
+	bit status		; did he listen?
+	bpl ck30		; yes...finish up
+
+	jmp error5		; no...device not present
 ; -------------------------------------------------------------------------------------------------
 ;*************************************
 ;* nclose -- close logical file      *
