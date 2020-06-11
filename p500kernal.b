@@ -4696,6 +4696,7 @@ tranr:  lda fa
 	sta sa
 	jmp openib
 ; -------------------------------------------------------------------------------------------------
+; ##### load #####
 ;**************************************
 ;* load ram function     10/30/81     *
 ;*                                    *
@@ -4717,153 +4718,165 @@ tranr:  lda fa
 ;*                                    *
 ;**************************************
 ; F74D Load from logical file
-nload:   stx     relsal                          ; F74D 8E 6F 03                 .o.
-	sty     relsah                          ; F750 8C 70 03                 .p.
-	sta     verck                           ; F753 8D 5F 03                 ._.
-	sta     relsas                          ; F756 8D 71 03                 .q.
-	lda     #$00                            ; F759 A9 00                    ..
-	sta     status                          ; F75B 85 9C                    ..
-	lda     fa                              ; F75D A5 9F                    ..
-	bne     load2                           ; F75F D0 03                    ..
-load1:  jmp     error9                          ; F761 4C 58 F9                 LX.
+nload:	stx relsal		; save alt address
+	sty relsah
+	sta verck		; set verify flag (n)
+	sta relsas		; save start address
+	lda #0			; clear status
+	sta status
 
-; -------------------------------------------------------------------------------------------------
-; F764 Dispatch based on load device
-load2:  cmp     #$03                            ; F764 C9 03                    ..
-	beq     load1                           ; F766 F0 F9                    ..
-	bcs     load3                           ; F768 B0 03                    ..
-	jmp     load11                          ; F76A 4C 17 F8                 L..
+	lda fa			; check device number
+	bne ld20
 
-; -------------------------------------------------------------------------------------------------
-; F76D Load from IEC
-load3:  lda     #$60                            ; F76D A9 60                    .`
-	sta     sa                              ; F76F 85 A0                    ..
-	ldy     fnlen                           ; F771 A4 9D                    ..
-	bne     load4                           ; F773 D0 03                    ..
-	jmp     error8                          ; F775 4C 55 F9                 LU.
+ld10:	jmp error9		; bad device #-keyboard
 
-; -------------------------------------------------------------------------------------------------
-; F778
-load4:  jsr     srching                         ; F778 20 22 F8                  ".
-	jsr     openi                           ; F77B 20 0E F7                  ..
-	lda     fa                              ; F77E A5 9F                    ..
-	jsr     talk                           ; F780 20 B4 FF                  ..
-	lda     sa                              ; F783 A5 A0                    ..
-	jsr     tksa                           ; F785 20 96 FF                  ..
-	jsr     acptr                          ; F788 20 A5 FF                  ..
-	sta     eal                             ; F78B 85 96                    ..
-	sta     stal                            ; F78D 85 99                    ..
-	lda     status                          ; F78F A5 9C                    ..
-	lsr                                     ; F791 4A                       J
-	lsr                                     ; F792 4A                       J
-	bcc     load5                           ; F793 90 03                    ..
-	jmp     error4                          ; F795 4C 49 F9                 LI.
+ld20:	cmp #3
+	beq ld10		; disallow screen load
+	bcs *+5
+	jmp ld100		; handle tapes different
 
-; -------------------------------------------------------------------------------------------------
-; F798
-load5:  jsr     acptr                          ; F798 20 A5 FF                  ..
-	sta     eah                             ; F79B 85 97                    ..
-	sta     stah                            ; F79D 85 9A                    ..
-	jsr     loading                         ; F79F 20 47 F8                  G.
-	lda     relsas                          ; F7A2 AD 71 03                 .q.
-	sta     eas                             ; F7A5 85 98                    ..
-	sta     stas                            ; F7A7 85 9B                    ..
-	lda     relsal                          ; F7A9 AD 6F 03                 .o.
-	and     relsah                          ; F7AC 2D 70 03                 -p.
-	cmp     #$FF                            ; F7AF C9 FF                    ..
-	beq     load6                           ; F7B1 F0 0E                    ..
-	lda     relsal                          ; F7B3 AD 6F 03                 .o.
-	sta     eal                             ; F7B6 85 96                    ..
-	sta     stal                            ; F7B8 85 99                    ..
-	lda     relsah                          ; F7BA AD 70 03                 .p.
-	sta     eah                             ; F7BD 85 97                    ..
-	sta     stah                            ; F7BF 85 9A                    ..
-; F7C1 Wait if IEC timeout
-load6:  lda     #$FD                            ; F7C1 A9 FD                    ..
-	and     status                          ; F7C3 25 9C                    %.
-	sta     status                          ; F7C5 85 9C                    ..
-	jsr     stop                           ; F7C7 20 E1 FF                  ..
-	bne     load7                           ; F7CA D0 03                    ..
-	jmp     break                           ; F7CC 4C BA F8                 L..
+; load from cbm ieee device
+	lda #$60		; special load command
+	sta sa
 
-; -------------------------------------------------------------------------------------------------
-; F7CF
-load7:  jsr     acptr                          ; F7CF 20 A5 FF                  ..
-	tax                                     ; F7D2 AA                       .
-	lda     status                          ; F7D3 A5 9C                    ..
-	lsr                                     ; F7D5 4A                       J
-	lsr                                     ; F7D6 4A                       J
-	bcs     load6                           ; F7D7 B0 E8                    ..
-	txa                                     ; F7D9 8A                       .
-	ldx     i6509                           ; F7DA A6 01                    ..
-	ldy     eas                             ; F7DC A4 98                    ..
-	sty     i6509                           ; F7DE 84 01                    ..
-	ldy     #$00                            ; F7E0 A0 00                    ..
-	bit     verck                           ; F7E2 2C 5F 03                 ,_.
-	bpl     load8                           ; F7E5 10 0E                    ..
-	sta     sal                             ; F7E7 85 93                    ..
-	lda     (eal),y                         ; F7E9 B1 96                    ..
-	cmp     sal                             ; F7EB C5 93                    ..
-	beq     load9                           ; F7ED F0 08                    ..
-	lda     #$10                            ; F7EF A9 10                    ..
-	jsr     udst                            ; F7F1 20 6E FB                  n.
-	!byte   $AD                                     ; F7F4 AD                       .
-load8:  sta     (eal),y                         ; F7F5 91 96                    ..
-load9:  stx     i6509                           ; F7F7 86 01                    ..
-	inc     eal                             ; F7F9 E6 96                    ..
-	bne     load10                          ; F7FB D0 0A                    ..
-	inc     eah                             ; F7FD E6 97                    ..
-	bne     load10                          ; F7FF D0 06                    ..
-	inc     eas                             ; F801 E6 98                    ..
-	lda     #$02                            ; F803 A9 02                    ..
-	sta     eal                             ; F805 85 96                    ..
-load10: bit     status                          ; F807 24 9C                    $.
-	bvc     load6                           ; F809 50 B6                    P.
-	jsr     untlk                         ; F80B 20 AB FF                  ..
-	jsr     clsei                           ; F80E 20 C6 F8                  ..
-	jmp     load12                          ; F811 4C 1A F8                 L..
+	ldy fnlen		; must have file name
+	bne ld25		; yes...ok
 
-; -------------------------------------------------------------------------------------------------
-; F814 
-	jmp     error4                          ; F814 4C 49 F9                 LI.
+	jmp error8		; missing file name
 
-; -------------------------------------------------------------------------------------------------
-; F817 Load from cassette
-load11: jsr     xtape                            ; F817 20 68 FE                  h.
-load12: clc                                     ; F81A 18                       .
-	lda     eas                             ; F81B A5 98                    ..
-	ldx     eal                             ; F81D A6 96                    ..
-	ldy     eah                             ; F81F A4 97                    ..
-	rts                                     ; F821 60                       `
+ld25:	jsr luking		; tell user looking
+	jsr openi		; open the file
 
-; -------------------------------------------------------------------------------------------------
-; F822 In direct mode, print "searching ..."
-srching:bit     msgflg                          ; F822 2C 61 03                 ,a.
-	bpl     LF846                           ; F825 10 1F                    ..
-	ldy     #$0C                            ; F827 A0 0C                    ..
-	jsr     spmsg                           ; F829 20 23 F2                  #.
-	lda     fnlen                           ; F82C A5 9D                    ..
-	beq     LF846                           ; F82E F0 16                    ..
-	ldy     #$17                            ; F830 A0 17                    ..
-	jsr     spmsg                           ; F832 20 23 F2                  #.
-outfn:  ldy     fnlen                           ; F835 A4 9D                    ..
-	beq     LF846                           ; F837 F0 0D                    ..
-	ldy     #$00                            ; F839 A0 00                    ..
-LF83B:  jsr     fnadry                          ; F83B 20 A0 FE                  ..
-	jsr     bsout                          ; F83E 20 D2 FF                  ..
-	iny                                     ; F841 C8                       .
-	cpy     fnlen                           ; F842 C4 9D                    ..
-	bne     LF83B                           ; F844 D0 F5                    ..
-LF846:  rts                                     ; F846 60                       `
+	lda fa
+	jsr talk		; establish the channel
+	lda sa
+	jsr tksa		; tell it to load
 
-; -------------------------------------------------------------------------------------------------
-; F847 In direct mode, print "loading ..."
-loading:ldy     #$1B                            ; F847 A0 1B                    ..
-	lda     verck                           ; F849 AD 5F 03                 ._.
-	bpl     LF850                           ; F84C 10 02                    ..
-	ldy     #$2B                            ; F84E A0 2B                    .+
-LF850:  jmp     spmsg                           ; F850 4C 23 F2                 L#.
+	jsr acptr		; get first byte
+	sta eal
+	sta stal
 
+	lda status		; test status for error
+	lsr
+	lsr
+	bcc *+5			; file  found...
+
+	jmp error4		; file not found error
+
+	jsr acptr
+	sta eah
+	sta stah
+
+	jsr loding		; tell user loading
+
+; test for fixed or moveable load
+	lda relsas		; no segment byte in storage ***
+	sta eas
+	sta stas
+	lda relsal
+	and relsah
+	cmp #$FF
+	beq ld40		; fixed load
+
+	lda relsal
+	sta eal
+	sta stal
+	lda relsah
+	sta eah
+	sta stah
+;
+ld40:	lda #$FD		; mask off timeout
+	and status
+	sta status
+
+	jsr stop		; stop key?
+	bne ld45		; no...
+
+	jmp break		; stop key pressed
+
+ld45:	jsr acptr		; get byte off ieee
+	tax
+	lda status		; was there a timeout?
+	lsr
+	lsr
+	bcs ld40		; yes...try again
+	txa
+; change indirect pages
+	ldx i6509
+	ldy eas
+	sty i6509
+	ldy #0
+	bit verck		; performing verify?
+	bpl ld50		; no...load
+	sta sal			; use as a temp
+	lda (eal),y
+	cmp sal
+	beq ld60		; okay
+	lda #sperr		; no good...verify error
+	jsr udst		; update status
+	!byte $AD		; skip next store
+
+ld50:	sta (eal),y
+ld60:	stx i6509		; restore indirect
+	inc eal			; increment store addr
+	bne ld64
+	inc eah
+	bne ld64
+	inc eas
+	lda #2			; skip $0000 $0001
+	sta eal
+ld64:	bit status		; eoi?
+	bvc ld40		; no...continue load
+
+	jsr untlk		; close channel
+	jsr clsei		; close the file
+	jmp ld180		; exit ieee load
+
+ld90:	jmp error4		; file not found
+
+; load from tape
+ld100:	jsr xtape		; goto tape indirect
+
+ld180:	clc			; good exit
+
+; set up end load address
+	lda eas
+	ldx eal
+	ldy eah
+
+ld190:	rts
+
+; subroutine to print to console: searching [for name]
+luking:	bit msgflg		; supposed to print?
+	bpl ld115
+	ldy #ms5-ms1		; "searching"
+	jsr spmsg
+	lda fnlen
+	beq ld115
+	ldy #ms6-ms1		; "for"
+	jsr spmsg
+
+; subroutine to output file name
+outfn:	ldy fnlen		; is there a name?
+	beq ld115		; no...done
+	ldy #0
+ld110:	jsr fnadry
+	jsr bsout
+	iny
+	cpy fnlen
+	bne ld110
+
+ld115:	rts
+
+; subroutine to print: loading/verifing
+loding:	ldy #ms10-ms1		; assume 'loading'
+	lda verck		; check flag
+	bpl ld410		; are doing load
+	ldy #ms21-ms1		; are 'verifying'
+ld410:	jmp spmsg
+
+; rsr  fix segmentation 10/15/81
+; rsr  6509 changes  10/15/81
 ; -------------------------------------------------------------------------------------------------
 ;***************************************
 ;* nsave              10/30/81         *
