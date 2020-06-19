@@ -5296,8 +5296,7 @@ io120:  lda #%00001000
 	lda #%01001000		; port b lines sem65,ennmi are outs
 	sta ipcia+ddrb
 
-; 6551 initilization code
-;   handled by reset  10/19/81 rsr
+; 6551 initilization code handled by reset  10/19/81 rsr
 
 ; turn off ifc
 	lda #ifc
