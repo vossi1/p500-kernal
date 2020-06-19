@@ -2902,7 +2902,7 @@ edvect:	!word dokeyf
 ; ED12 Color control code table
 ; blk,wht,red,cyan,magenta,grn,blue,yellow
 coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
-; org,brown,lred,gray1,gray2,lgreen,lblue,gray3,purple
+; org,brown,lred,gray1,gray2,lgreen,lblue,gray3
 	!byte $81,$95,$96,$97,$98,$99,$9A,$9B
 ; rsr modify for vic-40 system			*** Just for fun from rev.1 c64-kernal rev.1 ;) ***
 ; rsr 12/31/81 add 8 more colors
