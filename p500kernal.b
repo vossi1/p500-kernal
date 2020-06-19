@@ -5424,122 +5424,133 @@ jmptab: !word kirq		; FB09 -> FBF8 cinv
 	!word nunlsn		; FB37 -> F2B6 IEEE unlisten bus
 	!word nlistn		; FB39 -> F23B IEEE listen a device
 	!word ntalk		; FB3B -> F237 IEEE talk to a device
+tabend:
 ; -------------------------------------------------------------------------------------------------
 ; FB3D NMI entry, jumps indirect to NMI routine
 nmi:    jmp (nminv)             ; ($0304) default -> panic = $FCB8
 ; -------------------------------------------------------------------------------------------------
-; FB40 Set the file name address
-setnam: sta     fnlen                           ; FB40 85 9D                    ..
-	lda     e6509,x                         ; FB42 B5 00                    ..
-	sta     fnadr                           ; FB44 85 90                    ..
-	lda     i6509,x                         ; FB46 B5 01                    ..
-	sta     fnadr+1                         ; FB48 85 91                    ..
-	lda     $02,x                           ; FB4A B5 02                    ..
-	sta     fnadr+2                         ; FB4C 85 92                    ..
-	rts                                     ; FB4E 60                       `
-
+; FB40 Set file name address
+; .a = filename length
+; .x = zero page location of 3 byte address
+setnam: sta fnlen		; store length
+	lda $00,x		; load and store address
+	sta fnadr
+	lda $01,x
+	sta fnadr+1
+	lda $02,x
+	sta fnadr+2
+	rts
 ; -------------------------------------------------------------------------------------------------
-; FB4F Set logical file number
-setlfs: sta     la                              ; FB4F 85 9E                    ..
-	stx     fa                              ; FB51 86 9F                    ..
-	sty     sa                              ; FB53 84 A0                    ..
-	rts                                     ; FB55 60                       `
-
+; FB4F Set file paramaters
+; .a = logical address
+; .x = first address
+; .y = secundary address
+setlfs: sta la
+	stx fa
+	sty sa
+	rts
 ; -------------------------------------------------------------------------------------------------
-; FB56 Read/write the system status byte
-readst: bcc     storst                          ; FB56 90 1B                    ..
-	lda     fa                              ; FB58 A5 9F                    ..
-	cmp     #$02                            ; FB5A C9 02                    ..
-	bne     readss                          ; FB5C D0 0E                    ..
-	lda     rsstat                          ; FB5E AD 7A 03                 .z.
-	pha                                     ; FB61 48                       H
-	lda     #$00                            ; FB62 A9 00                    ..
-	sta     rsstat                          ; FB64 8D 7A 03                 .z.
-	pla                                     ; FB67 68                       h
-	rts                                     ; FB68 60                       `
-
-; -------------------------------------------------------------------------------------------------
+; FB56 Read/write status
+; carry set -- read device status into .a
+readst: bcc storst
+	lda fa			; see which devices' to read
+	cmp #2
+	bne readss		; not rs-232
+	lda rsstat		; yes get it and remember it
+	pha
+	lda #$00		; clear status when read
+	sta rsstat
+	pla			; get status from stack
+	rts
 ; FB69 Set the system message flag
-setmsg: sta     msgflg                          ; FB69 8D 61 03                 .a.
-readss: lda     status                          ; FB6C A5 9C                    ..
-; ORA A in status
-udst:   ora     status                          ; FB6E 05 9C                    ..
-	sta     status                          ; FB70 85 9C                    ..
-	rts                                     ; FB72 60                       `
+setmsg: sta msgflg
+readss: lda status		; read status
+; set status bit
+udst:   ora status		; set bit and store status
+	sta status
+	rts
+; carry clear -- set device status with .a
+storst: pha
+	lda fa
+	cmp #2
+	bne storss		; not rs-232
+	pla
+	sta rsstat		; store rs-232 status
+	rts
 
-; -------------------------------------------------------------------------------------------------
-; FB73 Write the status byte
-storst: pha                                     ; FB73 48                       H
-	lda     fa                              ; FB74 A5 9F                    ..
-	cmp     #$02                            ; FB76 C9 02                    ..
-	bne     storss                          ; FB78 D0 05                    ..
-	pla                                     ; FB7A 68                       h
-	sta     rsstat                          ; FB7B 8D 7A 03                 .z.
-	rts                                     ; FB7E 60                       `
-
-storss: pla                                     ; FB7F 68                       h
-	sta     status                          ; FB80 85 9C                    ..
-	rts                                     ; FB82 60                       `
-
+storss: pla
+	sta status		; store status
+	rts
 ; -------------------------------------------------------------------------------------------------
 ; FB83 IEC timeout on/off
-settmo: sta     timout                          ; FB83 8D 5E 03                 .^.
-	rts                                     ; FB86 60                       `
-
+settmo: sta timout
+	rts
 ; -------------------------------------------------------------------------------------------------
-; FB87 Get/set top of available memory
-memtop: bcc settop              ; set user memory top with C=0
-	lda memsiz+2            ; load memory top in A, Y, X
+; FB87 Read/set top of memory
+memtop: bcc settop
+
+; carry set--read top of memory
+	lda memsiz+2		; load user memory top in .a.x.y
 	ldx memsiz
 	ldy memsiz+1
-settop: stx memsiz              ; set user memory top
+
+; carry clear--set top of memory
+settop: stx memsiz		; set user memory top
 	sty memsiz+1
 	sta memsiz+2
 	rts
 ; -------------------------------------------------------------------------------------------------
-; FB9C Get/set bottom of available memory
-membot: bcc     setbot                          ; FB9C 90 09                    ..
-	lda     memstr+2                        ; FB9E AD 5A 03                 .Z.
-	ldx     memstr                          ; FBA1 AE 58 03                 .X.
-	ldy     memstr+1                        ; FBA4 AC 59 03                 .Y.
-setbot: stx     memstr                          ; FBA7 8E 58 03                 .X.
-	sty     memstr+1                        ; FBAA 8C 59 03                 .Y.
-	sta     memstr+2                        ; FBAD 8D 5A 03                 .Z.
-	rts                                     ; FBB0 60                       `
+; FB9C Manage bottom of memory
+membot: bcc setbot
 
-; -------------------------------------------------------------------------------------------------
-; FBB1 Restore the system vector table at $0300
-restor: ldx     #<jmptab        ; load vector table address in kernal
-	ldy     #>jmptab
-	lda     #irom
-	clc
-; FBB8 Get/set the system vector table
-vector: stx     sal             ; store address
-	sty     sah
-	ldx     i6509           ; remember ibank
-	sta     i6509           ; set new ibank
-	bcc     vect50          ; carry=0 -> set/restore table
-; get table/copy to new address
-	ldy     #$33
-vect20: lda     cinv,y
-	sta     (sal),y         ; copy from $F0300 to new address/bank
-	dey
-	bpl     vect20
-; set/restore table
-vect50: ldy     #$33
-vect60: lda     (sal),y
-	sta     cinv,y          ; copy to table at $F0300
-	dey
-	bpl     vect60
-	stx     i6509           ; restore ibank
+; carry set--read bottom of memory
+	lda memstr+2		; load bottom mem in .a.x.y
+	ldx memstr
+	ldy memstr+1
+
+; carry clear--set bottom of memory
+setbot: stx memstr		; set bottom mem
+	sty memstr+1
+	sta memstr+2
 	rts
 ; -------------------------------------------------------------------------------------------------
-; FBD9 
-vreset: stx     evect                           ; FBD9 8E F8 03                 ...
-	sty     evect+1                         ; FBDC 8C F9 03                 ...
-	lda     #$5A                            ; FBDF A9 5A                    .Z
-	sta     evect+3                         ; FBE1 8D FB 03                 ...
-	rts                                     ; FBE4 60                       `
+; FBB1 Restore ram i/o vectors at $0300
+restor: ldx #<jmptab		; load vector table address in kernal
+	ldy #>jmptab
+	lda #irom
+	clc
+
+; FBB8 Manage ram i/o vectors
+vector: stx sal			; store address
+	sty sah
+	ldx i6509		; save indirect
+	sta i6509		; set ibank .a 
+	bcc vect50		; carry=0 -> set/restore table
+
+; carry set--read vectors
+	ldy #tabend-jmptab-1
+vect20: lda cinv,y		; from ram table $F0300
+	sta (sal),y		; into user area
+	dey
+	bpl vect20
+
+; carry clear--set vectors
+vect50: ldy #tabend-jmptab-1
+vect60: lda (sal),y		; from user area
+	sta cinv,y		; into ram table $F0300
+	dey
+	bpl vect60
+
+	stx i6509		; restore indirect
+	rts
+; -------------------------------------------------------------------------------------------------
+; FBD9 vreset - reset vector flags and control
+;   .x - low vector address  .y - high vector address
+vreset: stx evect
+	sty evect+1
+	lda #winit
+	sta evect+3
+	rts
 ; -------------------------------------------------------------------------------------------------
 ;**********************************************
 ;* nirq - handler for:       10/30/81 rsr     *
