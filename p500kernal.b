@@ -5217,79 +5217,91 @@ swarm:  jmp (evect)             ; start exit -> basic warm start $BBA0
 ;------------------------------------------
 ; F9FE I/O register init (TPI1, TPI2, CIA, TOD)
 
-; 6509 initilization code
-;   see page 2 for assignments done by reset
-
 ; 6525 tpi1 initilization code
-;   see page 12 for assignments
-
 ioinit: lda #%11110011		; cb,ca=hi ie3,4=neg ip=1 mc=1
-	sta tpi1+creg           ; TPI1 interrupt mode = on, parity / VIC bank 15 selected for both
+	sta tpi1+creg		; interrupt mode = on, parity / VIC bank 15 selected for both
 	lda #$FF
-	sta tpi1+mir            ; TPI1 mask on all irq's
+	sta tpi1+mir		; mask on all irq's
 ; pb4=output 1, to claim dbus
 	lda #%01011100  	; wrt=lo unused netr=off
-	sta tpi1+pb             ; TPI1 PB IEEE ifc=0, netw.=0, arb.sw.=1, cass. write=0,motor=1 
+	sta tpi1+pb		; IEEE ifc=0, netw.=0, arb.sw.=1, cass. write=0,motor=1 
 	lda #%01111101  	; set directions
-	sta tpi1+ddpb		; TPI1 DDRB input: cassette switch, IEEE srq
-				; TPI1 DDRB output: IEEE ifc, network, arb.sw., cass. motor,write
+	sta tpi1+ddpb		; input: cassette switch, IEEE srq
+				; output: IEEE ifc, network, arb.sw., cass. motor,write
 
-	lda #%00111101		; ieee controls off
-	sta tpi1+pa             ; TPI1 PA IEEE dc=1, te=0, ren=1, atn=1, dav=1, eo=1
-	lda #%00111111  	; ieee control to transmitt
-	sta tpi1+ddpa		; TPI1 DDRA input:  IEEE ndac, nfrd
-				; TPI1 DDRA output: IEEE dc, te, ren, atn, dav, eoi
+	lda #%00111101		; IEEE controls off: dc=1, te=0, ren=1, atn=1, dav=1, eo=1
+	sta tpi1+pa
+	lda #%00111111  	; IEEE control to transmitt, data to receive
+	sta tpi1+ddpa		; in: ndac, nfrd / out: dc, te, ren, atn, dav, eoi
+
 ; 6525 tpi2 initilization code
-;   see page 13 for assignments
-	lda #$FF     
-	sta tpi2+pa             ; TPI2 PA keyboard 8-15=1
-	sta tpi1+pb             ; TPI1 PB IEEE ifc=1, network=1, arb.sw.=1, cass. motor=1,write=1
-	sta tpi2+ddpa           ; TPI2 DDRA output keyboard 8-15
-	sta tpi2+ddpb           ; TPI2 DDRB output keyboard 0-7
-	lsr tpi2+pa             ; TPI2 PA keyboard 15 bit #7=0
-	lda #$C0     
-	sta tpi2+pc             ; TPI2 PC VIC 16k bank select=11 $c000-$ffff
-	sta tpi2+ddpc           ; TPI2 DDRC input: #0-5 keyboard 0-5 / output: #6-7 VIC 16k bank
-	lda #$84     
-	sta cia+icr            ; CIA2 ICR #7=set, #2=ALRM enable TOD interrupt
-	ldy #$00     
-	sty cia+ddra           ; CIA2 DDRA input: IEEE data, #6,7 also trigger 1,2
-	sty cia+ddrb           ; CIA2 DDRB input: game 1,2
-	sty cia+crb            ; CIA2 CRB Timer B stop, PB7=off, cont, Phi2, activate TOD write
-	sta cia+tod10          ; CIA2 clear TOD 1/10 seconds
-	sty tpi1+lir            ; TPI1 clear all interrupts
-; Check for 50/60 Hz system frequency
-io100:  lda tpi1+lir            ; load interrupt latch reg
-	ror                     ; shift bit #0 to carry
-	bcc io100               ; check again till bit #0 appears (50/60Hz source from PSU) 
-	sty tpi1+lir            ; TPI1 clear all interrupts
-	ldx #$00   
-	ldy #$00
+	lda #$FF     		; set up keyboard outputs
+	sta tpi2+pa             ; keyboard out 8-15=1
+	sta tpi1+pb             ; IEEE ifc=1, network=1, arb.sw.=1, cass. motor=1,write=1
+	sta tpi2+ddpa           ; dir keyboard 8-15 = output
+	sta tpi2+ddpb           ; dir keyboard 0-7 = output
+	lsr tpi2+pa             ; clear keyboard 15 bit #7
+	lda #$C0		; set up vic selects=out for p-series
+	sta tpi2+pc             ; VIC 16k bank select=11 $c000-$ffff
+	sta tpi2+ddpc           ; dir input: #0-5 keyboard 0-5 / output: #6-7 VIC 16k bank
+
+; 6526 cia initilization code
+!ifdef CBMPATCH{		; ********** PATCH rev. -03 b-series Kernal **********
+	lda #$7f		; turn off all irq sources from 6526...
+	} else{
+	lda #$84		; set irq: #7=set, #2=ALRM enable TOD interrupt
+}
+	sta cia+icr
+	ldy #$00     		; all ieee in / same all game inputs
+	sty cia+ddra		; CIA2 DDRA input: IEEE data, #6,7 also trigger 1,2
+	sty cia+ddrb		; CIA2 DDRB input: game 1,2
+	sty cia+crb		; CIA2 CRB Timer B stop, PB7=off, cont, Phi2, activate TOD write
+; activate tod
+	sta cia+tod10		; CIA2 clear TOD 1/10 seconds
+; 60/50 hz test code for tod
+	sty tpi1+lir		; clear all interrupts
+io100:  lda tpi1+lir		; wait untill it happens again
+	ror			; shift bit #0 to carry
+	bcc io100		; pc0 = 1 -> 50/60hz irq
+	sty tpi1+lir		; clear it again
+; start a timmer
+	ldx #0   
+	ldy #0
 io110:  inx
-	bne io110               ; delay 256x -> 1.28 ms @ 1MHz
+	bne io110		; delay 256x -> 1.28 ms @ 1MHz
 	iny        
-	lda tpi1+lir            ; load interrrupt latch reg
-	ror                     ; shift bit #0 to carry
-	bcc io110               ; check again till bit #0 appears (50/60Hz source from PSU)              
+	lda tpi1+lir		; load interrrupt latch reg
+	ror
+	bcc io110		; pc0 = 1 -> 50/60hz irq          
 	cpy #id55hz   
-	bcc io120               ; branch if signal appears again in 14 tries = <18ms -> 60Hz
-	lda #$88                ; if not -> 50Hz / set extra bit #7 in A for TOD=50Hz
-	!byte $2C               ; and skip next instruction
-io120:  lda #$08
-	sta cia+cra            ; CIA2 CRA set TOD=50/60Hz / run mode=continuous
-	lda ipcia+icr            ; CIA1 clear interrupt reg
+	bcc io120               ; it was 60 hz, signal appears again in 14 tries = <18ms
+	lda #%10001000		; set for 50hz
+	!byte $2C		; skip two bytes
+io120:  lda #%00001000
+	sta cia+cra            ; set TOD=50/60Hz, run mode=continuous
+
+; 6526  inter-process communication initialization
+;       pra = data port
+;       prb = ipc lines
+;       irq's from 2nd processor via flag input
+	lda ipcia+icr		; clear icr
 	lda #$90    
-	sta ipcia+icr            ; CIA1 set flag interrupt source
+	sta ipcia+icr		; flag irqs on
 	lda #$40    
-	sta ipcia+prb            ; CIA1 set bit #6
+	sta ipcia+prb		; no nmi to z80, sem6509 low
 	lda #$00    
-	sta ipcia+ddra           ; CIA1 DDRA input
-	sta ipcia+crb            ; CIA1 CRB stop timer B
-	sta ipcia+cra            ; CIA1 CRA stop timer A
-	lda #$48     
-	sta ipcia+ddrb           ; CIA1 DDRB output: bit # 3,6 / all other input
-	lda #$01    
-	ora tpi1+pb             ; TPI1 PB set bit #0 IEEE ifc=1
+	sta ipcia+ddra		; port a=input
+	sta ipcia+crb		; timer b off
+	sta ipcia+cra		; timer a off
+	lda #%01001000		; port b lines sem65,ennmi are outs
+	sta ipcia+ddrb
+
+; 6551 initilization code
+;   handled by reset  10/19/81 rsr
+
+; turn off ifc
+	lda #ifc
+	ora tpi1+pb		; TPI1 PB set bit #0 IEEE ifc=1
 	sta tpi1+pb 
 	rts         
 ; -------------------------------------------------------------------------------------------------
