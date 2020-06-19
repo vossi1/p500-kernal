@@ -334,7 +334,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	; Kernal inter-process communication variables 
 	ipbsiz		= 16            ; Ipc buffer size
 	ipb		= $0800		; IPC buffer
-	ijtab		= ipb+ipbsiz	; IPC jump table
+	ipjtab		= ipb+ipbsiz	; IPC jump table
 	ipptab		= $0910		; IPC param spec table
 	; Ipc buffer offsets
 	ipccmd		= 0		; Ipc command
@@ -5711,14 +5711,14 @@ prendn: ;lda pass	; check for foriegn call
 	;sta pass	; restore interrupted interrupt
 	pla             ;restore registers
 	sta i6509
-prend:	pla             ;entry point for register only
+prend:	pla			; entry point for register only
 	tay
 	pla
 	tax
 	pla
 
 ; Default NMI routine
-panic:	rti             ;come here if no new nmi vector.
+panic:	rti			; come here if no new nmi vector.
 ; -------------------------------------------------------------------------------------------------
 ; send a request
 ;   enter:   ipb buffer is initialized to hold the
@@ -5730,248 +5730,292 @@ panic:	rti             ;come here if no new nmi vector.
 ;            all other bytes in ipb unchanged
 ;---------------------------------------------------------------
 ; FCB9 Coprocessor request
-ipcrq:  lda     ipb                             ; FCB9 AD 00 08                 ...
-	and     #$7F                            ; FCBC 29 7F                    ).
-	tay                                     ; FCBE A8                       .
-	jsr     getpar                          ; FCBF 20 2F FE                  /.
-	lda     #$04                            ; FCC2 A9 04                    ..
-	and     ipcia+prb                        ; FCC4 2D 01 DB                 -..
-	bne     ipcrq                           ; FCC7 D0 F0                    ..
-	lda     #$08                            ; FCC9 A9 08                    ..
-	ora     ipcia+prb                        ; FCCB 0D 01 DB                 ...
-	sta     ipcia+prb                        ; FCCE 8D 01 DB                 ...
-	nop                                     ; FCD1 EA                       .
-	lda     ipcia+prb                        ; FCD2 AD 01 DB                 ...
-	tax                                     ; FCD5 AA                       .
-	and     #$04                            ; FCD6 29 04                    ).
-	beq     LFCE6                           ; FCD8 F0 0C                    ..
-	txa                                     ; FCDA 8A                       .
-	eor     #$08                            ; FCDB 49 08                    I.
-	sta     ipcia+prb                        ; FCDD 8D 01 DB                 ...
-	txa                                     ; FCE0 8A                       .
-	nop                                     ; FCE1 EA                       .
-	nop                                     ; FCE2 EA                       .
-	nop                                     ; FCE3 EA                       .
-	bne     ipcrq                           ; FCE4 D0 D3                    ..
-LFCE6:  lda     #$FF                            ; FCE6 A9 FF                    ..
-	sta     ipcia+ddra                       ; FCE8 8D 02 DB                 ...
-	lda     ipb                             ; FCEB AD 00 08                 ...
-	sta     ipcia+pra                        ; FCEE 8D 00 DB                 ...
-	jsr     frebus                          ; FCF1 20 16 FE                  ..
-	lda     ipcia+prb                        ; FCF4 AD 01 DB                 ...
-	and     #$BF                            ; FCF7 29 BF                    ).
-	sta     ipcia+prb                        ; FCF9 8D 01 DB                 ...
-	ora     #$40                            ; FCFC 09 40                    .@
-	cli                                     ; FCFE 58                       X
-	nop                                     ; FCFF EA                       .
-	nop
-	nop                                     ; FD01 EA                       .
-	sta     ipcia+prb                        ; FD02 8D 01 DB                 ...
-	jsr     waithi                          ; FD05 20 FC FD                  ..
-	lda     #$00                            ; FD08 A9 00                    ..
-	sta     ipcia+ddra                       ; FD0A 8D 02 DB                 ...
-	jsr     acklo                           ; FD0D 20 04 FE                  ..
-	jsr     waitlo                          ; FD10 20 F4 FD                  ..
-	ldy     #$00                            ; FD13 A0 00                    ..
-	beq     LFD34                           ; FD15 F0 1D                    ..
-LFD17:  lda     #$FF                            ; FD17 A9 FF                    ..
-	sta     ipcia+ddra                       ; FD19 8D 02 DB                 ...
-	lda     ipb+5,y                         ; FD1C B9 05 08                 ...
-	sta     ipcia+pra                        ; FD1F 8D 00 DB                 ...
-	jsr     ackhi                           ; FD22 20 0D FE                  ..
-	jsr     waithi                          ; FD25 20 FC FD                  ..
-	lda     #$00                            ; FD28 A9 00                    ..
-	sta     ipcia+ddra                       ; FD2A 8D 02 DB                 ...
-	jsr     acklo                           ; FD2D 20 04 FE                  ..
-	jsr     waitlo                          ; FD30 20 F4 FD                  ..
-	iny                                     ; FD33 C8                       .
-LFD34:  cpy     ipb+3                           ; FD34 CC 03 08                 ...
-	bne     LFD17                           ; FD37 D0 DE                    ..
-	ldy     #$00                            ; FD39 A0 00                    ..
-	beq     LFD50                           ; FD3B F0 13                    ..
-LFD3D:  jsr     ackhi                           ; FD3D 20 0D FE                  ..
-	jsr     waithi                          ; FD40 20 FC FD                  ..
-	lda     ipcia+pra                        ; FD43 AD 00 DB                 ...
-	sta     ipb+5,y                         ; FD46 99 05 08                 ...
-	jsr     acklo                           ; FD49 20 04 FE                  ..
-	jsr     waitlo                          ; FD4C 20 F4 FD                  ..
-	iny                                     ; FD4F C8                       .
-LFD50:  cpy     ipb+4                           ; FD50 CC 04 08                 ...
-	bne     LFD3D                           ; FD53 D0 E8                    ..
-	rts                                     ; FD55 60                       `
+iprqst:	lda ipb+ipccmd
+	and #$7f
+	tay
+	jsr getpar      ;get #ins,outs
+	lda #sem88      ;check 8088 semaphore
+	and ipcia+prb
+	bne iprqst      ;locked out by other processor
+	lda #sem65
+	ora ipcia+prb   ;lock 6509 semaphore
+	sta ipcia+prb
+	nop             ;a pause
 
+	lda ipcia+prb   ;collisions with 8088?
+	tax
+	and #sem88
+	beq ipr100      ;ok...
+	txa
+	eor #sem65
+	sta ipcia+prb   ;nope, clear 6509 semaphore
+	txa             ;kill some time
+	nop
+	nop
+	nop
+	bne iprqst      ;try again (br always)
+
+;     send cmd byte and cause irq
+ipr100: lda #$ff
+	sta ipcia+ddra  ;port direction = out
+	lda ipb+ipccmd
+	sta ipcia+pra   ;write cmd byte to port
+;; cause irq
+	jsr frebus      ;give up bus
+	lda ipcia+prb   ;pb6 := 0
+	and #$bf
+	sta ipcia+prb
+	ora #$40        ;keep low for 4us (8 cycles)
+	cli
+	nop
+	nop
+	nop
+	sta ipcia+prb   ;pb6 := high
+;
+	jsr waithi      ;sem8088 -> hi (cmd byte recvd)
+	lda #$00
+	sta ipcia+ddra  ;port direction = in
+	jsr acklo       ;sem6509 -> lo (ack)
+	jsr waitlo      ;sem8088 -> lo (ack ack)
+;
+;    send data bytes, if any
+;
+	ldy #0
+	beq ipr250      ;always
+ipr200
+	lda #$ff
+	sta ipcia+ddra  ;port direction = out
+	lda ipb+ipcdat,y ;get next data byte
+	sta ipcia+pra   ;write cmd out
+	jsr ackhi       ;sem6509 -> hi (data ready)
+	jsr waithi      ;sem8088 -> hi (data recvd)
+	lda #$00
+	sta ipcia+ddra  ;port direction = in
+	jsr acklo       ;sem6509 -> lo (ack)
+	jsr waitlo      ;sem8088 -> lo (ack ack)
+	iny             ;bump index to next data byte
+ipr250	cpy ipb+ipcin   ;any more ??
+	bne ipr200      ;yes...
+;
+;    receive data bytes, if any
+;
+	ldy #0
+	beq ipr350      ;always
+ipr300
+	jsr ackhi       ;sem6509 -> hi (rdy to receive)
+	jsr waithi      ;sem8088 -> hi (data available)
+	lda ipcia+pra   ;get data from port
+	sta ipb+ipcdat,y ;stuff it away
+	jsr acklo       ;sem6509 -> lo (data recvd)
+	jsr waitlo      ;sem8088 -> lo (ack)
+	iny
+ipr350
+	cpy ipb+ipcout  ;more?
+	bne ipr300      ;yes...
+	rts             ;done!!
 ; -------------------------------------------------------------------------------------------------
 ; service an 8088 request
 ;-------------------------------------------------------------------
 ; FD56 Coprocessor irq handler
-ipserv: lda     #$00                            ; FD56 A9 00                    ..
-	sta     ipcia+ddra                       ; FD58 8D 02 DB                 ...
-	lda     ipcia+pra                        ; FD5B AD 00 DB                 ...
-	sta     ipb                             ; FD5E 8D 00 08                 ...
-	and     #$7F                            ; FD61 29 7F                    ).
-	tay                                     ; FD63 A8                       .
-	jsr     getpar                          ; FD64 20 2F FE                  /.
-	tya                                     ; FD67 98                       .
-	asl                                     ; FD68 0A                       .
-	tay                                     ; FD69 A8                       .
-	lda     ijtab,y                         ; FD6A B9 10 08                 ...
-	sta     ipb+1                           ; FD6D 8D 01 08                 ...
-	iny                                     ; FD70 C8                       .
-	lda     ijtab,y                         ; FD71 B9 10 08                 ...
-	sta     ipb+2                           ; FD74 8D 02 08                 ...
-	jsr     ackhi                           ; FD77 20 0D FE                  ..
-	jsr     waitlo                          ; FD7A 20 F4 FD                  ..
-	ldy     #$00                            ; FD7D A0 00                    ..
-LFD7F:  cpy     ipb+3                           ; FD7F CC 03 08                 ...
-	beq     LFD99                           ; FD82 F0 15                    ..
-	jsr     acklo                           ; FD84 20 04 FE                  ..
-	jsr     waithi                          ; FD87 20 FC FD                  ..
-	lda     ipcia+pra                        ; FD8A AD 00 DB                 ...
-	sta     ipb+5,y                         ; FD8D 99 05 08                 ...
-	jsr     ackhi                           ; FD90 20 0D FE                  ..
-	jsr     waitlo                          ; FD93 20 F4 FD                  ..
-	iny                                     ; FD96 C8                       .
-	bne     LFD7F                           ; FD97 D0 E6                    ..
-LFD99:  bit     ipb                             ; FD99 2C 00 08                 ,..
-	bmi     LFDD1                           ; FD9C 30 33                    03
-	lda     #$FD                            ; FD9E A9 FD                    ..
-	pha                                     ; FDA0 48                       H
-	lda     #$A6                            ; FDA1 A9 A6                    ..
-	pha                                     ; FDA3 48                       H
-	jmp     (ipb+1)                         ; FDA4 6C 01 08                 l..
-
-; -------------------------------------------------------------------------------------------------
-; FDA7 
-	jsr     acklo                           ; FDA7 20 04 FE                  ..
-	ldy     #$00                            ; FDAA A0 00                    ..
-	beq     LFDCB                           ; FDAC F0 1D                    ..
-LFDAE:  jsr     waithi                          ; FDAE 20 FC FD                  ..
-	lda     #$FF                            ; FDB1 A9 FF                    ..
-	sta     ipcia+ddra                       ; FDB3 8D 02 DB                 ...
-	lda     ipb+5,y                         ; FDB6 B9 05 08                 ...
-	sta     ipcia+pra                        ; FDB9 8D 00 DB                 ...
-	jsr     ackhi                           ; FDBC 20 0D FE                  ..
-	jsr     waitlo                          ; FDBF 20 F4 FD                  ..
-	lda     #$00                            ; FDC2 A9 00                    ..
-	sta     ipcia+ddra                       ; FDC4 8D 02 DB                 ...
-	jsr     acklo                           ; FDC7 20 04 FE                  ..
-	iny                                     ; FDCA C8                       .
-LFDCB:  cpy     ipb+4                           ; FDCB CC 04 08                 ...
-	bne     LFDAE                           ; FDCE D0 DE                    ..
-LFDD0:  rts                                     ; FDD0 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FDD1 
-LFDD1:  lda     #$FD                            ; FDD1 A9 FD                    ..
-	pha                                     ; FDD3 48                       H
-	lda     #$DC                            ; FDD4 A9 DC                    ..
-	pha                                     ; FDD6 48                       H
-	jsr     getbus                          ; FDD7 20 1F FE                  ..
-	jmp     (ipb+1)                         ; FDDA 6C 01 08                 l..
-
-; -------------------------------------------------------------------------------------------------
-; FDDD 
-	jsr     frebus                          ; FDDD 20 16 FE                  ..
-	lda     ipb+4                           ; FDE0 AD 04 08                 ...
-	sta     ipb+3                           ; FDE3 8D 03 08                 ...
-	sta     ipb                             ; FDE6 8D 00 08                 ...
-	lda     #$00                            ; FDE9 A9 00                    ..
-	sta     ipb+4                           ; FDEB 8D 04 08                 ...
-	jsr     ipcrq                           ; FDEE 20 B9 FC                  ..
-	jmp     LFDD0                           ; FDF1 4C D0 FD                 L..
-
-; -------------------------------------------------------------------------------------------------
-; FDF4 
-waitlo: lda     ipcia+prb                        ; FDF4 AD 01 DB                 ...
-	and     #$04                            ; FDF7 29 04                    ).
-	bne     waitlo                          ; FDF9 D0 F9                    ..
-	rts                                     ; FDFB 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FDFC 
-waithi: lda     ipcia+prb                        ; FDFC AD 01 DB                 ...
-	and     #$04                            ; FDFF 29 04                    ).
-	beq     waithi                          ; FE01 F0 F9                    ..
-	rts                                     ; FE03 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FE04 
-acklo:  lda     ipcia+prb                        ; FE04 AD 01 DB                 ...
-	and     #$F7                            ; FE07 29 F7                    ).
-	sta     ipcia+prb                        ; FE09 8D 01 DB                 ...
-	rts                                     ; FE0C 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FE0D 
-ackhi:  lda     #$08                            ; FE0D A9 08                    ..
-	ora     ipcia+prb                        ; FE0F 0D 01 DB                 ...
-	sta     ipcia+prb                        ; FE12 8D 01 DB                 ...
-	rts                                     ; FE15 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FE16 Free the bus for the coprocessor
-frebus: lda     tpi1+pb                         ; FE16 AD 01 DE                 ...
-	and     #$EF                            ; FE19 29 EF                    ).
-	sta     tpi1+pb                         ; FE1B 8D 01 DE                 ...
-	rts                                     ; FE1E 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FE1F Wait until we own the bus
-getbus: lda     ipcia+prb                        ; FE1F AD 01 DB                 ...
-	and     #$02                            ; FE22 29 02                    ).
-	beq     getbus                          ; FE24 F0 F9                    ..
-	lda     tpi1+pb                         ; FE26 AD 01 DE                 ...
-	ora     #$10                            ; FE29 09 10                    ..
-	sta     tpi1+pb                         ; FE2B 8D 01 DE                 ...
-	rts                                     ; FE2E 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FE2F Place coprocessor parameters into buffer
-getpar: lda     ipptab,y                        ; FE2F B9 10 09                 ...
-	pha                                     ; FE32 48                       H
-	and     #$0F                            ; FE33 29 0F                    ).
-	sta     ipb+3                           ; FE35 8D 03 08                 ...
-	pla                                     ; FE38 68                       h
-	lsr                                     ; FE39 4A                       J
-	lsr                                     ; FE3A 4A                       J
-	lsr                                     ; FE3B 4A                       J
-	lsr                                     ; FE3C 4A                       J
-	sta     ipb+4                           ; FE3D 8D 04 08                 ...
-	rts                                     ; FE40 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FE41 End of coprocessor irq handler
-ipcgo:  ldx     #$FF                            ; FE41 A2 FF                    ..
-	stx     i6509                           ; FE43 86 01                    ..
-	lda     tpi1+pb                         ; FE45 AD 01 DE                 ...
-	and     #$EF                            ; FE48 29 EF                    ).
-	sta     tpi1+pb                         ; FE4A 8D 01 DE                 ...
-	nop                                     ; FE4D EA                       .
-	lda     ipcia+prb                        ; FE4E AD 01 DB                 ...
-	ror                                     ; FE51 6A                       j
-	bcs     ipcgx                           ; FE52 B0 01                    ..
-	rts                                     ; FE54 60                       `
-
-; -------------------------------------------------------------------------------------------------
-; FE55 Prepare for coprocessor takeover
-ipcgx:  lda     #$00                            ; FE55 A9 00                    ..
-	sei                                     ; FE57 78                       x
-	sta     ipcia+prb                        ; FE58 8D 01 DB                 ...
-	lda     #$40                            ; FE5B A9 40                    .@
-	nop                                     ; FE5D EA                       .
-	nop                                     ; FE5E EA                       .
-	nop                                     ; FE5F EA                       .
-	nop                                     ; FE60 EA                       .
-	sta     ipcia+prb                        ; FE61 8D 01 DB                 ...
-	cli                                     ; FE64 58                       X
-; FE65 Wait while the coprocessor has the bus
-iploop: jmp     iploop                          ; FE65 4C 65 FE                 Le.
-
-; -------------------------------------------------------------------------------------------------
-; no cassette routines avaliable
+ipserv: 
+;; ldy #ipbsiz-1 ;copy ip buffer to stack
+;;ips050 lda ipb,y
+;; pha
+;; dey
+;; bpl ips050
 ;
-; FE68 Standard value for itape is nocass (below).
-xtape:	jmp     (itape)		; goto tape device indirect
+	lda #0
+	sta ipcia+ddra  ;port dir=in, just in case...
+	lda ipcia+pra   ;read cmd from port
+	sta ipb+ipccmd  ;store cmd and decode it
+	and #$7f        ;mask off bus bit
+	tay
+	jsr getpar      ;get param counts
+	tya             ;adjust offset for jump table
+	asl
+	tay
+	lda ipjtab,y    ;jump address(lo)
+	sta ipb+ipcjmp
+	iny
+	lda ipjtab,y    ;jump address (hi)
+	sta ipb+ipcjmp+1
+	jsr ackhi       ;sem6509 -> hi (cmd recvd)
+	jsr waitlo      ;sem8088 -> lo (ack)
+;
+;    receive input bytes, if any
+;
+	ldy #0
+ips100
+	cpy ipb+ipcin   ;any more?
+	beq ips200      ;no...
+	jsr acklo       ;sem6509 ->lo (ack ack)
+	jsr waithi      ;sem8088 -> hi (data available)
+	lda ipcia+pra   ;read data byte
+	sta ipb+ipcdat,y ;store it
+	jsr ackhi       ;sem6509 -> hi (data recvd)
+	jsr waitlo      ;sem8088 -> lo (ack)
+	iny
+	bne ips100      ;always...
+;
+;    process cmd
+;
+ips200
+	bit ipb+ipccmd  ;cmd requires bus?
+	bmi ips500      ;yes...
+	lda #>ipsret    ;push return
+	pha
+	lda #<ipsret
+	pha
+	jmp (ipb+ipcjmp) ;gone!!!
+;
+;    send return bytes, if any
+;
+ips300
+ipsret=ips300-1
+	jsr acklo       ;sem6509 -> lo
+	ldy #0
+	beq ips350      ;always
+ips310
+	jsr waithi      ;sem8088 -> hi (8088 rdy to recv)
+	lda #$ff
+	sta ipcia+ddra  ;port direction = out
+	lda ipb+ipcdat,y
+	sta ipcia+pra   ;write data to port
+	jsr ackhi       ;sem6509 -> hi (data available)
+	jsr waitlo      ;sem8088 -> lo (data recvd)
+	lda #0
+	sta ipcia+ddra  ;port direction = in
+	jsr acklo       ;sem6509 -> lo (ack)
+	iny
+ips350	cpy ipb+ipcout  ;any more?
+	bne ips310      ;yes, repeat...
+;
+ips400
+;; ldy #0
+;;ips450 pla ;restore ip buffer
+;; sta ipb,y
+;; iny
+;; cpy #ipbsiz
+;; bne ips450
+	rts             ;done!
+
+;      special,   for commands requiring the bus
+ips500	lda #>buret
+	pha
+	lda #<buret
+	pha             ;push return
+	jsr getbus      ;grab bus
+	jmp (ipb+ipcjmp) ;gone!
+;
+ips600
+buret=ips600-1
+	jsr frebus      ;give up bus
+	lda ipb+ipcout  ;#bytes to return
+	sta ipb+ipcin
+	sta ipb+ipccmd  ;return op=#bytes to return
+	lda #0
+	sta ipb+ipcout  ;just send to 8088
+	jsr iprqst
+	jmp ips400      ;done!
+
+; FDF4 
+; waitlo - wait until sem88 goes low
+;
+waitlo
+	lda ipcia+prb
+	and #sem88
+	bne waitlo
+	rts
+;
+; waithi - wait until sem88 goes high
+;
+waithi
+	lda ipcia+prb
+	and #sem88
+	beq waithi
+	rts
+;
+; acklo - acknowlegde sem65 low
+;
+acklo
+	lda ipcia+prb
+	and #$ff-sem65
+	sta ipcia+prb
+	rts
+;
+; ackhi - acknowledge sem6509 hi
+;
+ackhi
+	lda #sem65
+	ora ipcia+prb
+	sta ipcia+prb
+	rts
+;
+; frebus - give up bus
+; getbus - grab bus
+;
+frebus
+	lda tpi1+pb     ;pb4 := 0
+	and #$ef
+	sta tpi1+pb
+	rts
+;
+getbus
+	lda ipcia+prb   ;check nbusy2
+	and #$02
+	beq getbus      ;2nd proc not off
+;
+	lda tpi1+pb     ;pb4 := 1
+	ora #$10
+	sta tpi1+pb
+	rts
+;
+; getpar
+;  enter - .y = table offset
+;  exit:   .y = table offset
+;          #ins,#outs put into ipb buffer
+getpar
+	lda ipptab,y    ;break apart nibbles
+	pha
+	and #$0f
+	sta ipb+ipcin   ;#input bytes
+	pla
+	lsr
+	lsr
+	lsr
+	lsr
+	sta ipb+ipcout  ;#output bytes
+	rts
+;
+; ipcgo - free bus, interrupt 2nd processor
+;         go into a loop, waiting for requests.
+;  * returns if bus error occurs
+;
+ipcgo	ldx #$ff
+	stx i6509       ;indirects to bank f only
+	lda tpi1+pb     ;tpi1 pb4:=0 frees dbus
+	and #$ef
+	sta tpi1+pb
+	nop             ;a pause
+	lda ipcia+prb   ;check nbusy1
+	ror
+	bcs ipcgx
+	rts             ;bus not free!, error...
+;
+ipcgx	lda #0          ;pb6 lo->hi in 4us...
+	sei
+	sta ipcia+prb   ;interrupt 2nd processeor
+	lda #$40        ;2 cycles (4us=8cycles)
+	nop
+	nop
+	nop
+	nop             ;8 cycles of garb. 5us safer than 4!
+	sta ipcia+prb   ;turn pb6 back on
+	cli
+iploop	jmp iploop      ;sit down
+; -------------------------------------------------------------------------------------------------
+; FE68 no cassette routines avaliable
+xtape:	jmp     (itape)		; goto tape device indirect -> nocass
 ;
 nocass:	pla			; remove jsr xtape and return
 	pla
@@ -5997,7 +6041,7 @@ cmpste: sec
 	sbc eas
 	rts
 !ifndef CBMPATCH{
-; FE8D 
+; FE8D
 incsal: inc sal
 	bne incr20
 	inc sah
@@ -6219,7 +6263,7 @@ newsys:	jmp txjmp		; Transfer-of-execution jumper
 	jmp vreset		; Power-on/off vector reset
 ipcgov:	jmp ipcgo		; Loop for ipc system
 	jmp jfunky		; Function key vector
-	jmp ipcrq		; Send ipc request
+	jmp iprqst		; Send ipc request
 	jmp ioinit		; I/O initialization
 	jmp jcint		; Screen initialization
 aloca:	jmp alocat		; Allocation routine
