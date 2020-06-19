@@ -5398,32 +5398,32 @@ size:   ldx i6509		; bank number of failure
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; FB09 standard vector table - initialized at boot from restor sub to cinv $0300
-jmptab: !word kirq              ; FB09 -> FBF8
-	!word timb              ; FB0B -> EE21
-	!word panic             ; FB0D -> FCB8
-	!word nopen              ; FB0F -> F6C6
-	!word nclose             ; FB11 -> F5F4
-	!word nchkin             ; FB13 -> F550
-	!word nckout             ; FB15 -> F5AA
-	!word nclrch             ; FB17 -> F6AD
-	!word nbasin             ; FB19 -> F4A3
-	!word nbsout             ; FB1B -> F4F5
-	!word nstop              ; FB1D -> F972
-	!word ngetin             ; FB1F -> F444
-	!word nclall            ; FB21 -> F686
-	!word nload              ; FB23 -> F74D
-	!word nsave              ; FB25 -> F853
-	!word s0              ; FB27 -> EE73
-	!word jescrt           ; FB29 -> E01F
-	!word jescrt           ; FB2B -> E01F
-	!word nsecnd            ; FB2D -> F27B
-	!word ntksa              ; FB2F -> F287
-	!word nacptr             ; FB31 -> F311
-	!word nciout             ; FB33 -> F29E
-	!word nuntlk            ; FB35 -> F2B2
-	!word nunlsn             ; FB37 -> F2B6
-	!word nlistn             ; FB39 -> F23B
-	!word ntalk              ; FB3B -> F237
+jmptab: !word kirq		; FB09 -> FBF8 cinv	
+	!word timb		; FB0B -> EE21 cbinv....brk goes to monitor
+	!word panic		; FB0D -> FCB8 no.....nminv !!!!!
+	!word nopen		; FB0F -> F6C6 open file
+	!word nclose		; FB11 -> F5F4 close file
+	!word nchkin		; FB13 -> F550 open channel in
+	!word nckout		; FB15 -> F5AA open channel out
+	!word nclrch		; FB17 -> F6AD close channel
+	!word nbasin		; FB19 -> F4A3 input from channel
+	!word nbsout		; FB1B -> F4F5 output to channel
+	!word nstop		; FB1D -> F972 scan stop key
+	!word ngetin		; FB1F -> F444 scan keyboard
+	!word nclall		; FB21 -> F686 close all files
+	!word nload		; FB23 -> F74D load from file
+	!word nsave		; FB25 -> F853 save to file
+	!word s0		; FB27 -> EE73 monitor command parser
+	!word jescrt		; FB29 -> E01F esc key vector
+	!word jescrt		; FB2B -> E01F user ctrl key vector
+	!word nsecnd		; FB2D -> F27B IEEE listen secondary address
+	!word ntksa		; FB2F -> F287 IEEE talk secondary address
+	!word nacptr		; FB31 -> F311 IEEE character in
+	!word nciout		; FB33 -> F29E IEEE character out
+	!word nuntlk		; FB35 -> F2B2 IEEE untalk bus
+	!word nunlsn		; FB37 -> F2B6 IEEE unlisten bus
+	!word nlistn		; FB39 -> F23B IEEE listen a device
+	!word ntalk		; FB3B -> F237 IEEE talk to a device
 ; -------------------------------------------------------------------------------------------------
 ; FB3D NMI entry, jumps indirect to NMI routine
 nmi:    jmp (nminv)             ; ($0304) default -> panic = $FCB8
