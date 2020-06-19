@@ -5026,7 +5026,7 @@ rdtim:	lda cia+tod10
 ;  registers same as rdtim
 ;----------------------------------------
 ; F915
-settim	pha			; save for later
+settim:	pha			; save for later
 	pha
 	ror			; set bit 8
 	and #$80
@@ -5584,10 +5584,10 @@ brkirq: jmp (cbinv)		; yes...
 ; FBF8 entry via indirect vector cinv
 yirq:   lda i6509		; save indirect bank #
 	pha
-; lda pass ;external break handler
-; pha
-; lda #0 ;clear for normal return
-; sta pass
+	;lda pass	; external break handler
+	;pha
+	;lda #0 	; clear for normal return
+	;sta pass
 	cld			; clear dec to prevent future problems
 	lda tpi1+air
 	bne irq000		; handle priority irq's
@@ -5602,109 +5602,123 @@ irq000:	cmp #$10		; find irq source
 	jmp irq100
 
 ; 6551 interrupt handler
-irq002	lda acia+srsn   ;find irq source
+irq002:	lda acia+srsn		; find irq source
 	tax
-	and #$60        ;dcd/dsr changes ??
+	and #$60		; dcd/dsr changes ??
 	tay
 	eor dcdsr
-	beq irq004      ;no change...
+	beq irq004		; no change...
 	tya
-	sta dcdsr       ;update old dsr/dcd status
-	ora rsstat      ;update rs232 status
+	sta dcdsr		; update old dsr/dcd status
+	ora rsstat		; update rs232 status
 	sta rsstat
-	jmp irq900      ;done!
+	jmp irq900		; done!
 ;
-irq004	txa
-	and #$08        ;receiver ??
-	beq irq010      ;no...
-;
+irq004:	txa
+	and #$08		; receiver ??
+	beq irq010		; no...
+
 ; receiver service
-;
-	ldy ridbe       ;check buffers
+	ldy ridbe		; check buffers
 	iny
-	cpy ridbs       ;have we passed start?
-	bne irq005      ;no...
-;
-	lda #doverr     ;input buffer full error
-	bne irq007      ;bra...set status
-;
-irq005	sty ridbe       ;move end foward
+	cpy ridbs		; have we passed start?
+	bne irq005		; no...
+
+	lda #doverr		; input buffer full error
+	bne irq007		; bra...set status
+
+irq005:	sty ridbe		; move end foward
 	dey
 	ldx ribuf+2
 	stx i6509
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+	ldx acia+srsn		; get status register
+	jsr patch2		; moved to end because 1 byte missing here
+	txa			; set status
+	nop
+} else{
 	lda acia+drsn
-	sta (ribuf),y    ;data to buffer
-	lda acia+srsn   ;get status register
+	sta (ribuf),y		; data to buffer
+	lda acia+srsn		; get status register
+}
 	and #$07
-irq007	ora rsstat      ;set status
+irq007:	ora rsstat		; set status
 	sta rsstat
 
-irq010	lda acia+srsn   ;find irq source
-	and #$10        ;transmitter ?
-	beq irq090      ;no...
-	lda acia+cdr    ;check for transmitter on
+irq010:	lda acia+srsn		; find irq source
+	and #$10		; transmitter ?
+	beq irq090		; no...
+	lda acia+cdr		; check for transmitter on
 	and #$0c
-	cmp #$04        ;bits(32)=01 => xmitter int enabled
-	bne irq090      ;off...
-;
+	cmp #$04		; bits(32)=01 => xmitter int enabled
+	bne irq090		; off...
+
 ; transmitter service (no interrrupt driven transmissions)
-;
-	lda #%11110011  ;turn of transmitter
+	lda #%11110011		; turn of transmitter
 	and acia+cdr
 	sta acia+cdr
-irq090	jmp irq900      ;exit..pop priority...
-; -------------------------------------------------------------------------------------------------
+irq090:	jmp irq900		; exit..pop priority...
+
 ; FC69 Check for coprozessor IRQ
-irq100:  cmp #$08                            ; FC69 C9 08                    ..
-	bne kirq9                           ; FC6B D0 0A                    ..
-	lda ipcia+icr                        ; FC6D AD 0D DB                 ...
-	cli                                 ; FC70 58                       X
-	jsr ipserv                          ; FC71 20 56 FD                  V.
-	jmp irq900                           ; FC74 4C AD FC                 L..
+irq100:	cmp #$08		; check if inter-process irq
+	bne irq110		; no...
+	lda ipcia+icr		; clear irq condition
+	cli			; this irq can be interrupted
+	jsr ipserv		; do the request
+	jmp irq900		; done!
 
-; -------------------------------------------------------------------------------------------------
 ; FC77 Check for CIA IRQ
-kirq9:  cli                                 ; FC77 58                       X
-	cmp #$04                            ; FC78 C9 04                    ..
-	bne irq0000                          ; FC7A D0 0C                    ..
-	lda cia+icr                        ; FC7C AD 0D DC                 ...
-	ora alarm                           ; FC7F 0D 69 03                 .i.
-	sta alarm                           ; FC82 8D 69 03                 .i.
-	jmp irq900                           ; FC85 4C AD FC                 L..
+irq110:	cli			; all other irq's may be interrupted, too
+	cmp #$04		; check if 6526
+	bne irq200		; no...
 
-; -------------------------------------------------------------------------------------------------
+; 6526 interrupt reconized
+	lda cia+icr		; get active interrupts
+	ora alarm		; in case we lose something
+	sta alarm
+
+; nothing to do at present....need code ********
+	jmp irq900		; ...dump interrupt
+
 ; FC88 Check for IEC bus IRQ (and ignore it)
-irq0000: cmp #$02                            ; FC88 C9 02                    ..
-	bne irq0001                          ; FC8A D0 03                    ..
-	jmp irq900                           ; FC8C 4C AD FC                 L..
+irq200:	cmp #$02		; check for ieee srq
+	bne irq300
 
-; -------------------------------------------------------------------------------------------------
+; need code ************
+	jmp irq900		; ...dump interrupt
+
 ; FC8F Must be a 50/60Hz IRQ - poll keyboard, update time
-irq0001: jsr jkey                         ; FC8F 20 13 E0                  ..
-	jsr udtim                           ; FC92 20 80 F9                  ..
-	lda tpi1+pb                         ; FC95 AD 01 DE                 ...
-	bpl LFCA3                           ; FC98 10 09                    ..
-	ldy #$00                            ; FC9A A0 00                    ..
-	sty cas1                            ; FC9C 8C 75 03                 .u.
-	ora #$40                            ; FC9F 09 40                    .@
-	bne LFCAA                           ; FCA1 D0 07                    ..
-LFCA3:  ldy cas1                            ; FCA3 AC 75 03                 .u.
-	bne irq900                           ; FCA6 D0 05                    ..
-	and #$BF                            ; FCA8 29 BF                    ).
-LFCAA:  sta tpi1+pb                         ; FCAA 8D 01 DE                 ...
-irq900:  sta tpi1+air                        ; FCAD 8D 07 DE                 ...
-; IRQ end, restore indirect segment and registers
-prendn: pla                                 ; FCB0 68                       h
-	sta i6509                           ; FCB1 85 01                    ..
-; IRQ end, restore registers
-prend:  pla
+irq300:	jsr jkey		; scan the keyboard
+	jsr udtim		; set stopkey flag
+
+; test for cassette switch
+	lda tpi1+pb		; get cass switch
+	bpl irq310		; switch is down...
+	ldy #0			; flag motor off...
+	sty cas1
+	ora #$40		; turn motor off...
+	bne irq320		; jump
+irq310:	ldy cas1		; test for flag on...
+	bne irq900		; yes computer control..leave alone
+	and #$ff-$40		; turn motor on...
+irq320:	sta tpi1+pb		; store mods into port
+
+irq900:	sta tpi1+air		; pop the interrupt...
+
+prendn: ;lda pass	; check for foriegn call
+	;bne segrti	; yes...return
+	;pla
+	;sta pass	; restore interrupted interrupt
+	pla             ;restore registers
+	sta i6509
+prend:	pla             ;entry point for register only
 	tay
 	pla
 	tax
 	pla
 
 ; Default NMI routine
-panic:  rti
+panic:	rti             ;come here if no new nmi vector.
 ; -------------------------------------------------------------------------------------------------
 ; send a request
 ;   enter:   ipb buffer is initialized to hold the
@@ -6188,6 +6202,11 @@ incsal: inc sal
 	lda #$02		; skip $0000 and $0001
 	sta sal
 incr20:	rts
+
+patch2:				; ********** cbmii revision -03 PATCH  ACIA-IRQ routine **********
+	lda acia+drsn
+	sta (ribuf),y		; data to buffer
+	rts
 }
 ; -------------------------------------------------------------------------------------------------
 ; ##### vectors #####
