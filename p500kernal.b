@@ -5246,18 +5246,18 @@ ioinit: lda #%11110011		; cb,ca=hi ie3,4=neg ip=1 mc=1
 	sta tpi2+ddpc           ; dir input: #0-5 keyboard 0-5 / output: #6-7 VIC 16k bank
 
 ; 6526 cia initilization code
-!ifdef CBMPATCH{		; ********** PATCH rev. -03 b-series Kernal **********
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
 	lda #$7f		; turn off all irq sources from 6526...
 	} else{
 	lda #$84		; set irq: #7=set, #2=ALRM enable TOD interrupt
 }
 	sta cia+icr
 	ldy #$00     		; all ieee in / same all game inputs
-	sty cia+ddra		; CIA2 DDRA input: IEEE data, #6,7 also trigger 1,2
-	sty cia+ddrb		; CIA2 DDRB input: game 1,2
-	sty cia+crb		; CIA2 CRB Timer B stop, PB7=off, cont, Phi2, activate TOD write
+	sty cia+ddra		; dir input: IEEE data, #6,7 also trigger 1,2
+	sty cia+ddrb		; dir input: game 1,2
+	sty cia+crb		; Timer B stop, PB7=off, cont, Phi2, activate TOD write
 ; activate tod
-	sta cia+tod10		; CIA2 clear TOD 1/10 seconds
+	sta cia+tod10		; clear TOD 1/10 seconds
 ; 60/50 hz test code for tod
 	sty tpi1+lir		; clear all interrupts
 io100:  lda tpi1+lir		; wait untill it happens again
