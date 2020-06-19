@@ -5398,7 +5398,7 @@ size:   ldx i6509		; bank number of failure
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; FB09 standard vector table - initialized at boot from restor sub to cinv $0300
-jmptab: !word kirq		; FB09 -> FBF8 cinv	
+jmptab: !word yirq		; FB09 -> FBF8 cinv	
 	!word timb		; FB0B -> EE21 cbinv....brk goes to monitor
 	!word panic		; FB0D -> FCB8 no.....nminv !!!!!
 	!word nopen		; FB0F -> F6C6 open file
@@ -5552,6 +5552,7 @@ vreset: stx evect
 	sta evect+3
 	rts
 ; -------------------------------------------------------------------------------------------------
+; ##### irq #####
 ;**********************************************
 ;* nirq - handler for:       10/30/81 rsr     *
 ;* 6525 irq's:::::::::::::::::::::::::::::::::*
@@ -5567,134 +5568,143 @@ vreset: stx evect
 ;* also at present does not handle any of the *
 ;* 6566 (vic) interrupts.                     *
 ;**********************************************
-; FBE5 IRQ routine
-nirq:	pha                                     ; FBE5 48                       H
-	txa                                     ; FBE6 8A                       .
-	pha                                     ; FBE7 48                       H
-	tya                                     ; FBE8 98                       .
-	pha                                     ; FBE9 48                       H
-	tsx                                     ; FBEA BA                       .
-	lda     stack+4,x                       ; FBEB BD 04 01                 ...
-	and     #$10                            ; FBEE 29 10                    ).
-	bne     brkirq                          ; FBF0 D0 03                    ..
-	jmp     (cinv)                          ; FBF2 6C 00 03                 l..
+; FBE5 IRQ handler
+nirq:	pha			; save registers
+	txa
+	pha
+	tya
+	pha
+	tsx			; check for brk...
+	lda stack+4,x
+	and #$10
+	bne brkirq		; yes...
+	jmp (cinv)		; via vector -> yirq $FBF8
+brkirq: jmp (cbinv)		; yes...
 
-; -------------------------------------------------------------------------------------------------
-; FBF5 
-brkirq: jmp     (cbinv)                         ; FBF5 6C 02 03                 l..
+; FBF8 entry via indirect vector cinv
+yirq:   lda i6509		; save indirect bank #
+	pha
+; lda pass ;external break handler
+; pha
+; lda #0 ;clear for normal return
+; sta pass
+	cld			; clear dec to prevent future problems
+	lda tpi1+air
+	bne irq000		; handle priority irq's
 
-; -------------------------------------------------------------------------------------------------
-; FBF8 Standard IRQ routine via indirect vector cinv
-kirq:   lda     i6509                           ; FBF8 A5 01                    ..
-	pha                                     ; FBFA 48                       H
-	cld                                     ; FBFB D8                       .
-	lda     tpi1+air                        ; FBFC AD 07 DE                 ...
-	bne     kirq1                           ; FBFF D0 03                    ..
-	jmp     prendn                          ; FC01 4C B0 FC                 L..
+; external irq (vic and others)
+;  (no code!!!!!!!!!!)
+	jmp prendn
 
-; -------------------------------------------------------------------------------------------------
 ; FC04 Check for ACIA IRQ
-kirq1:  cmp     #$10                            ; FC04 C9 10                    ..
-	beq     kirq2                           ; FC06 F0 03                    ..
-	jmp     kirq8                           ; FC08 4C 69 FC                 Li.
+irq000:	cmp #$10		; find irq source
+	beq irq002		; not 6551...
+	jmp irq100
 
-; -------------------------------------------------------------------------------------------------
-; FC0B Handle ACIA IRQ
-kirq2:  lda     acia+srsn                     ; FC0B AD 01 DD                 ...
-	tax                                     ; FC0E AA                       .
-	and     #$60                            ; FC0F 29 60                    )`
-	tay                                     ; FC11 A8                       .
-	eor     dcdsr                           ; FC12 4D 7B 03                 M{.
-	beq     LFC24                           ; FC15 F0 0D                    ..
-	tya                                     ; FC17 98                       .
-	sta     dcdsr                           ; FC18 8D 7B 03                 .{.
-	ora     rsstat                          ; FC1B 0D 7A 03                 .z.
-	sta     rsstat                          ; FC1E 8D 7A 03                 .z.
-	jmp     LFCAD                           ; FC21 4C AD FC                 L..
+; 6551 interrupt handler
+irq002	lda acia+srsn   ;find irq source
+	tax
+	and #$60        ;dcd/dsr changes ??
+	tay
+	eor dcdsr
+	beq irq004      ;no change...
+	tya
+	sta dcdsr       ;update old dsr/dcd status
+	ora rsstat      ;update rs232 status
+	sta rsstat
+	jmp irq900      ;done!
+;
+irq004	txa
+	and #$08        ;receiver ??
+	beq irq010      ;no...
+;
+; receiver service
+;
+	ldy ridbe       ;check buffers
+	iny
+	cpy ridbs       ;have we passed start?
+	bne irq005      ;no...
+;
+	lda #doverr     ;input buffer full error
+	bne irq007      ;bra...set status
+;
+irq005	sty ridbe       ;move end foward
+	dey
+	ldx ribuf+2
+	stx i6509
+	lda acia+drsn
+	sta (ribuf),y    ;data to buffer
+	lda acia+srsn   ;get status register
+	and #$07
+irq007	ora rsstat      ;set status
+	sta rsstat
 
-LFC24:  txa                                     ; FC24 8A                       .
-	and     #$08                            ; FC25 29 08                    ).
-	beq     LFC4E                           ; FC27 F0 25                    .%
-	ldy     ridbe                           ; FC29 AC 7D 03                 .}.
-	iny                                     ; FC2C C8                       .
-	cpy     ridbs                           ; FC2D CC 7C 03                 .|.
-	bne     LFC36                           ; FC30 D0 04                    ..
-	lda     #$08                            ; FC32 A9 08                    ..
-	bne     LFC48                           ; FC34 D0 12                    ..
-LFC36:  sty     ridbe                           ; FC36 8C 7D 03                 .}.
-	dey                                     ; FC39 88                       .
-	ldx     ribuf+2                         ; FC3A A6 A8                    ..
-	stx     i6509                           ; FC3C 86 01                    ..
-	lda     acia+drsn                       ; FC3E AD 00 DD                 ...
-	sta     (ribuf),y                       ; FC41 91 A6                    ..
-	lda     acia+srsn                     ; FC43 AD 01 DD                 ...
-	and     #$07                            ; FC46 29 07                    ).
-LFC48:  ora     rsstat                          ; FC48 0D 7A 03                 .z.
-	sta     rsstat                          ; FC4B 8D 7A 03                 .z.
-LFC4E:  lda     acia+srsn                     ; FC4E AD 01 DD                 ...
-	and     #$10                            ; FC51 29 10                    ).
-	beq     LFC66                           ; FC53 F0 11                    ..
-	lda     acia+cdr                        ; FC55 AD 02 DD                 ...
-	and     #$0C                            ; FC58 29 0C                    ).
-	cmp     #$04                            ; FC5A C9 04                    ..
-	bne     LFC66                           ; FC5C D0 08                    ..
-	lda     #$F3                            ; FC5E A9 F3                    ..
-	and     acia+cdr                        ; FC60 2D 02 DD                 -..
-	sta     acia+cdr                        ; FC63 8D 02 DD                 ...
-LFC66:  jmp     LFCAD                           ; FC66 4C AD FC                 L..
-
+irq010	lda acia+srsn   ;find irq source
+	and #$10        ;transmitter ?
+	beq irq090      ;no...
+	lda acia+cdr    ;check for transmitter on
+	and #$0c
+	cmp #$04        ;bits(32)=01 => xmitter int enabled
+	bne irq090      ;off...
+;
+; transmitter service (no interrrupt driven transmissions)
+;
+	lda #%11110011  ;turn of transmitter
+	and acia+cdr
+	sta acia+cdr
+irq090	jmp irq900      ;exit..pop priority...
 ; -------------------------------------------------------------------------------------------------
 ; FC69 Check for coprozessor IRQ
-kirq8:  cmp     #$08                            ; FC69 C9 08                    ..
-	bne     kirq9                           ; FC6B D0 0A                    ..
-	lda     ipcia+icr                        ; FC6D AD 0D DB                 ...
-	cli                                     ; FC70 58                       X
-	jsr     ipserv                          ; FC71 20 56 FD                  V.
-	jmp     LFCAD                           ; FC74 4C AD FC                 L..
+irq100:  cmp #$08                            ; FC69 C9 08                    ..
+	bne kirq9                           ; FC6B D0 0A                    ..
+	lda ipcia+icr                        ; FC6D AD 0D DB                 ...
+	cli                                 ; FC70 58                       X
+	jsr ipserv                          ; FC71 20 56 FD                  V.
+	jmp irq900                           ; FC74 4C AD FC                 L..
 
 ; -------------------------------------------------------------------------------------------------
 ; FC77 Check for CIA IRQ
-kirq9:  cli                                     ; FC77 58                       X
-	cmp     #$04                            ; FC78 C9 04                    ..
-	bne     kirq10                          ; FC7A D0 0C                    ..
-	lda     cia+icr                        ; FC7C AD 0D DC                 ...
-	ora     alarm                           ; FC7F 0D 69 03                 .i.
-	sta     alarm                           ; FC82 8D 69 03                 .i.
-	jmp     LFCAD                           ; FC85 4C AD FC                 L..
+kirq9:  cli                                 ; FC77 58                       X
+	cmp #$04                            ; FC78 C9 04                    ..
+	bne irq0000                          ; FC7A D0 0C                    ..
+	lda cia+icr                        ; FC7C AD 0D DC                 ...
+	ora alarm                           ; FC7F 0D 69 03                 .i.
+	sta alarm                           ; FC82 8D 69 03                 .i.
+	jmp irq900                           ; FC85 4C AD FC                 L..
 
 ; -------------------------------------------------------------------------------------------------
 ; FC88 Check for IEC bus IRQ (and ignore it)
-kirq10: cmp     #$02                            ; FC88 C9 02                    ..
-	bne     kirq11                          ; FC8A D0 03                    ..
-	jmp     LFCAD                           ; FC8C 4C AD FC                 L..
+irq0000: cmp #$02                            ; FC88 C9 02                    ..
+	bne irq0001                          ; FC8A D0 03                    ..
+	jmp irq900                           ; FC8C 4C AD FC                 L..
 
 ; -------------------------------------------------------------------------------------------------
 ; FC8F Must be a 50/60Hz IRQ - poll keyboard, update time
-kirq11: jsr     jkey                         ; FC8F 20 13 E0                  ..
-	jsr     udtim                           ; FC92 20 80 F9                  ..
-	lda     tpi1+pb                         ; FC95 AD 01 DE                 ...
-	bpl     LFCA3                           ; FC98 10 09                    ..
-	ldy     #$00                            ; FC9A A0 00                    ..
-	sty     cas1                            ; FC9C 8C 75 03                 .u.
-	ora     #$40                            ; FC9F 09 40                    .@
-	bne     LFCAA                           ; FCA1 D0 07                    ..
-LFCA3:  ldy     cas1                            ; FCA3 AC 75 03                 .u.
-	bne     LFCAD                           ; FCA6 D0 05                    ..
-	and     #$BF                            ; FCA8 29 BF                    ).
-LFCAA:  sta     tpi1+pb                         ; FCAA 8D 01 DE                 ...
-LFCAD:  sta     tpi1+air                        ; FCAD 8D 07 DE                 ...
+irq0001: jsr jkey                         ; FC8F 20 13 E0                  ..
+	jsr udtim                           ; FC92 20 80 F9                  ..
+	lda tpi1+pb                         ; FC95 AD 01 DE                 ...
+	bpl LFCA3                           ; FC98 10 09                    ..
+	ldy #$00                            ; FC9A A0 00                    ..
+	sty cas1                            ; FC9C 8C 75 03                 .u.
+	ora #$40                            ; FC9F 09 40                    .@
+	bne LFCAA                           ; FCA1 D0 07                    ..
+LFCA3:  ldy cas1                            ; FCA3 AC 75 03                 .u.
+	bne irq900                           ; FCA6 D0 05                    ..
+	and #$BF                            ; FCA8 29 BF                    ).
+LFCAA:  sta tpi1+pb                         ; FCAA 8D 01 DE                 ...
+irq900:  sta tpi1+air                        ; FCAD 8D 07 DE                 ...
 ; IRQ end, restore indirect segment and registers
-prendn: pla                                     ; FCB0 68                       h
-	sta     i6509                           ; FCB1 85 01                    ..
+prendn: pla                                 ; FCB0 68                       h
+	sta i6509                           ; FCB1 85 01                    ..
 ; IRQ end, restore registers
-prend:  pla                                     ; FCB3 68                       h
-	tay                                     ; FCB4 A8                       .
-	pla                                     ; FCB5 68                       h
-	tax                                     ; FCB6 AA                       .
-	pla                                     ; FCB7 68                       h
-; Default NMI routine
-panic:  rti                                     ; FCB8 40                       @
+prend:  pla
+	tay
+	pla
+	tax
+	pla
 
+; Default NMI routine
+panic:  rti
 ; -------------------------------------------------------------------------------------------------
 ; send a request
 ;   enter:   ipb buffer is initialized to hold the
@@ -5740,7 +5750,7 @@ LFCE6:  lda     #$FF                            ; FCE6 A9 FF                    
 	ora     #$40                            ; FCFC 09 40                    .@
 	cli                                     ; FCFE 58                       X
 	nop                                     ; FCFF EA                       .
-	nop                                     ; FD00 EA                       .
+	nop
 	nop                                     ; FD01 EA                       .
 	sta     ipcia+prb                        ; FD02 8D 01 DB                 ...
 	jsr     waithi                          ; FD05 20 FC FD                  ..
