@@ -16,3 +16,4 @@ v2.1 optional solid "Atari Style" cursor ;)
 v2.2 optional IEEE rev -03 patch with ren 
 v2.3 dclose patch from b-series rev -03 kernal
 v2.4 patch re.03  reserves two top pages for swapping system
+v2.5 finished all comments, labels, patches

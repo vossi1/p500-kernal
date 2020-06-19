@@ -15,30 +15,27 @@
 ; v2.2 optional IEEE rev -03 patch with ren
 ; v2.3 dclose patch from b-series rev -03 kernal
 ; v2.4 patch rev. -03 reserves two top pages for swapping system
+; v2.5 finished all comments, labels, patches
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
 ; * switches
-STANDARD_FKEYS	= 1	; Standard F-keys
-FULL_RAMTEST	= 1	; Standard full and slow RAM-test
-STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
-;CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
-;IEEEPATCH	= 1	; CBM-B-series ieee-patches -03 (with ren)
-;BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
+;STANDARD_FKEYS	= 1	; Standard F-keys
+;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
+CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
+IEEEPATCH	= 1	; CBM-B-series ieee-patches -03 (with ren)
+BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank 15!
-;SYSPATCH	= 1	; patched Basic SYS command to start code in all banks
+SYSPATCH	= 1	; patched Basic SYS command to start code in all banks
 			;   for a return is the txjump kernal part in the ram bank necessary! 
 			;   the patched basic lo with the new sys-vector is also necessary 
-;SOLID_CURSOR	= 1	; solid "Atari style cursor"
+SOLID_CURSOR	= 1	; solid "Atari style cursor"
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
 BGRCOL		= $01	; background color      $01 = white
 EXTCOL		= $03	; exterior color        $03 = cyan
-; ########################################### TODO ################################################
-; 
-; ########################################### BUGS ################################################
-;
 ; ########################################### INFO ################################################
 ; loop3 E129 = Main loop - wait for key input
 ; **************************************** DISCLAIMER *********************************************
@@ -5733,286 +5730,265 @@ panic:	rti			; come here if no new nmi vector.
 iprqst:	lda ipb+ipccmd
 	and #$7f
 	tay
-	jsr getpar      ;get #ins,outs
-	lda #sem88      ;check 8088 semaphore
+	jsr getpar		; get #ins,outs
+	lda #sem88		; check 8088 semaphore
 	and ipcia+prb
-	bne iprqst      ;locked out by other processor
+	bne iprqst		; locked out by other processor
 	lda #sem65
-	ora ipcia+prb   ;lock 6509 semaphore
+	ora ipcia+prb		; lock 6509 semaphore
 	sta ipcia+prb
-	nop             ;a pause
+	nop			; a pause
 
-	lda ipcia+prb   ;collisions with 8088?
+	lda ipcia+prb		; collisions with 8088?
 	tax
 	and #sem88
-	beq ipr100      ;ok...
+	beq ipr100		; ok...
 	txa
 	eor #sem65
-	sta ipcia+prb   ;nope, clear 6509 semaphore
-	txa             ;kill some time
+	sta ipcia+prb		; nope, clear 6509 semaphore
+	txa			; kill some time
 	nop
 	nop
 	nop
-	bne iprqst      ;try again (br always)
+	bne iprqst		; try again (br always)
 
 ;     send cmd byte and cause irq
 ipr100: lda #$ff
-	sta ipcia+ddra  ;port direction = out
+	sta ipcia+ddra		; port direction = out
 	lda ipb+ipccmd
-	sta ipcia+pra   ;write cmd byte to port
-;; cause irq
-	jsr frebus      ;give up bus
-	lda ipcia+prb   ;pb6 := 0
+	sta ipcia+pra		; write cmd byte to port
+; cause irq
+	jsr frebus		; give up bus
+	lda ipcia+prb		; pb6 := 0
 	and #$bf
 	sta ipcia+prb
-	ora #$40        ;keep low for 4us (8 cycles)
+	ora #$40		; keep low for 4us (8 cycles)
 	cli
 	nop
 	nop
 	nop
-	sta ipcia+prb   ;pb6 := high
-;
-	jsr waithi      ;sem8088 -> hi (cmd byte recvd)
+	sta ipcia+prb		; pb6 := high
+
+	jsr waithi		; sem8088 -> hi (cmd byte recvd)
 	lda #$00
-	sta ipcia+ddra  ;port direction = in
-	jsr acklo       ;sem6509 -> lo (ack)
-	jsr waitlo      ;sem8088 -> lo (ack ack)
-;
+	sta ipcia+ddra		; port direction = in
+	jsr acklo		; sem6509 -> lo (ack)
+	jsr waitlo		; sem8088 -> lo (ack ack)
+
 ;    send data bytes, if any
-;
 	ldy #0
-	beq ipr250      ;always
-ipr200
-	lda #$ff
-	sta ipcia+ddra  ;port direction = out
-	lda ipb+ipcdat,y ;get next data byte
-	sta ipcia+pra   ;write cmd out
-	jsr ackhi       ;sem6509 -> hi (data ready)
-	jsr waithi      ;sem8088 -> hi (data recvd)
+	beq ipr250		; always
+
+ipr200:	lda #$ff
+	sta ipcia+ddra		; port direction = out
+	lda ipb+ipcdat,y	; get next data byte
+	sta ipcia+pra		; write cmd out
+	jsr ackhi		; sem6509 -> hi (data ready)
+	jsr waithi		; sem8088 -> hi (data recvd)
 	lda #$00
-	sta ipcia+ddra  ;port direction = in
-	jsr acklo       ;sem6509 -> lo (ack)
-	jsr waitlo      ;sem8088 -> lo (ack ack)
-	iny             ;bump index to next data byte
-ipr250	cpy ipb+ipcin   ;any more ??
-	bne ipr200      ;yes...
-;
+	sta ipcia+ddra		; port direction = in
+	jsr acklo		; sem6509 -> lo (ack)
+	jsr waitlo		; sem8088 -> lo (ack ack)
+	iny			; bump index to next data byte
+ipr250:	cpy ipb+ipcin		; any more ??
+	bne ipr200		; yes...
+
 ;    receive data bytes, if any
-;
 	ldy #0
-	beq ipr350      ;always
-ipr300
-	jsr ackhi       ;sem6509 -> hi (rdy to receive)
-	jsr waithi      ;sem8088 -> hi (data available)
-	lda ipcia+pra   ;get data from port
-	sta ipb+ipcdat,y ;stuff it away
-	jsr acklo       ;sem6509 -> lo (data recvd)
-	jsr waitlo      ;sem8088 -> lo (ack)
+	beq ipr350		; always
+
+ipr300:	jsr ackhi		; sem6509 -> hi (rdy to receive)
+	jsr waithi		; sem8088 -> hi (data available)
+	lda ipcia+pra		; get data from port
+	sta ipb+ipcdat,y	; stuff it away
+	jsr acklo		; sem6509 -> lo (data recvd)
+	jsr waitlo		; sem8088 -> lo (ack)
 	iny
-ipr350
-	cpy ipb+ipcout  ;more?
-	bne ipr300      ;yes...
-	rts             ;done!!
+
+ipr350:	cpy ipb+ipcout		; more?
+	bne ipr300		; yes...
+	rts			; done!!
 ; -------------------------------------------------------------------------------------------------
 ; service an 8088 request
 ;-------------------------------------------------------------------
 ; FD56 Coprocessor irq handler
-ipserv: 
-;; ldy #ipbsiz-1 ;copy ip buffer to stack
-;;ips050 lda ipb,y
-;; pha
-;; dey
-;; bpl ips050
-;
+ipserv: ;ldy #ipbsiz-1	; copy ip buffer to stack
+	;ips050 lda ipb,y
+	; pha
+	; dey
+	; bpl ips050
+
 	lda #0
-	sta ipcia+ddra  ;port dir=in, just in case...
-	lda ipcia+pra   ;read cmd from port
-	sta ipb+ipccmd  ;store cmd and decode it
-	and #$7f        ;mask off bus bit
+	sta ipcia+ddra		; port dir=in, just in case...
+	lda ipcia+pra		; read cmd from port
+	sta ipb+ipccmd		; store cmd and decode it
+	and #$7f		; mask off bus bit
 	tay
-	jsr getpar      ;get param counts
-	tya             ;adjust offset for jump table
+	jsr getpar		; get param counts
+	tya			; adjust offset for jump table
 	asl
 	tay
-	lda ipjtab,y    ;jump address(lo)
+	lda ipjtab,y		; jump address(lo)
 	sta ipb+ipcjmp
 	iny
-	lda ipjtab,y    ;jump address (hi)
+	lda ipjtab,y		; jump address (hi)
 	sta ipb+ipcjmp+1
-	jsr ackhi       ;sem6509 -> hi (cmd recvd)
-	jsr waitlo      ;sem8088 -> lo (ack)
-;
+	jsr ackhi		; sem6509 -> hi (cmd recvd)
+	jsr waitlo		; sem8088 -> lo (ack)
+
 ;    receive input bytes, if any
-;
 	ldy #0
-ips100
-	cpy ipb+ipcin   ;any more?
-	beq ips200      ;no...
-	jsr acklo       ;sem6509 ->lo (ack ack)
-	jsr waithi      ;sem8088 -> hi (data available)
-	lda ipcia+pra   ;read data byte
-	sta ipb+ipcdat,y ;store it
-	jsr ackhi       ;sem6509 -> hi (data recvd)
-	jsr waitlo      ;sem8088 -> lo (ack)
+
+ips100:	cpy ipb+ipcin		; any more?
+	beq ips200		; no...
+	jsr acklo		; sem6509 ->lo (ack ack)
+	jsr waithi		; sem8088 -> hi (data available)
+	lda ipcia+pra		; read data byte
+	sta ipb+ipcdat,y	; store it
+	jsr ackhi		; sem6509 -> hi (data recvd)
+	jsr waitlo		; sem8088 -> lo (ack)
 	iny
-	bne ips100      ;always...
-;
+	bne ips100		; always...
+
 ;    process cmd
-;
-ips200
-	bit ipb+ipccmd  ;cmd requires bus?
-	bmi ips500      ;yes...
-	lda #>ipsret    ;push return
+ips200:	bit ipb+ipccmd		; cmd requires bus?
+	bmi ips500		; yes...
+	lda #>ipsret		; push return
 	pha
 	lda #<ipsret
 	pha
-	jmp (ipb+ipcjmp) ;gone!!!
-;
+	jmp (ipb+ipcjmp)	; gone!!!
+
 ;    send return bytes, if any
-;
-ips300
+ips300:
 ipsret=ips300-1
-	jsr acklo       ;sem6509 -> lo
+	jsr acklo		; sem6509 -> lo
 	ldy #0
-	beq ips350      ;always
-ips310
-	jsr waithi      ;sem8088 -> hi (8088 rdy to recv)
+	beq ips350		; always
+ips310:
+	jsr waithi		; sem8088 -> hi (8088 rdy to recv)
 	lda #$ff
-	sta ipcia+ddra  ;port direction = out
+	sta ipcia+ddra		; port direction = out
 	lda ipb+ipcdat,y
-	sta ipcia+pra   ;write data to port
-	jsr ackhi       ;sem6509 -> hi (data available)
-	jsr waitlo      ;sem8088 -> lo (data recvd)
+	sta ipcia+pra		; write data to port
+	jsr ackhi		; sem6509 -> hi (data available)
+	jsr waitlo		; sem8088 -> lo (data recvd)
 	lda #0
-	sta ipcia+ddra  ;port direction = in
-	jsr acklo       ;sem6509 -> lo (ack)
+	sta ipcia+ddra		; port direction = in
+	jsr acklo		; sem6509 -> lo (ack)
 	iny
-ips350	cpy ipb+ipcout  ;any more?
-	bne ips310      ;yes, repeat...
-;
-ips400
-;; ldy #0
-;;ips450 pla ;restore ip buffer
-;; sta ipb,y
-;; iny
-;; cpy #ipbsiz
-;; bne ips450
-	rts             ;done!
+ips350:	cpy ipb+ipcout		; any more?
+	bne ips310		; yes, repeat...
+
+ips400:	;ldy #0
+	;ips450 pla	; restore ip buffer
+	; sta ipb,y
+	; iny
+	; cpy #ipbsiz
+	; bne ips450
+	rts			; done!
 
 ;      special,   for commands requiring the bus
-ips500	lda #>buret
+ips500:	lda #>buret
 	pha
 	lda #<buret
-	pha             ;push return
-	jsr getbus      ;grab bus
-	jmp (ipb+ipcjmp) ;gone!
-;
-ips600
-buret=ips600-1
-	jsr frebus      ;give up bus
-	lda ipb+ipcout  ;#bytes to return
-	sta ipb+ipcin
-	sta ipb+ipccmd  ;return op=#bytes to return
-	lda #0
-	sta ipb+ipcout  ;just send to 8088
-	jsr iprqst
-	jmp ips400      ;done!
+	pha			; push return
+	jsr getbus		; grab bus
+	jmp (ipb+ipcjmp)	; gone!
 
-; FDF4 
-; waitlo - wait until sem88 goes low
-;
-waitlo
-	lda ipcia+prb
+ips600:
+buret=ips600-1
+	jsr frebus		; give up bus
+	lda ipb+ipcout		; #bytes to return
+	sta ipb+ipcin
+	sta ipb+ipccmd		; return op=#bytes to return
+	lda #0
+	sta ipb+ipcout		; just send to 8088
+	jsr iprqst
+	jmp ips400		; done!
+
+; FDF4 waitlo - wait until sem88 goes low
+waitlo:	lda ipcia+prb
 	and #sem88
 	bne waitlo
 	rts
-;
 ; waithi - wait until sem88 goes high
-;
-waithi
-	lda ipcia+prb
+
+waithi:	lda ipcia+prb
 	and #sem88
 	beq waithi
 	rts
-;
+
 ; acklo - acknowlegde sem65 low
-;
-acklo
-	lda ipcia+prb
+acklo:	lda ipcia+prb
 	and #$ff-sem65
 	sta ipcia+prb
 	rts
-;
+
 ; ackhi - acknowledge sem6509 hi
-;
-ackhi
-	lda #sem65
+ackhi:	lda #sem65
 	ora ipcia+prb
 	sta ipcia+prb
 	rts
-;
+
 ; frebus - give up bus
-; getbus - grab bus
-;
-frebus
-	lda tpi1+pb     ;pb4 := 0
+frebus:	lda tpi1+pb		; pb4 := 0
 	and #$ef
 	sta tpi1+pb
 	rts
-;
-getbus
-	lda ipcia+prb   ;check nbusy2
+
+; getbus - grab bus
+getbus:
+	lda ipcia+prb		; check nbusy2
 	and #$02
-	beq getbus      ;2nd proc not off
-;
-	lda tpi1+pb     ;pb4 := 1
+	beq getbus		; 2nd proc not off
+
+	lda tpi1+pb		; pb4 := 1
 	ora #$10
 	sta tpi1+pb
 	rts
-;
+
 ; getpar
 ;  enter - .y = table offset
 ;  exit:   .y = table offset
 ;          #ins,#outs put into ipb buffer
-getpar
-	lda ipptab,y    ;break apart nibbles
+getpar:	lda ipptab,y		; break apart nibbles
 	pha
 	and #$0f
-	sta ipb+ipcin   ;#input bytes
+	sta ipb+ipcin		; #input bytes
 	pla
 	lsr
 	lsr
 	lsr
 	lsr
-	sta ipb+ipcout  ;#output bytes
+	sta ipb+ipcout		; #output bytes
 	rts
-;
+
 ; ipcgo - free bus, interrupt 2nd processor
 ;         go into a loop, waiting for requests.
 ;  * returns if bus error occurs
-;
-ipcgo	ldx #$ff
-	stx i6509       ;indirects to bank f only
-	lda tpi1+pb     ;tpi1 pb4:=0 frees dbus
+ipcgo:	ldx #$ff
+	stx i6509		; indirects to bank f only
+	lda tpi1+pb		; tpi1 pb4:=0 frees dbus
 	and #$ef
 	sta tpi1+pb
-	nop             ;a pause
-	lda ipcia+prb   ;check nbusy1
+	nop			; a pause
+	lda ipcia+prb		; check nbusy1
 	ror
 	bcs ipcgx
-	rts             ;bus not free!, error...
-;
-ipcgx	lda #0          ;pb6 lo->hi in 4us...
+	rts			; bus not free!, error...
+
+ipcgx:	lda #0			; pb6 lo->hi in 4us...
 	sei
-	sta ipcia+prb   ;interrupt 2nd processeor
-	lda #$40        ;2 cycles (4us=8cycles)
+	sta ipcia+prb		; interrupt 2nd processeor
+	lda #$40		; 2 cycles (4us=8cycles)
 	nop
 	nop
 	nop
-	nop             ;8 cycles of garb. 5us safer than 4!
-	sta ipcia+prb   ;turn pb6 back on
+	nop			; 8 cycles of garb. 5us safer than 4!
+	sta ipcia+prb		; turn pb6 back on
 	cli
-iploop	jmp iploop      ;sit down
+iploop:	jmp iploop		; sit down
 ; -------------------------------------------------------------------------------------------------
 ; FE68 no cassette routines avaliable
 xtape:	jmp     (itape)		; goto tape device indirect -> nocass
