@@ -14,6 +14,7 @@
 ; v2.1 optional solid Atari Style cursor ;)
 ; v2.2 optional IEEE rev -03 patch with ren
 ; v2.3 dclose patch from b-series rev -03 kernal
+; v2.4 patch rev. -03 reserves two top pages for swapping system
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -5312,26 +5313,30 @@ io120:  lda #%00001000
 ;  reset xtape vectors to non-cassette
 ;-----------------------------------------
 ; FA94 RAM-test / vector init
-ramtas: lda #$00                ; init value A = $00, counter X = $00
+ramtas: lda #$00		; init value A = $00, counter X = 0
 	tax
-px1:    sta $0002,x             ; clear ZP above 6509 bank regs
-	sta buf,x            ; clear basic input buffer from $0200       
-	sta evect-$100,x        ; clear kernal RAM till evct $03F8
+px1:    sta $0002,x		; clear ZP above 6509 bank regs
+	sta buf,x		; clear basic input buffer from $0200       
+	sta evect-$100,x	; clear kernal RAM till evct $03F8
 	inx
-	bne px1                 ; clear next byte
-	lda #$00
-	sta i6509               ; select bank 0
-	sta memstr+2            ; set user memory start bank = 0
-	sta lowadr+2            ; set system memory start bank = 0
-	lda #$02
-	sta memstr              ; set user memory lowbyte = 0
-	sta lowadr              ; set system memory lowbyte = 0
-	dec i6509               ; decrease bank because of inc in next line
-sizlop: inc i6509               ; increase bank
+	bne px1			; clear next byte
+
+; memory size check
+	lda #$00		; bottom of memory always segment 0
+	sta i6509
+	sta memstr+2		; set bottom of user memory
+	sta lowadr+2		; ...and system memory
+	lda #$02		; start at byte $0002
+	sta memstr
+	sta lowadr
+	dec i6509		; place back one segment for test
+
+; memsiz,sal,lowadr are zeroed above
+sizlop: inc i6509		; claculate next ind bank
 	lda i6509
-	cmp #irom         ; check if bank 15
-	beq size                ; end RAM test if reached bank 15
-	ldy #$02                ; start RAM test at $0002, sal/sah already $0000
+	cmp #irom		; all slots full...exit
+	beq size
+	ldy #$02                ; always start at $0002, sal/sah already $0000
 siz100: lda (sal),y
 	tax                     ; save memory value in X 
 	lda #$55                ; test with $55
@@ -5357,23 +5362,38 @@ siz100: lda (sal),y
 	inc sah
 	bne siz100              ; test next page
 	beq sizlop              ; test next bank
-; FAE3 Store RAM size
-size:   ldx i6509
-	dex                     ; calc last tested bank
-	txa                     ; remember last RAM bank in A
+
+; set top of memory
+size:   ldx i6509		; bank number of failure
+	dex			; back up one segment
+	txa			; .a= bank#
 	ldx #$FF
-	ldy #$FE
-	sta hiadr+2             ; store highest RAM bank
-	sty hiadr+1             ; store end of system memory = $FEFF 
+!ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
+	ldy #$FD		; reserve top two pages for swapping system
+	sta hiadr+2		; set system top of memory = $FDFF
+	sty hiadr+1
 	stx hiadr
-	ldy #$FB                ; user memory top = $FBFF
+
+; allocate 3 pages (512funcs,256rs232)
+	ldy #$FD-3		; user memory top = $FAFF
+} else{
+	ldy #$FE		; reserve top page for swapping system
+	sta hiadr+2		; set system top of memory = $FEFF
+	sty hiadr+1
+	stx hiadr
+
+; allocate 3 pages (512funcs,256rs232)
+	ldy #$FE-3		; user memory top = $FBFF
+}
 	clc
-	jsr memtop              ; set user memory top with C=0
+	jsr memtop              ; set user top of memory
+
+; flag buffers as not assigned =>$ff
 	dec ribuf+2             ; init rs232 buffer bank to $FF
 	dec tape1+2             ; init tape buffer bank to $FF
-	lda #$6B                ; init tape routines vector to $FE6B
+	lda #<nocass		; set up cassette indirects to $FE6B
 	sta itape
-	lda #$FE
+	lda #>nocass
 	sta itape+1
 	rts
 ; -------------------------------------------------------------------------------------------------
