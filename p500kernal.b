@@ -1,6 +1,6 @@
 ; Commodore P500 Kernal 901234-02 with Fastboot Patches from Steve Gray
 ; disassembled with DA65 18.4.2020 (Info-file from Ulrich Bassewitz)
-; modified for ACME assembling by Vossi 05/2020
+; modified for ACME assembling by Vossi 05/2020, last update 05/2024
 ; v1.1 special f-keys
 ; v1.2 full ramtest selection (fast test checks only byte $0002 in each page)
 ; v1.3 all patches selectable
@@ -16,6 +16,7 @@
 ; v2.3 dclose patch from b-series rev -03 kernal
 ; v2.4 patch rev. -03 reserves two top pages for swapping system
 ; v2.5 finished all comments, labels, patches
+; v2.6 correct cbm checksum $e0
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -6285,7 +6286,7 @@ clall:	jmp (iclall)		; Close all files
 ; FFF6 Actual execution segment switch routine
 gbye:	sta e6509		; goodbye...
 	rts
-	!byte $80
+	!byte $13
 *= $FFFA
 ; -------------------------------------------------------------------------------------------------
 ; FFFA Hardware vectors
