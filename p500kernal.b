@@ -347,7 +347,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 		warm	= $A5		; Warm start flag
 		winit	= $5A  		; Initialization complete flag
 		llen	= 40            ; Screen length
-		nrows	= 25            ; Scrren length
+		nrows	= 25            ; Screen length
 		scxmax	= llen-1        ; Max column number
 		scymax	= nrows-1       ; Max line number
 		keymax	= 9             ; Keyboard buffer size - 1
