@@ -40,69 +40,69 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 ; ########################################### INFO ################################################
 ; loop3 E129 = Main loop - wait for key input
 ; **************************************** DISCLAIMER *********************************************
-	;***************************************
-	;*                                     *
-	;* KK  K EEEEE RRRR  NN  N  AAA  LL    *
-	;* KK KK EE    RR  R NNN N AA  A LL    *
-	;* KKK   EE    RR  R NNN N AA  A LL    *
-	;* KKK   EEEE  RRRR  NNNNN AAAAA LL    *
-	;* KK K  EE    RR  R NN NN AA  A LL    *
-	;* KK KK EE    RR  R NN NN AA  A LL    *
-	;* KK KK EEEEE RR  R NN NN AA  A LLLLL *
-	;*                                     *
-	;***************************************
-	;***************************************
-	;* CBM KERNAL                          *
-	;*   MEMORY AND I/O DEPENDENT ROUTINES *
-	;* DRIVING THE HARDWARE OF THE         *
-	;* FOLLOWING CBM MODEL :               *
-	;*   P-SERIES (5XX)                    *
-	;* COPYRIGHT (C) 1983 BY               *
-	;* COMMODORE BUSINESS MACHINES (CBM)   *
-	;***************************************
-	;
-	; 6509  used to extend memory on bc2 & p2 systems
-	;   location - used to direct
-	;   $0000 -  execution register (4 bits)
-	;   $0001 -  indirect  register (4 bits)
-	;
-	;   these registers provide 4 extra high-order address control lines.  
-	;     on 6509 reset all lines are high.
-	;
-	; current memory map:
-	;   segment 15- $ffff-$e000  rom (kernal)
-	;               $dfff-$df00  i/o  6525 tpi2
-	;               $deff-$de00  i/o  6525 tpi1
-	;               $ddff-$dd00  i/o  6551 acia
-	;               $dcff-$dc00  i/o  6526 cia
-	;               $dbff-$db00  i/o  unused (z80,8088,68008)
-	;               $daff-$da00  i/o  6581 sid
-	;               $d9ff-$d900  i/o  unused (disks)
-	;               $d8ff-$d800  i/o  6569 vic
-	;               $d7ff-$d400  color nybles
-	;               $d3ff-$d000  video matrix
-	;               $cfff-$c000  character dot rom
-	;               $bfff-$8000  roms external (language)
-	;               $7fff-$4000  roms external (extensions)
-	;               $3fff-$2000  rom  external
-	;               $1fff-$1000  rom  internal
-	;               $0fff-$0400  unused
-	;               $03ff-$0002  ram (kernal/basic system)
-	;   segment 14- segment 4 open (future expansion)
-	;   segment 3 - $ffff-$0002  ram p2 optinal
-	;   segment 2 - $ffff-$0002  ram p2 optinal
-	;   segment 1 - $ffff-$0002  ram p2 standard
-	;   segment 0 - $ffff-$0002  ram p2 standard
-	;
-	; the 6509 registers appear in locations $0000 and $0001 in all segments of memory.
+;***************************************
+;*                                     *
+;* KK  K EEEEE RRRR  NN  N  AAA  LL    *
+;* KK KK EE    RR  R NNN N AA  A LL    *
+;* KKK   EE    RR  R NNN N AA  A LL    *
+;* KKK   EEEE  RRRR  NNNNN AAAAA LL    *
+;* KK K  EE    RR  R NN NN AA  A LL    *
+;* KK KK EE    RR  R NN NN AA  A LL    *
+;* KK KK EEEEE RR  R NN NN AA  A LLLLL *
+;*                                     *
+;***************************************
+;***************************************
+;* CBM KERNAL                          *
+;*   MEMORY AND I/O DEPENDENT ROUTINES *
+;* DRIVING THE HARDWARE OF THE         *
+;* FOLLOWING CBM MODEL :               *
+;*   P-SERIES (5XX)                    *
+;* COPYRIGHT (C) 1983 BY               *
+;* COMMODORE BUSINESS MACHINES (CBM)   *
+;***************************************
+;
+; 6509  used to extend memory on bc2 & p2 systems
+;   location - used to direct
+;   $0000 -  execution register (4 bits)
+;   $0001 -  indirect  register (4 bits)
+;
+;   these registers provide 4 extra high-order address control lines.  
+;     on 6509 reset all lines are high.
+;
+; current memory map:
+;   segment 15- $ffff-$e000  rom (kernal)
+;               $dfff-$df00  i/o  6525 tpi2
+;               $deff-$de00  i/o  6525 tpi1
+;               $ddff-$dd00  i/o  6551 acia
+;               $dcff-$dc00  i/o  6526 cia
+;               $dbff-$db00  i/o  unused (z80,8088,68008)
+;               $daff-$da00  i/o  6581 sid
+;               $d9ff-$d900  i/o  unused (disks)
+;               $d8ff-$d800  i/o  6569 vic
+;               $d7ff-$d400  color nybles
+;               $d3ff-$d000  video matrix
+;               $cfff-$c000  character dot rom
+;               $bfff-$8000  roms external (language)
+;               $7fff-$4000  roms external (extensions)
+;               $3fff-$2000  rom  external
+;               $1fff-$1000  rom  internal
+;               $0fff-$0400  unused
+;               $03ff-$0002  ram (kernal/basic system)
+;   segment 14- segment 4 open (future expansion)
+;   segment 3 - $ffff-$0002  ram p2 optinal
+;   segment 2 - $ffff-$0002  ram p2 optinal
+;   segment 1 - $ffff-$0002  ram p2 standard
+;   segment 0 - $ffff-$0002  ram p2 standard
+;
+; the 6509 registers appear in locations $0000 and $0001 in all segments of memory.
 ; ***************************************** ZEROPAGE **********************************************
 	e6509		= $00		; 6509 execution bank reg
 	i6509		= $01		; 6509 indirect bank reg
-	;
-	; $02-$8f BASIC zeropage 
-	;
-	; Kernal page zero variables
-	; Kernal indirect address variables
+;
+; $02-$8f BASIC zeropage 
+;
+; Kernal page zero variables
+; Kernal indirect address variables
 	fnadr		= $90		; Address of file name string
 	sal		= $93		; Current load/store address
 	sah		= $94		;   low, high, bank
@@ -121,21 +121,21 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	sa		= $A0		; Current secondary address
 	dfltn		= $A1		; Default input device
 	dflto		= $A2		; Default output device
-	; Tape buffer pointer
+; Tape buffer pointer
 	tape1		= $A3		; Address of tape buffer
-	; RS-232 input buffer
+; RS-232 input buffer
 	ribuf		= $A6		; Input buffer
-	; Variables for kernal speed
+; Variables for kernal speed
 	stkey		= $A9		; Stop key flag
 	ctemp		= $A9		; used to reduce cassette read times 
 	c3po		= $AA		; IEEE buffer flag
 	snsw1		= $AA		; used to reduce cassette read times 
 	bsour		= $AB		; IEEE character buffer 
-	; Cassette temps - overlays IPC buffer
+; Cassette temps - overlays IPC buffer
 	ipoint		= $AC		; next 2 bytes used for transx code
 	syno		= $AC
 	dpsw		= $AD
-	; next 18 bytes also used for monitor
+; next 18 bytes also used for monitor
 	ptr1		= $AE		; index to pass1 errors
 	ptr2		= $AF		; index to pass2 errors
 	pcntr		= $B0
@@ -155,7 +155,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	fsblk		= $BD
 	mych		= $BE
 	cdata		= $BF		; how to turn cassette timers on
-	; Monitor virtual registers - Place in these locations temporarly...
+; Monitor virtual registers - Place in these locations temporarly...
 	pch		= $AE		; counter
 	pcl		= $AF
 	flgs		= $B0		; Processor status
@@ -167,21 +167,21 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	re6509		= $B6		; Return execution segment
 	invh		= $B7		; User interrupt vector
 	invl		= $B8
-	; Monitor indirect variables
+; Monitor indirect variables
 	tmp0		= $B9		; Temp pointer
 	tmp2		= $BB		; Temp pointer
-	; Other monitor variables
+; Other monitor variables
 	tmpc		= $BD		; Place to save last cmd
 	t6509		= $BE		; Temporary i6509
 	ddisk		= $BF		; Default disk unit # for monitor
-	; Screen editor page zero variables
-	; Editor indirect variables
+; Screen editor page zero variables
+; Editor indirect variables
 	pkybuf		= $C0		; Start adr of pgm key
 	keypnt		= $C2		; Current pgm key buf
 	sedsal		= $C4		; Scroll ptr
 	sedeal		= $C6		; Scroll ptr
 	pnt		= $C8		; Current character pointer
-	; Editor variables for speed & size
+; Editor variables for speed & size
 	tblx		= $CA		; Cursor line
 	pntr		= $CB		; Cursor column
 	grmode		= $CC		; Graphic/text mode flag $00=graphic, $02=text
@@ -199,7 +199,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	delay		= $D8		; Delay to next repeat
 	sedt1		= $D9		; Frequently used temp variables
 	sedt2		= $DA
-	; Frequently used editor variables
+; Frequently used editor variables
 	data		= $DB		; Current print data
 	sctop		= $DC		; Top screen 0-24 of current window
 	scbot		= $DD		; Bottom 0-24
@@ -207,7 +207,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	scrt		= $DF		; Right margin
 	modkey		= $E0		; Keyscanner shift/control flags ($ff-nokey)
 	norkey		= $E1		; Keyscanner normal key number ($ff-nokey)
-	; Screen editor usage
+; Screen editor usage
 	bitabl		= $E2		; Wrap bitmap
 	blnon		= $E6		; Blinking cursor on = $00
 	blncnt		= $E7		; Blink counter
@@ -218,20 +218,20 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	gdcol		= $ED		; Color behind cursor
 	saver		= $EE		; Temp store for output char
 	scrseg		= $EF		; Segment /bank of video RAM
-	; Free zero page space, 16 bytes
+; Free zero page space, 16 bytes
 	zpend		= $F0
 ; ***************************************** ABSOLUTE **********************************************
-	; System stack area
+; System stack area
 	stack		= $0100		; Stack
 	bad		= $0100		; Cassette bad address table
 	stackp		= $01FF		; System Stack pointer transx code
-	; -------------------------------------------------------------------------------------------------
-	; $200 - $256 Basic's ROM page work area
+; -------------------------------------------------------------------------------------------------
+; $200 - $256 Basic's ROM page work area
 	buf		= $0200		; Basic input buffer
-	; Basic RAM vectors
+; Basic RAM vectors
 	ierror		= $0280         ; Basic error indirect
-	; -------------------------------------------------------------------------------------------------
-	; System RAM vectors
+; -------------------------------------------------------------------------------------------------
+; System RAM vectors
 	cinv		= $0300		; IRQ vector
 	cbinv		= $0302		; BRK vector
 	nminv		= $0304		; NMI vector
@@ -258,11 +258,11 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	iunlsn		= $032E		; IEEE bus unlisten
 	ilistn		= $0330		; IEEE listen device primary address
 	italk		= $0332		; IEEE talk device primary address
-	; Kernal absolute variables
+; Kernal absolute variables
 	lat		= $0334		; Logical file numbers / table
 	fat		= $033E		; Device numbers / table
 	sat		= $0348		; Secondary addresses / table
-	;
+;
 	lowadr		= $0352		; Start of system memory: low, high, bank
 	hiadr		= $0355		; Top of system memory: low, high, bank
 	memstr		= $0358		; Start of user memory: low, high, bank
@@ -272,7 +272,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	ldtnd		= $0360		; Device table index
 	msgflg		= $0361		; Message flag
 	bufpt		= $0362		; Cassette buffer index
-	; Kernal temporary (local) variables
+; Kernal temporary (local) variables
 	t1		= $0363
 	t2		= $0364 
 	xsav		= $0365 
@@ -280,7 +280,7 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	svxt		= $0367 
 	temp		= $0368 
 	alarm		= $0369		; IRQ variable holds 6526 IRQ's
-	; Kernal cassette variables
+; Kernal cassette variables
 	itape		= $036A		; Indirect for cassette code
 	cassvo		= $036C		; Cassette read variable
 	aservo		= $036D		; Flag1***indicates t1 timeout cassette read
@@ -290,15 +290,15 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	relsas		= $0371		; 
 	oldinv		= $0372		; restore user IRQ and i6509 after cassettes
 	cas1		= $0375		; Cassette switch flag
-	; RS-232 information storage
+; RS-232 information storage
 	m51ctr		= $0376		; 6551 control image
 	m51cdr		= $0377		; 6551 command image
 	rsstat		= $037A		; perm. RS-232 status
 	dcdsr		= $037B		; last DCD/DSR value
 	ridbs		= $037C		; Input start index
 	ridbe		= $037D		; Input end index
-	; Screen editor absolute
-	; $037E - $037F Block some area for editor
+; Screen editor absolute
+; $037E - $037F Block some area for editor
 	pkyend		= $0380		; Program key buffer end address
 	keyseg		= $0382		; Segment / bank of function key texts
 	rvs		= $0383		; Reverse mode flag
@@ -321,221 +321,221 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 	iunkwn1		= $03BB		; Vector: -> E039 nofunc
 	iunkwn2		= $03BD		; Vector: -> E039 nofunc
 	unknwn		= $03BF		; unknown from old editor (some flag like quote or insert?)
-	; $03C0 - $3F7 Free absolute space
+; $03C0 - $3F7 Free absolute space
 	absend		= $03C0
-	; System warm start variables and vectors
+; System warm start variables and vectors
 	evect		= $03F8		; Warm start vector and flags 5 bytes
-	; -------------------------------------------------------------------------------------------------
-	; Free bank 15 RAM 1024 bytes
+; -------------------------------------------------------------------------------------------------
+; Free bank 15 RAM 1024 bytes
 	ramloc          = $0400		; First free ram location
-	; -------------------------------------------------------------------------------------------------
-	; Kernal inter-process communication variables 
+; -------------------------------------------------------------------------------------------------
+; Kernal inter-process communication variables 
 	ipbsiz		= 16            ; Ipc buffer size
 	ipb		= $0800		; IPC buffer
 	ipjtab		= ipb+ipbsiz	; IPC jump table
 	ipptab		= $0910		; IPC param spec table
-	; Ipc buffer offsets
+; Ipc buffer offsets
 	ipccmd		= 0		; Ipc command
 	ipcjmp		= 1		; Ipc jump address
 	ipcin		= 3		; Ipc #input bytes
 	ipcout		= 4		; Ipc #output bytes
 	ipcdat		= 5		; Ipc data buffer (8 bytes max)
 ; *************************************** IO / EQUATES ********************************************
+; Equates
+	irom	= $F		; System bank
+	id55hz	= 14		; 55hz value required by ioinit
+	warm	= $A5		; Warm start flag
+	winit	= $5A  		; Initialization complete flag
+	llen	= 40            ; Screen length
+	nrows	= 25            ; Screen length
+	scxmax	= llen-1        ; Max column number
+	scymax	= nrows-1       ; Max line number
+	keymax	= 9             ; Keyboard buffer size - 1
+	dblzer	= 89            ; Key code for double zero
+	pgmkys	= 20            ; Number of progam keys
+; Tape block types
+	eot	= 5             ; End of tape
+	blf	= 1             ; Basic load file
+	bdf	= 2             ; Basic data file
+	bdfh	= 4             ; Basic data file header
+	bufsz	= 192           ; Buffer size
+	cr	= $d            ; Carriage return
+; ROM / RAM addresses
+	basic	= $8000		; Start of ROM (language)
+	chrrom	= $C000		; Character ROM
+	scnram	= $D000		; Video RAM
+	clrram	= $D400		; Color RAM nibbles
+	kernal	= $E000		; Start of ROM (kernal)
+; 6569 VIC Video interface device
+	vic	= $D800		; VIC
+	memptr	= $18		; VIC memory pointers register
+; 6581 SID Sound interface device
+	sid	= $DA00
+	osc1	= $00		; base addresses osc1, osc2, osc3
+	osc2	= $07
+	osc3	= $0E
+	freqlo	= $00		; osc registers
+	freqhi	= $01
+	pulsef	= $02
+	pulsec	= $03
+	oscctl	= $04
+	atkdcy	= $05
+	susrel	= $06
+	fclow	= $15		; filter control
+	fchi	= $16
+	resnce	= $17
+	volume	= $18
+	potx	= $19		; pots, random number and env3 out
+	poty	= $1A
+	random	= $1B
+	env3	= $1C
+; 6526 CIA for inter-process communication
+	ipcia	= $DB00
+	; pra  = data port
+	; prb0 = busy1 (1=>6509 off dbus)
+	; prb1 = busy2 (1=>8088/z80 off dbus)
+	; prb2 = semaphore 8088/z80
+	; prb3 = semaphore 6509
+	; prb4 = unused
+	; prb5 = unused
+	; prb6 = irq to 8088/z80 (lo)
+	; prb7 = unused
+	sem88	= $04	; prb bit2
+	sem65	= $08	; prb bit3
+; 6526 CIA Complex interface adapter - game / IEEE data / user
+	; timer a: ieee local / cass local / music / game
+	; timer b: ieee deadm / cass deadm / music / game
+	;
+	; pra0: ieee data1 / user / paddle game 1
+	; pra1: ieee data2 / user / paddle game 2
+	; pra2: ieee data3 / user
+	; pra3: ieee data4 / user
+	; pra4: ieee data5 / user
+	; pra5: ieee data6 / user
+	; pra6: ieee data7 / user / game trigger 14
+	; pra7: ieee data8 / user / game trigger 24
+	;
+	; prb0: user / game 10
+	; prb1: user / game 11
+	; prb2: user / game 12
+	; prb3: user / game 13
+	; prb4: user / game 20
+	; prb5: user / game 21
+	; prb6: user / game 22
+	; prb7: user / game 23
+	;
+	; flag: user / cassette read
+	cia	= $DC00
+	pra	= $0	; Data reg A
+	prb	= $1	; Data reg B
+	ddra	= $2	; Direction reg a
+	ddrb	= $3	; Direction reg b
+	talo	= $4	; Timer A low  byte
+	tahi	= $5	; Timer A high byte
+	tblo	= $6	; Timer B low  byte
+	tbhi	= $7	; Timer B high byte
+	tod10	= $8	; 10ths of seconds
+	todsec	= $9	; Seconds
+	todmin	= $A	; Minutes
+	todhr	= $B	; Hours
+	sdr	= $C	; Serial data register
+	icr	= $D	; Interrupt control register
+	cra	= $E	; Control register A
+	crb	= $F	; Control register B
+; 6551 ACIA RS-232 and network interface
+	acia	= $DD00
+	drsn	= $0	; Transmitt/receive data register
+	srsn	= $1	; Status register
+	cdr	= $2	; Command register
+	ctr	= $3	; Control register
 	; Equates
-		irom	= $F		; System bank
-		id55hz	= 14		; 55hz value required by ioinit
-		warm	= $A5		; Warm start flag
-		winit	= $5A  		; Initialization complete flag
-		llen	= 40            ; Screen length
-		nrows	= 25            ; Screen length
-		scxmax	= llen-1        ; Max column number
-		scymax	= nrows-1       ; Max line number
-		keymax	= 9             ; Keyboard buffer size - 1
-		dblzer	= 89            ; Key code for double zero
-		pgmkys	= 20            ; Number of progam keys
-	; Tape block types
-		eot	= 5             ; End of tape
-		blf	= 1             ; Basic load file
-		bdf	= 2             ; Basic data file
-		bdfh	= 4             ; Basic data file header
-		bufsz	= 192           ; Buffer size
-		cr	= $d            ; Carriage return
-	; ROM / RAM addresses
-		basic	= $8000		; Start of ROM (language)
-		chrrom	= $C000		; Character ROM
-		scnram	= $D000		; Video RAM
-		clrram	= $D400		; Color RAM nibbles
-		kernal	= $E000		; Start of ROM (kernal)
-	; 6569 VIC Video interface device
-		vic	= $D800		; VIC
-		memptr	= $18		; VIC memory pointers register
-	; 6581 SID Sound interface device
-		sid	= $DA00
-		osc1	= $00		; base addresses osc1, osc2, osc3
-		osc2	= $07
-		osc3	= $0E
-		freqlo	= $00		; osc registers
-		freqhi	= $01
-		pulsef	= $02
-		pulsec	= $03
-		oscctl	= $04
-		atkdcy	= $05
-		susrel	= $06
-		fclow	= $15		; filter control
-		fchi	= $16
-		resnce	= $17
-		volume	= $18
-		potx	= $19		; pots, random number and env3 out
-		poty	= $1A
-		random	= $1B
-		env3	= $1C
-	; 6526 CIA for inter-process communication
-		ipcia	= $DB00
-		; pra  = data port
-		; prb0 = busy1 (1=>6509 off dbus)
-		; prb1 = busy2 (1=>8088/z80 off dbus)
-		; prb2 = semaphore 8088/z80
-		; prb3 = semaphore 6509
-		; prb4 = unused
-		; prb5 = unused
-		; prb6 = irq to 8088/z80 (lo)
-		; prb7 = unused
-		sem88	= $04	; prb bit2
-		sem65	= $08	; prb bit3
-	; 6526 CIA Complex interface adapter - game / IEEE data / user
-		; timer a: ieee local / cass local / music / game
-		; timer b: ieee deadm / cass deadm / music / game
-		;
-		; pra0: ieee data1 / user / paddle game 1
-		; pra1: ieee data2 / user / paddle game 2
-		; pra2: ieee data3 / user
-		; pra3: ieee data4 / user
-		; pra4: ieee data5 / user
-		; pra5: ieee data6 / user
-		; pra6: ieee data7 / user / game trigger 14
-		; pra7: ieee data8 / user / game trigger 24
-		;
-		; prb0: user / game 10
-		; prb1: user / game 11
-		; prb2: user / game 12
-		; prb3: user / game 13
-		; prb4: user / game 20
-		; prb5: user / game 21
-		; prb6: user / game 22
-		; prb7: user / game 23
-		;
-		; flag: user / cassette read
-		cia	= $DC00
-		pra	= $0	; Data reg A
-		prb	= $1	; Data reg B
-		ddra	= $2	; Direction reg a
-		ddrb	= $3	; Direction reg b
-		talo	= $4	; Timer A low  byte
-		tahi	= $5	; Timer A high byte
-		tblo	= $6	; Timer B low  byte
-		tbhi	= $7	; Timer B high byte
-		tod10	= $8	; 10ths of seconds
-		todsec	= $9	; Seconds
-		todmin	= $A	; Minutes
-		todhr	= $B	; Hours
-		sdr	= $C	; Serial data register
-		icr	= $D	; Interrupt control register
-		cra	= $E	; Control register A
-		crb	= $F	; Control register B
-	; 6551 ACIA RS-232 and network interface
-		acia	= $DD00
-		drsn	= $0	; Transmitt/receive data register
-		srsn	= $1	; Status register
-		cdr	= $2	; Command register
-		ctr	= $3	; Control register
-		; Equates
-		dsrerr	= $40	; Data set ready error
-		dcderr	= $20	; Data carrier detect error
-		doverr	= $08	; Receiver outer buffer overrun
-	; 6525 TPI1 Triport interface device #1 - IEEE control / cassette / network / vic / irq
-		tpi1	= $DE00
-		; pa0: ieee dc control (ti parts)
-		; pa1: ieee te control (ti parts) (t/r)
-		; pa2: ieee ren
-		; pa3: ieee atn
-		; pa4: ieee dav
-		; pa5: ieee eoi
-		; pa6: ieee ndac
-		; pa7: ieee nrfd
-		;
-		; pb0: ieee ifc
-		; pb1: ieee srq
-		; pb2: network transmitter enable
-		; pb3: network receiver enable
-		; pb4: arbitration logic switch
-		; pb5: cassette write
-		; pb6: cassette motor
-		; pb7: cassette switch
-		;
-		; irq0: 50/60 hz irq
-		; irq1: ieee srq
-		; irq2: 6526 irq
-		; irq3: (opt) 6526 inter-processor
-		; irq4: 6551
-		; *irq: 6569 (vic) / user devices
-		; cb:   vic dot select - cr #7-6 11=bank 15, 01=bank 0
-		; ca:   vic matrix select - cr #5-4 11=bank 15, 01=bank 0
-		pa	= $0	; Port register A
-		pb	= $1	; Port register B
-		pc	= $2	; Port register C
-		lir	= $2	; Interrupt latch register mc=1
-		ddpa	= $3	; Data direction register A
-		ddpb	= $4	; Data direction register B
-		ddpc	= $5	; Data direction register C
-		mir	= $5	; Interrupt mask register mc=1
-		creg	= $6	; Control reg: #0 mc=IRQ mode / #1 ip= IRQ parity / #2-3 edge i3,i4	
-		air	= $7	; Active interrupt register
-		; Equates
-		dc	= $01	; 75160/75161 control line
-		te	= $02	; 75160/75161 control line
-	!ifdef IEEEPATCH{
-		ren	= $04	; Remote enable
-	} else{
-		ren	= 0	; Remote enable
-	}
-		atn	= $08	; Attention
-		dav	= $10	; Data available
-		eoi	= $20	; End or identify
-		ndac	= $40	; Not data accepted
-		nrfd	= $80	; Not ready for data
-		ifc	= $01	; Interface clear
-		srq	= $02	; Service request
-		
-		rddb	= nrfd+ndac+te+dc+ren	;directions for receiver
-		tddb	= eoi+dav+atn+te+dc+ren	;directions for transmitt
-		
-		eoist	= $40	; eoi status test
-		tlkr	= $40	; device is talker
-		lstnr	= $20	; device is listener
-		utlkr	= $5f	; device untalk
-		ulstn	= $3f	; device unlisten
-		       
-		toout	= $01	; timeout status on output
-		toin	= $02	; timeout status on input
-		eoist	= $40	; eoi on input
-		nodev	= $80	; no device on bus.
-		sperr	= $10	; verify error
-		; Equates for c3p0 flag bits 6 and 7.
-		slock	= $40	; screen editor lock-out
-		dibf	= $80	; data in output buffer
-	; 6525 TPI2 Triport interface device #2
-		tpi2	= $DF00
-		; pa: kyrd out 8-15
-		; pb: kybd out 0-7
-		;
-		; pc0: kybd in 0
-		; pc1: kybd in 1
-		; pc2: kybd in 2
-		; pc3: kybd in 3
-		; pc4: kybd in 4
-		; pc5: kybd in 5
-		; pc6: vic 16k bank select low
-		; pc7: vic 16k bank select hi
+	dsrerr	= $40	; Data set ready error
+	dcderr	= $20	; Data carrier detect error
+	doverr	= $08	; Receiver outer buffer overrun
+; 6525 TPI1 Triport interface device #1 - IEEE control / cassette / network / vic / irq
+	tpi1	= $DE00
+	; pa0: ieee dc control (ti parts)
+	; pa1: ieee te control (ti parts) (t/r)
+	; pa2: ieee ren
+	; pa3: ieee atn
+	; pa4: ieee dav
+	; pa5: ieee eoi
+	; pa6: ieee ndac
+	; pa7: ieee nrfd
+	;
+	; pb0: ieee ifc
+	; pb1: ieee srq
+	; pb2: network transmitter enable
+	; pb3: network receiver enable
+	; pb4: arbitration logic switch
+	; pb5: cassette write
+	; pb6: cassette motor
+	; pb7: cassette switch
+	;
+	; irq0: 50/60 hz irq
+	; irq1: ieee srq
+	; irq2: 6526 irq
+	; irq3: (opt) 6526 inter-processor
+	; irq4: 6551
+	; *irq: 6569 (vic) / user devices
+	; cb:   vic dot select - cr #7-6 11=bank 15, 01=bank 0
+	; ca:   vic matrix select - cr #5-4 11=bank 15, 01=bank 0
+	pa	= $0	; Port register A
+	pb	= $1	; Port register B
+	pc	= $2	; Port register C
+	lir	= $2	; Interrupt latch register mc=1
+	ddpa	= $3	; Data direction register A
+	ddpb	= $4	; Data direction register B
+	ddpc	= $5	; Data direction register C
+	mir	= $5	; Interrupt mask register mc=1
+	creg	= $6	; Control reg: #0 mc=IRQ mode / #1 ip= IRQ parity / #2-3 edge i3,i4	
+	air	= $7	; Active interrupt register
+	; Equates
+	dc	= $01	; 75160/75161 control line
+	te	= $02	; 75160/75161 control line
+!ifdef IEEEPATCH{
+	ren	= $04	; Remote enable
+} else{
+	ren	= 0	; Remote enable
+}
+	atn	= $08	; Attention
+	dav	= $10	; Data available
+	eoi	= $20	; End or identify
+	ndac	= $40	; Not data accepted
+	nrfd	= $80	; Not ready for data
+	ifc	= $01	; Interface clear
+	srq	= $02	; Service request
+	
+	rddb	= nrfd+ndac+te+dc+ren	;directions for receiver
+	tddb	= eoi+dav+atn+te+dc+ren	;directions for transmitt
+	
+	eoist	= $40	; eoi status test
+	tlkr	= $40	; device is talker
+	lstnr	= $20	; device is listener
+	utlkr	= $5f	; device untalk
+	ulstn	= $3f	; device unlisten
+	       
+	toout	= $01	; timeout status on output
+	toin	= $02	; timeout status on input
+	eoist	= $40	; eoi on input
+	nodev	= $80	; no device on bus.
+	sperr	= $10	; verify error
+	; Equates for c3p0 flag bits 6 and 7.
+	slock	= $40	; screen editor lock-out
+	dibf	= $80	; data in output buffer
+; 6525 TPI2 Triport interface device #2
+	tpi2	= $DF00
+	; pa: kyrd out 8-15
+	; pb: kybd out 0-7
+	;
+	; pc0: kybd in 0
+	; pc1: kybd in 1
+	; pc2: kybd in 2
+	; pc3: kybd in 3
+	; pc4: kybd in 4
+	; pc5: kybd in 5
+	; pc6: vic 16k bank select low
+	; pc7: vic 16k bank select hi
 ; **************************************** COLD START *********************************************
 !initmem FILL                   ; All unused memory filled with $AA
 !zone cold
@@ -543,26 +543,26 @@ EXTCOL		= $03	; exterior color        $03 = cyan
 jmoncld:jmp monoff		; Monitor cold start
 	nop
 ; ****************************************** EDITOR ***********************************************
-	;***************************************
-	;*                                     *
-	;* EEEEE DDD   IIIII TTTTT  OOO  RRRR  *
-	;* E     D  D    I     T   O   O R   R *
-	;* E     D   D   I     T   O   O R   R *
-	;* EEE   D   D   I     T   O   O RRRR  *
-	;* E     D   D   I     T   O   O R R   *
-	;* E     D  D    I     T   O   O R  R  *
-	;* EEEE  DDD   IIIII   T    OOO  R   R *
-	;*                                     *
-	;***************************************
-	;***************************************
-	;*   CBM EDITOR FOR P-SERIES SYSTEMS   *
-	;*   KEYBOARD AND SCREEN EDIT ROUTINES *
-	;* DRIVING THE HARDWARE OF THE         *
-	;* FOLLOWING CBM MODELS:               *
-	;*   P-SERIES                          *
-	;* COPYRIGHT (C) 1983 BY               *
-	;* COMMODORE BUSINESS MACHINES (CBM)   *
-	;***************************************
+;***************************************
+;*                                     *
+;* EEEEE DDD   IIIII TTTTT  OOO  RRRR  *
+;* E     D  D    I     T   O   O R   R *
+;* E     D   D   I     T   O   O R   R *
+;* EEE   D   D   I     T   O   O RRRR  *
+;* E     D   D   I     T   O   O R R   *
+;* E     D  D    I     T   O   O R  R  *
+;* EEEE  DDD   IIIII   T    OOO  R   R *
+;*                                     *
+;***************************************
+;***************************************
+;*   CBM EDITOR FOR P-SERIES SYSTEMS   *
+;*   KEYBOARD AND SCREEN EDIT ROUTINES *
+;* DRIVING THE HARDWARE OF THE         *
+;* FOLLOWING CBM MODELS:               *
+;*   P-SERIES                          *
+;* COPYRIGHT (C) 1983 BY               *
+;* COMMODORE BUSINESS MACHINES (CBM)   *
+;***************************************
 !zone editor
 *= kernal+4
 ;****************************************
@@ -618,33 +618,33 @@ scrorg: ldx #llen		; 40 columns
 ; -------------------------------------------------------------------------------------------------
 ; $E044 Screen editor init (editor, F-Keys, VIC)
 ; Clear editor variables
-cint:   lda #$00
+cint:   lda #0
 	ldx #zpend-keypnt-1	; $C2-$EF
 cloop1: sta keypnt,x		; clear page 0 variables
 	dex
 	bpl cloop1
 
 	ldx #absend-rvs-1	; $38D-$3C9
-cloop2: sta keysiz,x		; clear absolute variables but fkey alocatations
+cloop2: sta keysiz,x		; clear absolute variables
 	dex
 	bpl cloop2
 ; init some variables
 	lda #irom
 	sta scrseg		; store bank with video RAM = system bank
-	lda #$0C
+	lda #$C
 	sta blncnt		; init blink counter
 	sta blnon
 ; init F-keys
-	lda pkybuf
+	lda pkybuf		; check if buffers are allocated
 	ora pkybuf+1
-	bne keycpy		; just copy f-keys if buffers are already alocatated
-	lda hiadr
-	sta pkyend		; get end of key area
+	bne keycpy		; yes..just copy f-keys (erased with absolute vars)
+	lda hiadr		; get end of key area
+	sta pkyend
 	lda hiadr+1
 	sta pkyend+1
 	lda #$40		; NO SENSE - will be overwritten in alocat                
-	ldx #$00	
-	ldy #$02
+	ldx #0	
+	ldy #2
 	jsr aloca		; get 512 bytes at end of system memory $FEFF
 	bcs noroom		; no room found...just reset the screen
 	sta keyseg		; store bank for F-keys
@@ -652,16 +652,16 @@ cloop2: sta keysiz,x		; clear absolute variables but fkey alocatations
 	stx pkybuf		; save start address (returned X+1)
 	bne room10
 	iny
-room10: sty pkybuf+1
+room10: sty pkybuf+1		; save start address
 keycpy: ldy #keyend-keydef	; load size of F-key texts
-	jsr pagkey		; switch to indirect bank with key buffer
+	jsr pagkey		; set up function key ram page (indirect segment)
 kyset1: lda keydef-1,y
 	dey
 	sta (pkybuf),y		; copy key texts to buffer
 	bne kyset1
 
-	jsr pagres    		; restore indirect bank
-	ldy #$0A		; 10 F-key length bytes
+	jsr pagres		; restore ram page (indirect segment)
+	ldy #keydef-keylen	; 10 F-key length bytes
 kyset2: lda keylen-1,y
 	sta keysiz-1,y		; copy F-key text length to $38D
 	dey
@@ -675,7 +675,7 @@ vicint:	lda tvic-1,x
 	dey
 	dex
 	bne vicint
-	jsr txcrt		; set text mode
+	jsr txcrt		; set text mode/char rom
 
 	ldx #$0A
 edvecl: lda edvect-1,x		; copy extended editor vector table to $3B5
@@ -717,16 +717,16 @@ scrset: lda ldtb2,x		; load start of screen line low
 lp2:  	ldx kyndx		; are there any pgm keys
 	beq lp3			; branch if not
 	ldy keyidx		; get index to current char
-	jsr pagkey		; switch to indirect bank with key buffer
+	jsr pagkey		; set up function key ram page (indirect segment)
 	lda (keypnt),y		; get current byt
-	jsr pagres		; restore indirect bank
+	jsr pagres		; restore ram page (indirect segment)
 	dec kyndx		; 1 byte down
 	inc keyidx		; bump index to next char
 	cli
 	rts
 ; No F-key
 lp3: 	ldy keyd		; get key from irq buffer
-	ldx #$00
+	ldx #0
 lp1:  	lda keyd+1,x		; shift key buffer
 	sta keyd,x
 	inx
@@ -737,7 +737,7 @@ lp1:  	lda keyd+1,x		; shift key buffer
 	cli
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E11F Screen input
+; E11F Screen input - Main loop
 loop4:	jsr prt			; print the character
 !ifdef CBMPATCH{		; ********** Vossi p500 $3BF PATCH **********
 	jmp loop3
@@ -746,7 +746,7 @@ loop4:	jsr prt			; print the character
 	lsr unknwn		; clear bit#7 in $03BF
 }
 *= $E128
-; E128 Main loop - wait for key input
+; wait for key input
 loop3:  lda ndx			; check key and pgm-key index
 	ora kyndx
 	sta blnon
@@ -761,15 +761,15 @@ loop3:  lda ndx			; check key and pgm-key index
 	ldx gdcol		; load color behind cursor
 	jsr dspcol		; write char before blink
 ; check key
-lp21:	jsr lp2			; get char from queue
-	cmp #$0D
+lp21:	jsr lp2			; get key input
+	cmp #$D
 	bne loop4		; print char if not cr
 ; return recognized
 	sta crsw		; set cr flag - we pass chars now
 	jsr fndend		; check nxt line for cont (double line?)
 	stx lintmp		; save last line number of sentence
 	jsr fistrt		; find begining of line
-	lda #$00
+	lda #0
 	sta qtsw		; clear quote mode
 	ldy sclf		; retrieve from line start if left it
 	lda lsxp		; input started row
@@ -794,9 +794,9 @@ loop5:	tya
 	lda crsw		; passing chars to input
 	beq loop3		; no - buffer on screen
 	bpl lop5		; not done - get next char
-clp2:	lda #$00		; input done clear flag
+clp2:	lda #0			; input done clear flag
 	sta crsw
-	lda #$0D		; pass a return
+	lda #$D			; pass a return
 	bne clp7
 lop5:	jsr stupt		; set pnt and user
 	jsr get1ch		; get a screen char
@@ -805,15 +805,15 @@ lop5:	jsr stupt		; set pnt and user
 	and #$3F		; clear bit#6,7 in A
 	asl data		; check: scrcode bit#7->C
 	bit data		; check: scrcode bit#6->N, #5->V (shiftet to left)
-	bpl loop54		; skip if scrcode #6=0 x0x -> 00x
+	bpl lop54		; skip if scrcode #6=0 x0x -> 00x
 	ora #$80		; x1x -> 10x
-loop54:	bcc loop52		; skip if scrcode #7=0 (not reverse)
+lop54:	bcc lop52		; skip if scrcode #7=0 (not reverse)
 	ldx qtsw
-	bne loop53		; skip if bit#7=1 & quote on: 10x -> 00x, 11x -> 10x
+	bne lop53		; skip if bit#7=1 & quote on: 10x -> 00x, 11x -> 10x
 				; if quote off or bit#7=0:
-loop52:	bvs loop53		; skip if scrcode #5=1: 001 -> 001, 011 -> 101
+lop52:	bvs lop53		; skip if scrcode #5=1: 001 -> 001, 011 -> 101
 	ora #$40		; 000 -> 010, 100 -> 110
-loop53:	jsr qtswc
+lop53:	jsr qtswc
 	ldy tblx		; on input end line ?
 	cpy lintmp
 	bcc clp00		; no
@@ -822,6 +822,7 @@ loop53:	jsr qtswc
 	bcc clp00		; no
 	ror crsw		; c=1 minus flags last char sent
 	bmi clp1		; always
+
 clp00:	jsr nxtchr		; at next char
 clp1:	cmp #$DE		; a pi ?
 	bne clp7		; no
@@ -836,12 +837,12 @@ clp7:	sta data
 ; -------------------------------------------------------------------------------------------------
 ; *** Test for quote mode ***
 ; E1C8 Switch quote mode depending on in A
-qtswc:	cmp #$22
+qtswc:	cmp #$22 ; "
 	bne qtswl		; skip if no quote-char
 	lda qtsw
-	eor #$01		; toggle quoteswitch
+	eor #$1			; toggle quoteswitch
 	sta qtsw
-	lda #$22		; restore quote in A
+	lda #$22 ; "		; restore quote in A
 qtswl:	rts
 ; -------------------------------------------------------------------------------------------------
 ; E1D5 *** Output chars ***
@@ -855,7 +856,7 @@ nvsa:	bit insflg		; are we in auto insert mode?
 	bpl nvs1		; branch if not
 	pha			; save the char
 	jsr insert		; make room for this char
-	ldx #$00
+	ldx #0
 	stx insrt		; make sure we turn off insert mode.
 	pla			; restore char
 nvs1:	jsr dsppcc		; display the character
@@ -888,14 +889,14 @@ dsptco: ldx tcolor
 dspcol: ldy #$02
 	sty blncnt		; blink cusor
 ; E213 Write char A with color X
-dspp:   ldy pntr		; load column
-	jsr pagscr		; switch to screen ibank
+dspp:   ldy pntr		; get char index
+	jsr pagscr		; switch to screen memory page (indirect segment)
 	jsr jwrvrm		; write char to screen
 	pha
 	txa			; move color to A
 	jsr jwrcrm		; write color to color RAM
 	pla
-	jmp pagres    		; restore indirect bank
+	jmp pagres    		; restore ram page (indirect segment)
 ; -------------------------------------------------------------------------------------------------
 ; E224 Subroutine to clear one line
 ;                  x = line number
@@ -923,14 +924,14 @@ clr10:	iny
 ; E23F Grab a character from screen
 get1ch: ldy pntr		; get char/color index
 ; E241 Get char from column Y
-getych: jsr pagscr		; switch to screen ibank
+getych: jsr pagscr		; switch to screen memory page (indirect segment)
 	lda (pnt),y		; get the character
 	pha
 	lda #$00
 	ora (user),y		; get color (ORA = always systembank)
 	sta tcolor		; and store it to tcolor
 	pla
-	jmp pagres      	; restore indirect bank
+	jmp pagres      	; restore ram page (indirect segment)
 ; -------------------------------------------------------------------------------------------------
 ; E251 Set text/graphic mode (C=1 graphic)
 ctext:	bcs grcrt		; skip if graphic mode
@@ -945,26 +946,26 @@ crtset: sty grmode		; store new mode
 	jmp wrtvic		; write VIC memory pointers reg
 ; -------------------------------------------------------------------------------------------------
 ;**************************************************
-;   Handle ram paging
+;   Handle ram paging (indirect segment)
 ;**************************************************
-; E267 Switch to indirect bank with key buffer
+; E267 Switch to segment with key buffer
 pagkey: pha
-	lda keyseg              ; for function key page
+	lda keyseg              ; for function key page (segment)
 	jmp pagsub
-; E26E Switch to indirect bank with video screen
+; E26E Switch to segment with video screen
 pagscr: pha
-	lda scrseg              ; for screen memory bank
+	lda scrseg              ; for screen memory page (segment)
 pagsub: pha
-	lda i6509		; get current page number
+	lda i6509		; get current page (segment) number
 	sta pagsav              ; - and save it
 	pla
-	sta i6509               ; switch to new ibank
+	sta i6509               ; switch to new indirect segment
 	pla                     ; restore a-reg
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E27C Restore indirect bank
+; E27C Restore indirect segment
 pagres: pha			; save a-reg
-	lda pagsav		; get saved ram page number
+	lda pagsav		; get saved ram page (segment) number
 	sta i6509               ; restore ram page number
 	pla			; restore a-reg
 	rts
@@ -979,7 +980,7 @@ prt10:	sta data		; save char
 	pha
 	tya
 	pha
-	lda #$00		; clear cr flag
+	lda #0			; clear cr flag
 	sta crsw
 	ldy pntr		; column we are in
 	lda data
@@ -1006,8 +1007,8 @@ njt1:	ldx insrt		; test if in insert mode
 }
 njt2:	ldx lstchr		; was last char an esc
 	cpx #$1B
-	bne njt10
-	jsr sequen
+	bne njt10		; no
+	jsr sequen		; yes - do esc sequence
 	jmp loop2
 njt10:	and #$3F		; no - make a screen char
 njt20:	bit data
@@ -1074,7 +1075,7 @@ cuser:	jmp (ctlvec)
 ; -------------------------------------------------------------------------------------------------
 ; E325 Cursor down/up
 cdnup:  bcs cup			; cursor up
-
+; cursor down
 cdwn:	jsr nxln
 cdn10:	jsr getbit		; a wrapped line ?
 	bcs cdrts		; skip if yes
@@ -1093,7 +1094,7 @@ cup10:	jsr cdn10		; about to wrap to a new line ?
 ; -------------------------------------------------------------------------------------------------
 ; E342 Cursor right/left
 crtlf:  bcs cleft		; cursor left
-
+; cursor right
 crit:	jsr nxtchr		; cursor right
 	bcs cdn10		; yes - test for wrap
 
@@ -1140,7 +1141,7 @@ tabtog: jsr gettab		; flip tab stop
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; E38B Skip to next line
-; wrap to top if scroll disabled
+;   wrap to top if scroll disabled
 nxln:	ldx tblx
 	cpx scbot		; of the bottom of window ?
 	bcc nxln1		; no
@@ -1175,7 +1176,7 @@ movlin:	lda ldtb2,x		; set pointers to line address lo
 	ora #>clrram		; calc colorram hi and set second pointer
 	sta sedeal+1
 
-	jsr pagscr		; switch to screen ibank
+	jsr pagscr		; switch to screen memory page (indirect segment)
 movl10: lda (sedsal),y
 	jsr jwrvrm		; copy vram
 	lda #$00
@@ -1185,7 +1186,7 @@ movl10: lda (sedsal),y
 	iny
 	bcc movl10		; no
 
-	jmp pagres    		; restore indirect bank
+	jmp pagres    		; restore ram page (indirect segment)
 ; -------------------------------------------------------------------------------------------------
 ; E3DF ****** Scroll down ******
 scrdwn: ldx lsxp
@@ -1813,7 +1814,9 @@ toqm:	lda #0
 	sta insrt
 	sta rvs
 	sta qtsw
-!ifndef CBMPATCH{		; ********** Vossi p500 $3BF PATCH **********
+!ifdef CBMPATCH{		; ********** Vossi p500 $3BF PATCH **********
+	sta sid+volume		; turn off sid
+} else{
 	sta unknwn
 }
 	rts
@@ -1904,9 +1907,9 @@ nosec:	jsr bsout		; print first digit
 	lda #','		; for comma print
 lstk20:	jsr bsout		; print char - comma or plus-sign
 	ldx #7			; for chr$ printing - no plus-sign or quote to preceed
-txtprt:	jsr pagkey		; switch to bank with function keys
+txtprt:	jsr pagkey		; make sure function key ram page (indirect segment)
 	lda (keypnt),y		; get byte
-	jsr pagres		; restore indirect bank
+	jsr pagres		; restore ram page (indirect segment)
 	cmp #13
 	beq lstkcr		; print chr$(13) for return
 	cmp #141
@@ -2004,7 +2007,7 @@ addkey:	pha			; save zero page address of params
 	bcs kyxit		; exit if no room, skip if memory not full
 
 ; expand or contract key area to make room for new key definition.
-keysho:	jsr pagkey		; set up function key ram page
+keysho:	jsr pagkey		; set up function key ram page (indirect segment)
 kymove:	lda sedeal
 	clc			; check if entire area expanded or contracted
 	sbc sedsal
@@ -2055,13 +2058,13 @@ kyinlp:	dey
 	lda $03,x		; get string ram page
 	sta i6509
 	lda (sedeal),y		; get byte
-	jsr pagres		; restore indirect bank
-	jsr pagkey		; switch to indirect bank with key buffer
+	jsr pagres		; restore ram page (indirect segment)
+	jsr pagkey		; set up function key ram page (indirect segment)
 	sta (sedsal),y		; store into buffer
 	tya			; .y flags...end?
 	bne kyinlp		; no... loop
 
-kyinok:	jsr pagres		; restore indirect bank
+kyinok:	jsr pagres		; restore ram page (indirect segment)
 	clc			; for good exit carry clear
 kyxit:	pla			; pop zero page address for params
 	cli			; all done...release keyscan
@@ -2121,9 +2124,9 @@ txtprt:	cpx #8
 	beq lstk00		; skip if normal char last time
 	jsr jbsout		; print char - comma or plus-sign
 lstk00:	php
-	jsr pagkey		; switch to indirect bank with key buffer
+	jsr pagkey		; set up function key ram page (indirect segment)
 	lda (keypnt),y		; get byte
-	jsr pagres    		; restore indirect bank
+	jsr pagres		; restore ram page (indirect segment)
 	plp
 	cmp #$0D
 	beq lstkcr		; print chr$(13) for return
@@ -2214,7 +2217,7 @@ addkey: pha			; save zero page address of params
 	pla
 	rts			; exit if no room
 ; E8A2 expand or contract key area to make room for new key definition.
-keysho: jsr pagkey		; switch to indirect bank with key buffer
+keysho: jsr pagkey		; set up function key ram page (indirect segment)
 kymove: lda sedeal
 	clc 			; check if entire area expanded or contracted
 	sbc sedsal
@@ -2264,8 +2267,8 @@ kyinlp: dey
 	lda $03,x		; get string ram bank
 	sta i6509
 	lda (sedeal),y		; get byte
-	jsr pagres    		; restore indirect bank
-	jsr pagkey		; switch to indirect bank with key buffer
+	jsr pagres		; restore ram page (indirect segment)
+	jsr pagkey		; set up function key ram page (indirect segment)
 	sta (sedsal),y		; store into buffer
 	jmp kyinlp		; next 
 

@@ -1,0 +1,4 @@
+#!/bin/sh
+acme -v p500kernal.b
+diff -s kernal.bin test.bin
+cmp kernal.bin test.bin
