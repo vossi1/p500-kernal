@@ -899,9 +899,9 @@ dspp:   ldy pntr		; get char index
 	jmp pagres    		; restore ram page (indirect segment)
 ; -------------------------------------------------------------------------------------------------
 ; E224 Subroutine to clear one line
-;                  x = line number
-;         clrln :  blank entire line
-;         clrprt:  y = starting column position
+;   x = line number
+;   clrln :  blank entire line
+;   clrprt:  y = starting column position
 clrln:	ldy sclf		; load left margin
 	jsr clrbit		; make sure non-continued line
 clrprt:	txa
@@ -1313,51 +1313,50 @@ getlin:
 	rts
 *= $E4A6
 ; -------------------------------------------------------------------------------------------------
+; ****** wrap table subroutines *******
 ; E4A6 Check for a double length line
 getbit: ldx tblx		; load current line
 ; E4a8 Check line X for double length
-getbt1: jsr bitpos		; Find bit table position for line X
+getbt1: jsr bitpos		; get byte & bit positions
 	and bitabl,x		; check if bit for line is set in table
-	cmp #$01
+	cmp #1			; make carry clear if zero
 	jmp bitout		; return 0 if not a double length line
 ; -------------------------------------------------------------------------------------------------
 ; E4B2 Mark current line as double length C=1, unmark C=0
+; putbit - set bit according to carry
 putbit: ldx tblx		; load current line
-; E4B4 Mark line X as double length C=1, unmark C=0
-putbt1: bcs setbit		; branch to mark line if C=1
-; E4B6 Clear double length line mark
-clrbit: jsr bitpos		; Find bit table position for line X
-	eor #$FF		; bit value = 0
+; Mark line X
+putbt1: bcs setbit		; go if to mark as wrappped line
+; clrbit - clear wrap bit
+clrbit: jsr bitpos		; get byte & bit positions
+	eor #$FF		; invert bit position
 	and bitabl,x		; clear bit
 bitsav: sta bitabl,x		; and store it to table at byte position X
-bitout: ldx bitmsk		; Move byte table position to X
+bitout: ldx bitmsk		; move byte table position to X
 	rts
-; -------------------------------------------------------------------------------------------------
-; E4C3 Mark a double length line
-setbit: bit scrdis
+; setbit  -  set bit to mark as wrapped line
+setbit: bit scrdis		; auto line link disable...
 	bvs getbt1		; branch if scrolling is disabled
-	jsr bitpos		; Find bit table position for line X
-	ora bitabl,x		; set bit in table
-	bne bitsav		; branch always to save byte to table
+	jsr bitpos		; get byte & bit position
+	ora bitabl,x		; set wrap bit
+	bne bitsav		; always
 ; Find bit table position for line X
 bitpos: stx bitmsk		; remember line
 	txa
-	and #$07		; isolate bit#0-2
+	and #$07		; get bit position
 	tax
-	lda bits,x		; load bit value from table
+	lda bits,x		; get bit mask
 	pha			; remember it
 	lda bitmsk
-	lsr			; divide line by 8 for byte position in bit table
 	lsr
+	lsr			; shift to get byte position (/8)
 	lsr
 	tax			; move byte pos to X
 	pla			; return bit value in A
 	rts
 ; -------------------------------------------------------------------------------------------------
-; **********************************
-; ***** Move to start of line
-;
-; E4E2 Find line start/end
+; E4E2 ****** Move to start of line
+; Find line start/end
 	bcc fndend		; if C=0 find line end - NOT USED
 ; E4E5 cursor to line start (esc-j)
 fndfst:	ldy sclf
@@ -1369,11 +1368,10 @@ fistrt:	jsr getbit		; find start of current line
 	inc tblx		; whoops went too far
 fnd0:	jmp stupt		; set line base adr
 ; -------------------------------------------------------------------------------------------------
-; ****** Find last non-blank char of line
-; pntr= column #
-; tblx= line #
-;
-; E4F7 cursor to end of line (esc-k)
+; E4F7 ****** Find last non-blank char of line
+;   pntr= column #
+;   tblx= line #
+; cursor to end of line (esc-k)
 fndend:	inc tblx
 	jsr getbit		; is this line continued
 	bcs fndend		; branch if so
@@ -1395,13 +1393,14 @@ eloup2: jsr get1ch		; get char from screen
 endbye: sty indx		; remember this
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E521 Move to next char
+; E521 ****** Move to next char
 ; scroll if enabled
 ; wrap to top if disabled
 nxtchr:	pha
 	ldy pntr
 	cpy scrt		; are we at the right margin?
 	bcc bumpnt		; branch if not
+
 	jsr nxln		; point to nextline
 	ldy sclf		; point to first char of 1st line
 	dey
@@ -1507,8 +1506,8 @@ runrts: rts
 ; -------------------------------------------------------------------------------------------------
 ; E5DB movchr  -  Move to next char position
 ; insert blank line if at end of line
-; y = column position
-; on exit - carry set = abort - scroll disabled
+;   y = column position
+;   on exit - carry set = abort - scroll disabled
 movchr: cpy scrt
 	bcc movc10		; easy if not at end of line
 	ldx tblx
@@ -1846,13 +1845,13 @@ inssw:	lda #0
 	sta insflg		; store flag: $00 = off, $80 = on
 	rts
 ; -------------------------------------------------------------------------------------------------
-; E795 Disable logical scroll (single line scroll)
-logoff:	clc 
+; E795 Enable/Disable logical scroll
+logoff:	clc			; disable logical scroll (single line scroll)
 	bcc logsw
-; Enable logical scroll (scroll a set of lines)
-logon:	sec
+
+logon:	sec			; enable logical scroll (scroll a set of lines)
 ; Logical scroll enable/disable
-;              carry set = enable
+;   carry set = enable
 logsw:	lda #0
 	ror
 	sta logscr		; store flag: $00 = disable, $80 = enable
@@ -1868,7 +1867,6 @@ keyfun: sei			; prevent fight over variables with keyscan...
 	dey
 	bmi listky		; do list if no parameters given
 	jmp addkey		; - else go add a new key definition
-
 ; list key defintions
 listky:	ldy #0			; initialize key counter
 
@@ -2036,7 +2034,7 @@ kshort:	lda (sedsal),y		; get source byte
 	bne kymove
 	inc sedsal+1		; add 1 for carry
 	bne kymove		; always
-;  insert the new string defintion
+; insert the new string defintion
 keyins:	ldy sedt1		; get the key index
 	jsr findky		; find buffer start address for this key
 	sta sedsal
@@ -2045,17 +2043,17 @@ keyins:	ldy sedt1		; get the key index
 	pla
 	pha
 	tax			; get zero page addr of params
-	lda $00,x
+	lda $0,x
 	sta keysiz,y		; save key length
 	tay
 	beq kyinok		; equal to zero no keys...exit
-	lda $01,x		; get & save low byte of string address
+	lda $1,x		; get & save low byte of string address
 	sta sedeal
-	lda $02,x		; get & save high byte of string address
+	lda $2,x		; get & save high byte of string address
 	sta sedeal+1
 
 kyinlp:	dey
-	lda $03,x		; get string ram page
+	lda $3,x		; get string ram page
 	sta i6509
 	lda (sedeal),y		; get byte
 	jsr pagres		; restore ram page (indirect segment)
@@ -2376,7 +2374,7 @@ havasc: cpx #$FF
 	beq keyxit		; exit if null pet-ascii
 	txa
 	cmp #$E0		; check if function key
-	bcc notfun
+	bcc notfun		; skip - not a function key
 	tya
 	pha
 	jsr funjmp		; do function key indirect
@@ -2474,7 +2472,7 @@ findlp: clc
 fndout: rts
 ; -------------------------------------------------------------------------------------------------
 ; EA26 Tab set-up (tab positioner)
-; y=column in question
+;   y=column in question
 gettab: tya			; get bit in question
 	and #$07
 	tax
@@ -2493,7 +2491,7 @@ gettab: tya			; get bit in question
 ;*  routines involved in executing escape functions
 ;************************************************************
 ; EA3C Main escape sequence handler
-; entry: character following escape character in acc.
+;   entry: character following escape character in acc.
 escape: and #$7F
 	sec
 	sbc #'a'		; table begins at ascii a
@@ -3037,7 +3035,6 @@ erropr:	jsr outqst
 	pla
 
 ; ***** Command interpreter entry *****
-
 strtm1=*-1
 	lda #$40+$80
 	sta msgflg		; i/o messages to screen
@@ -3090,7 +3087,7 @@ s2:	inx
 ; Command not in table...look on disk.
 ; Command name can be any length and have parameters.
 	ldx #0			; length to zero
-s3:	cmp #$0D		; end of name?
+s3:	cmp #$D			; end of name?
 	beq s4			; yes...
 	cmp #' '		; blank?
 	beq s4			; yes
@@ -3183,11 +3180,11 @@ space:  lda #' '		; output a space
 outqst: lda #'?'		; output question
 	!byte $2C		; skip two bytes
 
-crlf:   lda #$0D		; do carriage return
+crlf:   lda #$D		; do carriage return
 	jmp bsout
 ; -------------------------------------------------------------------------------------------------
 ; EF26 Data for register display heading
-regk:	!pet $0D,"  "		; 3 spaces
+regk:	!pet cr,"  "		; 3 spaces
 	!pet " pc "," irq "," sr ac xr yr sp"
 ; -------------------------------------------------------------------------------------------------
 ; EF41 Display register function 'r'
@@ -3251,7 +3248,7 @@ dsp1:	jsr stop		; stop key?
 	ldy tmp0
 	jsr wroa		; write start address
 
-	lda #$08		; count of bytes
+	lda #8			; count of bytes
 	jsr dm			; display bytes
 
 	lda fnlen		; check for zero-crossing
@@ -3283,7 +3280,7 @@ altr:	jsr rdoa		; read new pc
 
 	jsr setr		; set to alter r's
 	bne a4			; branch always
-
+; -------------------------------------------------------------------------------------------------
 ; EFDF View a segment (point indirect) 'v'
 view:	jsr rdob		; get a byte
 	bcs arrn		; ...if none...error
@@ -3453,7 +3450,7 @@ l12:	bne l9			; no...bad syntax
 	sta eah
 
 l20:	jsr basin
-	cmp #$20
+	cmp #' '
 	beq l20			; span blanks
 
 	cmp #cr
@@ -3542,7 +3539,7 @@ hex09:	rts
 ; -------------------------------------------------------------------------------------------------
 ; F162 Get character and test for cr
 rdoc:	jsr basin
-	cmp #$0D		; is it a cr
+	cmp #$D			; is it a cr
 	rts			; return with flags
 ; -------------------------------------------------------------------------------------------------
 ; F168 Send disk command or read status '@'
@@ -3568,7 +3565,7 @@ disk:	lda #0			; clear status @ i/o begin
 	bcc disk15		; no...ok
 
 disk10:	jsr basin		; get a character
-disk15:	cmp #$0D		; see if end
+disk15:	cmp #$D			; see if end
 	php			; save for later
 	jsr bsout		; out to floppy
 	lda status
@@ -3829,7 +3826,7 @@ rby7:	lda tpi1+pa		; get ieee control lines
 	rts
 ; -------------------------------------------------------------------------------------------------
 ; F376 Set up for timeout (6526)
-timero:	lda #$80		; set time for at least 32us
+timero:	lda #$80		; set time for at least 32us (cbmii $FF)
 
 	sta cia+tbhi
 	lda #$11		; turn on timer continous in case of other irq's
@@ -3949,8 +3946,8 @@ xon232:	lda acia+cdr
 ; -------------------------------------------------------------------------------------------------
 ; F403 req256 - request 256 bytes of space
 ;  (don't care where we get it...)
-req256:	ldx #$00
-	ldy #$01		; one page = 256 bytes
+req256:	ldx #00
+	ldy #01		; one page = 256 bytes
 ; -------------------------------------------------------------------------------------------------
 ; alocat - alocatate space
 ;  entry:
@@ -4138,7 +4135,7 @@ bn20:	bcs bn30		; devices >3
 ; input from ieee bus
 bn30:	lda status		; status from last
 	beq bn35		; was good
-bn31:	lda #$0D		; bad...all done
+bn31:	lda #$D			; bad...all done
 bn32:	clc			; valid data
 bn33:	rts
 
@@ -4966,8 +4963,8 @@ clsei:	bit sa
 	lda fa
 	jsr listn
 	lda sa
-	and #$ef
-	ora #$e0
+	and #$EF
+	ora #$E0
 	jsr secnd
 	jsr unlsn
 
@@ -5166,9 +5163,9 @@ start:	ldx #$FE		; do all normal junk...
 	beq swarm		; if yes...do warm start
 
 ; F9AD Check for roms
-scold:	lda #$06		; set up indirect to $0006 = position ROM ident bytes
+scold:	lda #6			; set up indirect to $0006 = position ROM ident bytes
 	sta eal
-	lda #$00		; clear upper
+	lda #0			; clear upper
 	sta eah
 	sta evect		; set low byte of vector warm start to $00
 	ldx #$30		; existance flag 4. rom ident byte compare value to '0'
@@ -5271,7 +5268,7 @@ io100:  lda tpi1+lir		; wait untill it happens again
 	ldy #0
 io110:  inx
 	bne io110		; delay 256x -> 1.28 ms @ 1MHz
-	iny        
+	iny
 	lda tpi1+lir		; load interrrupt latch reg
 	ror
 	bcc io110		; pc0 = 1 -> 50/60hz irq          
@@ -5283,9 +5280,9 @@ io120:  lda #%00001000
 	sta cia+cra            ; set TOD=50/60Hz, run mode=continuous
 
 ; 6526  inter-process communication initialization
-;       pra = data port
-;       prb = ipc lines
-;       irq's from 2nd processor via flag input
+;   pra = data port
+;   prb = ipc lines
+;   irq's from 2nd processor via flag input
 	lda ipcia+icr		; clear icr
 	lda #$90    
 	sta ipcia+icr		; flag irqs on
@@ -5314,7 +5311,7 @@ io120:  lda #%00001000
 ;  reset xtape vectors to non-cassette
 ;-----------------------------------------
 ; FA94 RAM-test / vector init
-ramtas: lda #$00		; init value A = $00, counter X = 0
+ramtas: lda #0			; init value A = $00, counter X = 0
 	tax
 px1:    sta $0002,x		; clear ZP above 6509 bank regs
 	sta buf,x		; clear basic input buffer from $0200       
@@ -5323,11 +5320,11 @@ px1:    sta $0002,x		; clear ZP above 6509 bank regs
 	bne px1			; clear next byte
 
 ; memory size check
-	lda #$00		; bottom of memory always segment 0
+	lda #0			; bottom of memory always segment 0 (P500)
 	sta i6509
 	sta memstr+2		; set bottom of user memory
 	sta lowadr+2		; ...and system memory
-	lda #$02		; start at byte $0002
+	lda #2			; start at byte $0002
 	sta memstr
 	sta lowadr
 	dec i6509		; place back one segment for test
@@ -5337,32 +5334,32 @@ sizlop: inc i6509		; claculate next ind bank
 	lda i6509
 	cmp #irom		; all slots full...exit
 	beq size
-	ldy #$02                ; always start at $0002, sal/sah already $0000
+	ldy #2			; always start at $0002, sal/sah already $0000
 siz100: lda (sal),y
-	tax                     ; save memory value in X 
-	lda #$55                ; test with $55
+	tax			; save memory value in X 
+	lda #$55		; test with $55
 	sta (sal),y
 	lda (sal),y
-	cmp #$55                ; check if $55 
-	bne size                ; end test if different
-	asl                     ; test with $AA
+	cmp #$55		; check if $55 
+	bne size		; end test if different
+	asl			; test with $AA
 	sta (sal),y
 	lda (sal),y
-	cmp #$AA                ; check if $AA
-	bne size                ; end test if different
+	cmp #$AA		; check if $AA
+	bne size		; end test if different
 	txa
-	sta (sal),y             ; restore old memory value from X
-!ifdef FULL_RAMTEST{            ; ********** Full RAM-test **********
+	sta (sal),y		; restore old memory value from X
+!ifdef FULL_RAMTEST{		; ********** Full RAM-test **********
 	iny
-	bne siz100              ; test next byte
-} else{                         ; ********** Fast RAM-test PATCH **********
+	bne siz100		; test next byte
+} else{				; ********** Fast RAM-test PATCH **********
 	nop
 	nop
 	nop
 }
 	inc sah
-	bne siz100              ; test next page
-	beq sizlop              ; test next bank
+	bne siz100		; test next page
+	beq sizlop		; test next bank
 
 ; set top of memory
 size:   ldx i6509		; bank number of failure
@@ -5459,7 +5456,7 @@ readst: bcc storst
 	bne readss		; not rs-232
 	lda rsstat		; yes get it and remember it
 	pha
-	lda #$00		; clear status when read
+	lda #00		; clear status when read
 	sta rsstat
 	pla			; get status from stack
 	rts
@@ -5701,7 +5698,7 @@ irq300:	jsr jkey		; scan the keyboard
 	bne irq320		; jump
 irq310:	ldy cas1		; test for flag on...
 	bne irq900		; yes computer control..leave alone
-	and #$ff-$40		; turn motor on...
+	and #$FF-$40		; turn motor on...
 irq320:	sta tpi1+pb		; store mods into port
 
 irq900:	sta tpi1+air		; pop the interrupt...
@@ -5732,7 +5729,7 @@ panic:	rti			; come here if no new nmi vector.
 ;---------------------------------------------------------------
 ; FCB9 Coprocessor request
 iprqst:	lda ipb+ipccmd
-	and #$7f
+	and #$7F
 	tay
 	jsr getpar		; get #ins,outs
 	lda #sem88		; check 8088 semaphore
@@ -5757,14 +5754,14 @@ iprqst:	lda ipb+ipccmd
 	bne iprqst		; try again (br always)
 
 ;     send cmd byte and cause irq
-ipr100: lda #$ff
+ipr100: lda #$FF
 	sta ipcia+ddra		; port direction = out
 	lda ipb+ipccmd
 	sta ipcia+pra		; write cmd byte to port
 ; cause irq
 	jsr frebus		; give up bus
 	lda ipcia+prb		; pb6 := 0
-	and #$bf
+	and #$BF
 	sta ipcia+prb
 	ora #$40		; keep low for 4us (8 cycles)
 	cli
@@ -5783,7 +5780,7 @@ ipr100: lda #$ff
 	ldy #0
 	beq ipr250		; always
 
-ipr200:	lda #$ff
+ipr200:	lda #$FF
 	sta ipcia+ddra		; port direction = out
 	lda ipb+ipcdat,y	; get next data byte
 	sta ipcia+pra		; write cmd out
@@ -5826,7 +5823,7 @@ ipserv: ;ldy #ipbsiz-1	; copy ip buffer to stack
 	sta ipcia+ddra		; port dir=in, just in case...
 	lda ipcia+pra		; read cmd from port
 	sta ipb+ipccmd		; store cmd and decode it
-	and #$7f		; mask off bus bit
+	and #$7F		; mask off bus bit
 	tay
 	jsr getpar		; get param counts
 	tya			; adjust offset for jump table
@@ -5871,7 +5868,7 @@ ipsret=ips300-1
 	beq ips350		; always
 ips310:
 	jsr waithi		; sem8088 -> hi (8088 rdy to recv)
-	lda #$ff
+	lda #$FF
 	sta ipcia+ddra		; port direction = out
 	lda ipb+ipcdat,y
 	sta ipcia+pra		; write data to port
@@ -5925,7 +5922,7 @@ waithi:	lda ipcia+prb
 
 ; acklo - acknowlegde sem65 low
 acklo:	lda ipcia+prb
-	and #$ff-sem65
+	and #$FF-sem65
 	sta ipcia+prb
 	rts
 
@@ -5937,7 +5934,7 @@ ackhi:	lda #sem65
 
 ; frebus - give up bus
 frebus:	lda tpi1+pb		; pb4 := 0
-	and #$ef
+	and #$EF
 	sta tpi1+pb
 	rts
 
@@ -5958,7 +5955,7 @@ getbus:
 ;          #ins,#outs put into ipb buffer
 getpar:	lda ipptab,y		; break apart nibbles
 	pha
-	and #$0f
+	and #$0F
 	sta ipb+ipcin		; #input bytes
 	pla
 	lsr
@@ -5971,10 +5968,10 @@ getpar:	lda ipptab,y		; break apart nibbles
 ; ipcgo - free bus, interrupt 2nd processor
 ;         go into a loop, waiting for requests.
 ;  * returns if bus error occurs
-ipcgo:	ldx #$ff
+ipcgo:	ldx #$FF
 	stx i6509		; indirects to bank f only
 	lda tpi1+pb		; tpi1 pb4:=0 frees dbus
-	and #$ef
+	and #$EF
 	sta tpi1+pb
 	nop			; a pause
 	lda ipcia+prb		; check nbusy1
@@ -6079,7 +6076,7 @@ fnadry: ldx i6509
 ;   caller must be a jsr txjmp
 ;   all registers and i6509 destroyed
 ;   returns directly to caller...
-txjmp	sta i6509		; bp routine
+txjmp:	sta i6509		; bp routine
 	txa
 	clc
 	adc #2			; add 2 to target address
@@ -6115,19 +6112,19 @@ exsub:	php			; save status
 	tsx
 	lda stack+5,x		; .sp +5 is actual routn addr lo
 	sec
-	sbc #$03		; -3 for jsr to this routn
+	sbc #03			; -3 for jsr to this routn
 	pha			; save .a
 	lda stack+6,x		; hi addr
-	sbc #$00
+	sbc #00	
 	tax			; .x hi
 	pla			; restore .a lo
 	jsr putaxs		; save .a.x onto xfer seg stack
 	tya			; xfer seg stack pointer
 excomm:	sec
-	sbc #$04		; 4 bytes .y.x.a.p
+	sbc #04			; 4 bytes .y.x.a.p
 	sta stackp		; xfer seg new stack pointer temp storage
 	tay			; use this as new pointer also
-	ldx #$04		; 4 bytes .y.x.a.p
+	ldx #04			; 4 bytes .y.x.a.p
 exsu10:	pla
 	iny
 	sta (ipoint),y		; push regs from this stack to xfer seg stack
@@ -6166,7 +6163,7 @@ excrts: php			; .p
 	jmp excomm
 ; -------------------------------------------------------------------------------------------------
 ; FF11 ipoint = $100, Y = $FF (stack)
-ipinit: ldy #$01
+ipinit: ldy #01
 	sty ipoint+1
 	dey
 	sty ipoint		; ipoint=$0100
