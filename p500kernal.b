@@ -17,6 +17,8 @@
 ; v2.4 patch rev. -03 reserves two top pages for swapping system
 ; v2.5 finished all comments, labels, patches
 ; v2.6 correct cbm checksum $e0
+; v2.7 reset sid
+; v2.8 patch rev. 04a clear insert flag, rs232
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -25,6 +27,7 @@
 ;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
 ;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
 CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
+CBMPATCH4A	= 1	; CBM B-series patches -04a
 IEEEPATCH	= 1	; CBM-B-series ieee-patches -03 (with ren)
 BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank 15!
@@ -38,6 +41,7 @@ TEXTCOL		= $06	; Default text color:   $06 = blue
 BGRCOL		= $01	; background color      $01 = white
 EXTCOL		= $03	; exterior color        $03 = cyan
 ; ########################################### INFO ################################################
+; ROM-CHECKSUM-BYTE: cksume
 ; loop3 E129 = Main loop - wait for key input
 ; **************************************** DISCLAIMER *********************************************
 ;***************************************
@@ -768,8 +772,13 @@ lp21:	jsr lp2			; get key input
 	sta crsw		; set cr flag - we pass chars now
 	jsr fndend		; check nxt line for cont (double line?)
 	stx lintmp		; save last line number of sentence
+!ifdef CBMPATCH4A{		; ********** cbmii revision 04a PATCH **********
+	jsr patch4a2		; ***** patch4a-2 - make space for clear insert flag *****
+	sta insrt		; ***** patch4a-2 - clear insert flag *****
+} else{
 	jsr fistrt		; find begining of line
 	lda #0
+}
 	sta qtsw		; clear quote mode
 	ldy sclf		; retrieve from line start if left it
 	lda lsxp		; input started row
@@ -2907,8 +2916,9 @@ coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ; rsr modify for vic-40 system			*** Just for fun from rev.1 c64-kernal rev.1 ;) ***
 ; rsr 12/31/81 add 8 more colors
 ; -------------------------------------------------------------------------------------------------
-; ED22 Unused space
-	!byte $00
+; ED22 checksum byte
+cksume	!byte $E1		; e-page checksum
+; -------------------------------------------------------------------------------------------------
 !ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
 ;**************************************************
 ; patch1 - checks for a single line window
@@ -2922,7 +2932,41 @@ patch1:	ldx scbot		; check
 patcha:	bit scrdis		; restore patched area (test for scrolling mode)
 	rts
 }
-
+; -------------------------------------------------------------------------------------------------
+!ifdef CBMPATCH4A{		; ********** cbmii revision 04a PATCH **********
+; patch 4a-2 - make space for clear insert flag
+patch4a2:
+	jsr fistrt		; find begining of line
+	lda #0
+	rts
+; -------------------------------------------------------------------------------------------------
+; patch 4a-4 - remember bootom line no
+patch4a4:
+	ora crsw		; NO SENSE - a already 3
+	sta crsw		; fake a carriage return
+	lda scbot
+	sta lintmp		; remember bootom line no
+	lda scrt		; moved to patch to make space
+	rts
+; -------------------------------------------------------------------------------------------------
+; patch 4a-3 - RS232 output
+patch4a3:
+	bcc p4a3		; -> check output ?
+	jmp errorx		; moved to patch to make space
+p4a3:	php
+	pha
+	lda sa
+	and #$01
+	beq p4a3x		; no output
+	ldx la
+	jsr ckout		; open channel
+	jsr clrch		; close channel
+	ldx ribuf
+p4a3x:	pla
+	plp
+	rts
+}
+; -------------------------------------------------------------------------------------------------
 !ifdef SYSPATCH{
 poker	= $1B
 dfbank	= $0257
@@ -3893,8 +3937,15 @@ opn030:	lda m51ctr		; set the register
 	sta ribuf+2		; save starting
 	stx ribuf
 	sty ribuf+1
+!ifdef CBMPATCH4A{		; ********** cbmii revision 04a PATCH **********
+opn045:	jmp patch4a3		; ***** patch 4a-3 - RS232 output *****
+	nop
+	nop
+} else{
 opn045:	bcc opn050
 	jmp errorx
+}
+
 opn050:	rts			; c-clr already allocated
 ; -------------------------------------------------------------------------------------------------
 ; toasci - convert cbm text code to
@@ -4119,8 +4170,13 @@ nbasin:	lda dfltn		; check device
 bn10:	cmp #3			; is input from screen?
 	bne bn20		; no...
 
+!ifdef CBMPATCH4A{		; ********** cbmii revision 04a PATCH **********
+	jsr patch4a4		; ***** patch 4a-4 - remember bootom line no *****
+	nop
+} else{
 	sta crsw		; fake a carriage return
 	lda scrt		; say we ended...
+}
 	sta indx		; ...up on this line
 bn15:	jsr jloop5		; pick up characters
 	clc
@@ -6286,7 +6342,7 @@ clall:	jmp (iclall)		; Close all files
 ; FFF6 Actual execution segment switch routine
 gbye:	sta e6509		; goodbye...
 	rts
-	!byte $13
+
 *= $FFFA
 ; -------------------------------------------------------------------------------------------------
 ; FFFA Hardware vectors

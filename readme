@@ -3,7 +3,7 @@ disassembled with DA65 18.4.2020 (Info-file from Ulrich Bassewitz)
 modified for ACME assembling by Vossi 04/2020
 
 Bas02LOP is the patched Basic02 low needed for the correct SYS-command
-There are also prebuilt roms for 28c256 EEproms (I use them in my P500)
+There are also prebuilt roms
 
 v1.1 special f-keys
 v1.2 full ramtest selection (fast test checks only byte $0002 in each page)
@@ -21,3 +21,5 @@ v2.3 dclose patch from b-series rev -03 kernal
 v2.4 patch re.03  reserves two top pages for swapping system
 v2.5 finished all comments, labels, patches
 v2.6 correct cbm-checksum $0e
+v2.7 reset sid
+v2.8 patch rev. 04a clear insert flag, rs232
