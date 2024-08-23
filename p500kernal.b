@@ -19,6 +19,7 @@
 ; v2.6 correct cbm checksum $e0
 ; v2.7 reset sid
 ; v2.8 patch rev. 04a clear insert flag, rs232
+; v2.9 SRAM patch - checks warm flags reliable to allow usage of any SRAM chip type
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -34,7 +35,8 @@ BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
 SYSPATCH	= 1	; patched Basic SYS command to start code in all banks
 			;   for a return is the txjump kernal part in the ram bank necessary! 
 			;   the patched basic lo with the new sys-vector is also necessary 
-SOLID_CURSOR	= 1	; solid "Atari style cursor"
+SRAMPATCH	= 1	; checks warm flags reliable to allow usage of any SRAM chip type
+; the checksum must be adjusted for each individual configuration!
 ; * constants
 FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
@@ -2917,7 +2919,7 @@ coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ; rsr 12/31/81 add 8 more colors
 ; -------------------------------------------------------------------------------------------------
 ; ED22 checksum byte
-cksume	!byte $E1		; e-page checksum
+cksume	!byte $28		; e-page checksum
 ; -------------------------------------------------------------------------------------------------
 !ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
 ;**************************************************
@@ -5213,10 +5215,17 @@ start:	ldx #$FE		; do all normal junk...
 	cld
 
 ; check for warm start
+!ifdef SRAMPATCH{		; ********** SRAM Patch - checks warm flags reliable **********
+	lda #warm
+	cmp evect+2		; check warm flag ?
+	bne scold		; no -> cold start
+	jmp chkwarm		; warm start patch
+} else{
 	lda #$FF
 	eor evect+2
-	eor evect+3		; compare warm start flags if both are $A5
+	eor evect+3		; compare warm start flags $A5, $5A
 	beq swarm		; if yes...do warm start
+	}
 
 ; F9AD Check for roms
 scold:	lda #6			; set up indirect to $0006 = position ROM ident bytes
@@ -6284,6 +6293,14 @@ patch2:				; ********** cbmii revision -03 PATCH  ACIA-IRQ routine **********
 	lda acia+drsn
 	sta (ribuf),y		; data to buffer
 	rts
+}
+!ifdef SRAMPATCH{		; ********** SRAM Patch - checks warm flags reliable **********
+chkwarm:lda #winit
+	cmp evect+3		; check winit ?
+	bne xcold		; no -> cold start
+	jmp swarm		; yes -> warm start
+
+xcold:	jmp scold
 }
 ; -------------------------------------------------------------------------------------------------
 ; ##### vectors #####
