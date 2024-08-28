@@ -20,6 +20,7 @@
 ; v2.7 reset sid
 ; v2.8 patch rev. 04a clear insert flag, rs232
 ; v2.9 SRAM patch - checks warm flags reliable to allow usage of any SRAM chip type
+; v3.0 Checksum byte constant, CBMBUGPTACH fixes cbm fault in tape routine (immediate instead zp vars)
 !cpu 6502
 !ct pet		; Standard text/char conversion table -> pet = petscii
 !to "kernal.bin", plain
@@ -30,6 +31,7 @@
 CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
 CBMPATCH4A	= 1	; CBM B-series patches -04a
 IEEEPATCH	= 1	; CBM-B-series ieee-patches -03 (with ren)
+;CBMBUGPATCH	= 1	; fixes tape routine kernal fault (immediate instead zp vars)
 BANK15_VIDEO	= 1	; Superfast Video with standard vram in bank15
 			;   with vram in bank 0 the kernal doesnt write the color in bank 15!
 SYSPATCH	= 1	; patched Basic SYS command to start code in all banks
@@ -42,6 +44,7 @@ FILL		= $AA	; Fills free memory areas with $AA
 TEXTCOL		= $06	; Default text color:   $06 = blue
 BGRCOL		= $01	; background color      $01 = white
 EXTCOL		= $03	; exterior color        $03 = cyan
+CHECKSUM	= $28	; ROM checksum byte
 ; ########################################### INFO ################################################
 ; ROM-CHECKSUM-BYTE: cksume
 ; loop3 E129 = Main loop - wait for key input
@@ -2919,7 +2922,7 @@ coltab:	!byte $90,$05,$1C,$9F,$9C,$1E,$1F,$9E
 ; rsr 12/31/81 add 8 more colors
 ; -------------------------------------------------------------------------------------------------
 ; ED22 checksum byte
-cksume	!byte $28		; e-page checksum
+cksume	!byte CHECKSUM		; e-page checksum
 ; -------------------------------------------------------------------------------------------------
 !ifdef CBMPATCH{		; ********** cbmii revision -03 PATCH **********
 ;**************************************************
@@ -3504,8 +3507,14 @@ l14:	bne l12			; missing cr at end
 	lda savx 		; was command save?
 	cmp #'s'
 	bne l14			; no...load can't have parms
+
+!ifdef CBMBUGPATCH{		; ********** CBM BUG Patch - fixes kernal fault **********
+	ldx stal		; get params for save
+	ldy eal
+} else{
 	ldx #stal		; get params for save
 	ldy #eal
+}
 	jmp save
 
 l15:	jmp erropr
@@ -6359,7 +6368,7 @@ clall:	jmp (iclall)		; Close all files
 ; FFF6 Actual execution segment switch routine
 gbye:	sta e6509		; goodbye...
 	rts
-
+	!byte $80
 *= $FFFA
 ; -------------------------------------------------------------------------------------------------
 ; FFFA Hardware vectors
