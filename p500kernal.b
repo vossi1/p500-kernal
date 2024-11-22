@@ -27,6 +27,7 @@
 ; * switches
 ;STANDARD_FKEYS	= 1	; Standard F-keys
 ;FULL_RAMTEST	= 1	; Standard full and slow RAM-test
+SOLID_CURSOR	= 1	; solid "Atari style cursor"
 ;STANDARD_VIDEO	= 1	; Standard doublechecked video writes (original kernal unfinished)
 CBMPATCH	= 1	; CBM B-series patches -03/-04, Vossi $3BF patches
 CBMPATCH4A	= 1	; CBM B-series patches -04a
